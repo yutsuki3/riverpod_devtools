@@ -1,0 +1,18 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+*.lock
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# macOS
+.DS_Store
+
+# Extension build output (generated)
+packages/riverpod_devtools/extension/devtools/build/
