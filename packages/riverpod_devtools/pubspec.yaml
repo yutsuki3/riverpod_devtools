@@ -1,15 +1,13 @@
 name: riverpod_devtools
-description: A starting point for Dart libraries or applications.
-version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+description: DevTools extension for Riverpod - inspect and monitor your providers in real-time.
+version: 0.0.1
+repository: https://github.com/yutsuki3/riverpod_devtools
 
 environment:
-  sdk: ^3.7.2
+  sdk: ^3.5.0
+  flutter: ">=3.0.0"
 
-# Add regular dependencies here.
 dependencies:
-  # path: ^1.8.0
-
-dev_dependencies:
-  lints: ^5.0.0
-  test: ^1.24.0
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
