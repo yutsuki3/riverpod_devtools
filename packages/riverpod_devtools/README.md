@@ -2,8 +2,6 @@
 
 A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time.
 
-![Riverpod DevTools](https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/doc/screenshot.png)
-
 ## Features
 
 - **Provider Graph**: Visualize the relationships between your providers correctly (Coming soon!).
@@ -60,3 +58,7 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 -   **Issues**: [https://github.com/yutsuki3/riverpod_devtools/issues](https://github.com/yutsuki3/riverpod_devtools/issues)
 
 Contributions are welcome!
+
+## License
+
+This package is released under the MIT License. See [LICENSE](LICENSE) for details.
