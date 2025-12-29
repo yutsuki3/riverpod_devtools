@@ -13,8 +13,10 @@ class RiverpodDevToolsObserver extends ProviderObserver {
     ProviderContainer container,
   ) {
     _postEvent('provider_added', {
+      'providerId': identityHashCode(provider).toString(),
       'provider': provider.name ?? provider.runtimeType.toString(),
       'value': _serializeValue(value),
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
@@ -26,9 +28,11 @@ class RiverpodDevToolsObserver extends ProviderObserver {
     ProviderContainer container,
   ) {
     _postEvent('provider_updated', {
+      'providerId': identityHashCode(provider).toString(),
       'provider': provider.name ?? provider.runtimeType.toString(),
       'previousValue': _serializeValue(previousValue),
       'newValue': _serializeValue(newValue),
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
@@ -38,7 +42,9 @@ class RiverpodDevToolsObserver extends ProviderObserver {
     ProviderContainer container,
   ) {
     _postEvent('provider_disposed', {
+      'providerId': identityHashCode(provider).toString(),
       'provider': provider.name ?? provider.runtimeType.toString(),
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
@@ -48,6 +54,7 @@ class RiverpodDevToolsObserver extends ProviderObserver {
 
   String _serializeValue(Object? value) {
     try {
+      if (value == null) return 'null';
       return jsonEncode(value);
     } catch (_) {
       return value.toString();
