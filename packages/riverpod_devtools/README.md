@@ -1,5 +1,7 @@
 # riverpod_devtools
 
+[![pub package](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools)
+
 A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time.
 
 <img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/demo.gif" width="100%" alt="Riverpod DevTools Demo" />
@@ -14,6 +16,14 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 ## Getting started
 
 1.  Add `riverpod_devtools` to your `pubspec.yaml`:
+
+    Run the command:
+
+    ```bash
+    flutter pub add riverpod_devtools
+    ```
+
+    Or manually add it:
 
     ```yaml
     dependencies:
