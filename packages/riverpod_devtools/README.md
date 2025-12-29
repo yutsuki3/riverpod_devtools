@@ -33,13 +33,14 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
     **Note:** This package is currently in early development.
 
-2.  Wrap your `ProviderScope` with `RiverpodDevToolsObserver` (if manual setup is needed, though future versions might automate this via `riverpod_generator` or similar hooks).
+2.  Add `RiverpodDevToolsObserver` to your `ProviderScope`:
 
-    Currently, you just need to install the package. The DevTools extension will automatically be detected by Flutter DevTools.
-
-    *To enable logging in the extension, add the observer:*
+    While the DevTools extension is automatically detected, you **must** add the observer to enable communication between your app and the DevTools.
 
     ```dart
+    import 'package:flutter_riverpod/flutter_riverpod.dart';
+    import 'package:riverpod_devtools/riverpod_devtools.dart';
+
     void main() {
       runApp(
         ProviderScope(
@@ -50,11 +51,6 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
         ),
       );
     }
-    ```
-
-    *Import:*
-    ```dart
-    import 'package:riverpod_devtools/riverpod_devtools.dart';
     ```
 
 ## Usage
