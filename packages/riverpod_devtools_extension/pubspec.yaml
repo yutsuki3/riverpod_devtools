@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   devtools_extensions: ^0.3.0
   devtools_app_shared: ^0.3.0
+  vm_service: ^14.0.0
 
 dev_dependencies:
   flutter_test:
