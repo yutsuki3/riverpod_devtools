@@ -28,6 +28,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   final List<ProviderEvent> _events = [];
   final Map<String, ProviderInfo> _providers = {};
 
+  String? _lastEventKey;
+  DateTime? _lastEventTime;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +51,17 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
       final data = event.extensionData?.data ?? {};
       final providerName = data['provider'] as String? ?? 'Unknown';
+
+      final eventKey =
+          '$kind:$providerName:${data['newValue'] ?? data['value']}';
+      final now = DateTime.now();
+      if (_lastEventKey == eventKey &&
+          _lastEventTime != null &&
+          now.difference(_lastEventTime!).inMilliseconds < 100) {
+        return;
+      }
+      _lastEventKey = eventKey;
+      _lastEventTime = now;
 
       setState(() {
         if (kind == 'riverpod:provider_added') {
@@ -105,6 +119,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           flex: 1,
           child: _buildProviderList(),
         ),
+        const VerticalDivider(width: 1),
         Expanded(
           flex: 2,
           child: _buildEventLog(),
@@ -118,9 +133,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           color: Colors.grey[900],
           width: double.infinity,
+          height: 48,
+          alignment: Alignment.centerLeft,
           child: Text(
             'Providers (${_providers.length})',
             style: const TextStyle(fontWeight: FontWeight.bold),
@@ -163,9 +180,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           color: Colors.grey[900],
           width: double.infinity,
+          height: 48,
+          alignment: Alignment.centerLeft,
           child: Row(
             children: [
               const Text(
