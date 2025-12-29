@@ -1,3 +1,4 @@
-## 1.0.0
+## 0.1.0
 
-- Initial version.
+- Initial release of access to the Riverpod DevTools extension.
+- Added `RiverpodDevToolsObserver` to track provider events.

@@ -1,39 +1,62 @@
-<!-- 
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# riverpod_devtools
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages). 
+A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages). 
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+![Riverpod DevTools](https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/doc/screenshot.png)
 
 ## Features
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- **Provider Graph**: Visualize the relationships between your providers correctly (Coming soon!).
+- **State Inspector**: View the current state of your providers.
+- **Event Log**: Track provider lifecycle events (add, update, dispose).
+- **History Tracking**: Jump back in time to see previous states.
 
 ## Getting started
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+1.  Add `riverpod_devtools` to your `pubspec.yaml`:
+
+    ```yaml
+    dependencies:
+      riverpod_devtools: ^0.1.0
+      flutter_riverpod: ^2.6.1 # or compatible version
+    ```
+
+    **Note:** This package is currently in early development.
+
+2.  Wrap your `ProviderScope` with `RiverpodDevToolsObserver` (if manual setup is needed, though future versions might automate this via `riverpod_generator` or similar hooks).
+
+    Currently, you just need to install the package. The DevTools extension will automatically be detected by Flutter DevTools.
+
+    *To enable logging in the extension, add the observer:*
+
+    ```dart
+    void main() {
+      runApp(
+        ProviderScope(
+          observers: [
+            RiverpodDevToolsObserver(),
+          ],
+          child: MyApp(),
+        ),
+      );
+    }
+    ```
+
+    *Import:*
+    ```dart
+    import 'package:riverpod_devtools/riverpod_devtools.dart';
+    ```
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder. 
-
-```dart
-const like = 'sample';
-```
+1.  Run your Flutter app.
+2.  Open semantic DevTools (open the debugger).
+3.  Look for the "Riverpod" tab in DevTools.
+4.  Interact with your app and watch the events and state updates in the DevTools tab.
 
 ## Additional information
 
-TODO: Tell users more about the package: where to find more information, how to 
-contribute to the package, how to file issues, what response they can expect 
-from the package authors, and more.
+-   **Repository**: [https://github.com/yutsuki3/riverpod_devtools](https://github.com/yutsuki3/riverpod_devtools)
+-   **Issues**: [https://github.com/yutsuki3/riverpod_devtools/issues](https://github.com/yutsuki3/riverpod_devtools/issues)
+
+Contributions are welcome!
