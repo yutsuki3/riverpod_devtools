@@ -5,6 +5,20 @@ import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// A [ProviderObserver] that sends Riverpod events to the Flutter DevTools extension.
+///
+/// This observer monitors the lifecycle of all providers (add, update, dispose)
+/// and posts events to the developer log, which the Riverpod DevTools extension listens to.
+///
+/// Usage:
+/// ```dart
+/// ProviderScope(
+///   observers: [
+///     RiverpodDevToolsObserver(),
+///   ],
+///   child: MyApp(),
+/// );
+/// ```
 class RiverpodDevToolsObserver extends ProviderObserver {
   @override
   void didAddProvider(
