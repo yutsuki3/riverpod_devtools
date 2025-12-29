@@ -15,4 +15,5 @@ build/
 .DS_Store
 
 # Extension build output (generated)
-packages/riverpod_devtools/extension/devtools/build/
+
+!packages/riverpod_devtools/extension/devtools/build/
