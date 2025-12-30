@@ -27,15 +27,23 @@ class RiverpodInspector extends StatefulWidget {
 }
 
 class _RiverpodInspectorState extends State<RiverpodInspector> {
+  /// Maximum number of events to keep in memory (ring buffer)
+  static const int _maxEventCount = 1000;
+
   final List<ProviderEvent> _events = [];
   final Map<String, ProviderInfo> _providers = {};
+
+  /// Index structure for fast filtering: provider name -> list of events
+  final Map<String, List<ProviderEvent>> _eventsByProvider = {};
 
   /// The set of provider names that are currently selected for filtering.
   /// If empty, no filtering is applied (all events are shown).
   final Set<String> _selectedProviderNames = {};
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
-  final Set<int> _expandedEventIndices = {};
+
+  /// ID-based expansion state (instead of index-based)
+  final Set<String> _expandedEventIds = {};
 
   @override
   void initState() {
@@ -95,15 +103,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             value: value,
             status: ProviderStatus.active,
           );
-          _events.insert(
-              0,
-              ProviderEvent(
-                type: EventType.added,
-                providerId: providerId,
-                providerName: providerName,
-                value: value,
-                timestamp: eventTimestamp,
-              ));
+          _addEvent(ProviderEvent(
+            type: EventType.added,
+            providerId: providerId,
+            providerName: providerName,
+            value: value,
+            timestamp: eventTimestamp,
+          ));
         } else if (kind == 'riverpod:provider_updated') {
           _providers[providerName] = ProviderInfo(
             id: providerId,
@@ -111,16 +117,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             value: value,
             status: ProviderStatus.active,
           );
-          _events.insert(
-              0,
-              ProviderEvent(
-                type: EventType.updated,
-                providerId: providerId,
-                providerName: providerName,
-                previousValue: data['previousValue']?.toString(),
-                value: value,
-                timestamp: eventTimestamp,
-              ));
+          _addEvent(ProviderEvent(
+            type: EventType.updated,
+            providerId: providerId,
+            providerName: providerName,
+            previousValue: data['previousValue']?.toString(),
+            value: value,
+            timestamp: eventTimestamp,
+          ));
         } else if (kind == 'riverpod:provider_disposed') {
           _providers[providerName] = ProviderInfo(
             id: providerId,
@@ -128,17 +132,48 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             value: _providers[providerName]?.value ?? 'null',
             status: ProviderStatus.disposed,
           );
-          _events.insert(
-              0,
-              ProviderEvent(
-                type: EventType.disposed,
-                providerId: providerId,
-                providerName: providerName,
-                timestamp: eventTimestamp,
-              ));
+          _addEvent(ProviderEvent(
+            type: EventType.disposed,
+            providerId: providerId,
+            providerName: providerName,
+            timestamp: eventTimestamp,
+          ));
         }
       });
     });
+  }
+
+  /// Add an event with ring buffer logic and index updates
+  void _addEvent(ProviderEvent event) {
+    _events.insert(0, event);
+
+    // Update provider index
+    _eventsByProvider.putIfAbsent(event.providerName, () => []);
+    _eventsByProvider[event.providerName]!.insert(0, event);
+
+    // Ring buffer: remove oldest events if exceeding max count
+    if (_events.length > _maxEventCount) {
+      final removed = _events.removeAt(_maxEventCount);
+      _eventsByProvider[removed.providerName]?.remove(removed);
+      // Clean up expansion state for removed event
+      _expandedEventIds.remove(removed.id);
+    }
+  }
+
+  /// Get filtered events using index structure for performance
+  List<ProviderEvent> get _filteredEvents {
+    if (_selectedProviderNames.isEmpty) return _events;
+
+    final result = <ProviderEvent>[];
+    for (final name in _selectedProviderNames) {
+      final providerEvents = _eventsByProvider[name];
+      if (providerEvents != null) {
+        result.addAll(providerEvents);
+      }
+    }
+    // Sort by timestamp (newest first)
+    result.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return result;
   }
 
   @override
@@ -294,7 +329,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 icon: const Icon(Icons.delete_outline, size: 16),
                 onPressed: () => setState(() {
                   _events.clear();
-                  _expandedEventIndices.clear();
+                  _eventsByProvider.clear();
+                  _expandedEventIds.clear();
                 }),
                 tooltip: 'Clear All',
                 padding: EdgeInsets.zero,
@@ -316,12 +352,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 )
               : Builder(
                   builder: (context) {
-                    final filteredEvents = _selectedProviderNames.isEmpty
-                        ? _events
-                        : _events
-                            .where((e) =>
-                                _selectedProviderNames.contains(e.providerName))
-                            .toList();
+                    final filteredEvents = _filteredEvents;
 
                     if (filteredEvents.isEmpty) {
                       return Center(
@@ -338,16 +369,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       itemCount: filteredEvents.length,
                       itemBuilder: (context, index) {
                         final event = filteredEvents[index];
-                        // We need to pass the original index or handle expansion state correctly if it depends on index.
-                        // However, _expandedEventIndices tracks by index.
-                        // If we filter, indices shift.
-                        // A better way for expansion is to track by event instance or some ID.
-                        // But for now, let's see if we can just disable unique expansion tracking or map it.
-                        // The current _buildEventTile uses 'index' for expansion state: _expandedEventIndices.contains(index).
-                        // If we filter, 'index' 0 is different.
-                        // The simplest fix for now without large refactor is to find the original index.
-                        final originalIndex = _events.indexOf(event);
-                        return _buildEventTile(event, originalIndex);
+                        return _buildEventTile(event, key: ValueKey(event.id));
                       },
                     );
                   },
@@ -357,7 +379,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
-  Widget _buildEventTile(ProviderEvent event, int index) {
+  Widget _buildEventTile(ProviderEvent event, {Key? key}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -378,7 +400,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       EventType.disposed => Icons.remove_circle_outline,
     };
 
-    final isExpanded = _expandedEventIndices.contains(index);
+    final isExpanded = _expandedEventIds.contains(event.id);
 
     // Construct the summary subtitle (collapsed view)
     String summarySubtitle;
@@ -395,6 +417,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         summarySubtitle.length > 50 || event.type == EventType.updated;
 
     return Container(
+      key: key,
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -413,9 +436,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 ? () {
                     setState(() {
                       if (isExpanded) {
-                        _expandedEventIndices.remove(index);
+                        _expandedEventIds.remove(event.id);
                       } else {
-                        _expandedEventIndices.add(index);
+                        _expandedEventIds.add(event.id);
                       }
                     });
                   }
@@ -493,9 +516,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   Widget _buildExpandedContent(ProviderEvent event) {
     if (event.type == EventType.updated) {
-      final oldText = event.previousValue ?? '';
-      final newText = event.value ?? '';
-      final diffs = diff(oldText, newText);
+      // Use cached diffs for performance
+      final diffs = event.getDiffs();
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -651,6 +673,12 @@ class ProviderEvent {
   final String? value;
   final DateTime timestamp;
 
+  /// Unique ID for this event (used for expansion state tracking)
+  late final String id;
+
+  /// Cached diff results for performance
+  List<Diff>? _cachedDiffs;
+
   ProviderEvent({
     required this.type,
     required this.providerId,
@@ -658,5 +686,18 @@ class ProviderEvent {
     this.previousValue,
     this.value,
     required this.timestamp,
-  });
+  }) {
+    // Generate unique ID based on timestamp and provider ID
+    id = '${timestamp.microsecondsSinceEpoch}_$providerId';
+  }
+
+  /// Get diff results with caching for performance
+  List<Diff> getDiffs() {
+    if (_cachedDiffs == null && type == EventType.updated) {
+      final oldText = previousValue ?? '';
+      final newText = value ?? '';
+      _cachedDiffs = diff(oldText, newText);
+    }
+    return _cachedDiffs ?? [];
+  }
 }
