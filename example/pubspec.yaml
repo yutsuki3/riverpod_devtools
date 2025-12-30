@@ -8,7 +8,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: '>=2.6.1 <4.0.0'
   riverpod_devtools:
     path: ../packages/riverpod_devtools
 

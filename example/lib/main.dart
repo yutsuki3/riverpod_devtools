@@ -68,7 +68,17 @@ class HomePage extends StatelessWidget {
 }
 
 // Scene 1: Lifecycle (Init/Dispose)
-final lifecycleCounterProvider = StateProvider.autoDispose<int>((ref) => 0);
+final lifecycleCounterProvider =
+    NotifierProvider.autoDispose<LifecycleCounter, int>(LifecycleCounter.new);
+
+class LifecycleCounter extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void increment() {
+    state++;
+  }
+}
 
 class LifecyclePage extends ConsumerWidget {
   const LifecyclePage({super.key});
@@ -95,7 +105,8 @@ class LifecyclePage extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => ref.read(lifecycleCounterProvider.notifier).state++,
+        onPressed:
+            () => ref.read(lifecycleCounterProvider.notifier).increment(),
         child: const Icon(Icons.add),
       ),
     );
@@ -127,7 +138,7 @@ final todoListProvider = NotifierProvider.autoDispose<TodoList, List<Todo>>(
   TodoList.new,
 );
 
-class TodoList extends AutoDisposeNotifier<List<Todo>> {
+class TodoList extends Notifier<List<Todo>> {
   @override
   List<Todo> build() => [];
 

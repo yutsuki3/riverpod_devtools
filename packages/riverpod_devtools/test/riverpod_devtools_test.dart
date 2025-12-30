@@ -2,6 +2,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod_devtools/riverpod_devtools.dart';
 
+class CounterNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void increment() {
+    state++;
+  }
+}
+
 void main() {
   testWidgets('RiverpodDevToolsObserver posts events', (tester) async {
     // We can't easily intercept developer.postEvent in a unit test without
@@ -20,11 +29,12 @@ void main() {
     // Should trigger didAddProvider
     container.read(provider);
 
-    // Should trigger didUpdateProvider (though value is same, it might not re-emit depending on provider logic,
-    // so let's use a StateProvider for updates)
-    final stateProvider = StateProvider<int>((ref) => 0);
-    container.read(stateProvider);
-    container.read(stateProvider.notifier).state = 1;
+    // Should trigger didUpdateProvider
+    final counterProvider = NotifierProvider<CounterNotifier, int>(
+      CounterNotifier.new,
+    );
+    container.read(counterProvider);
+    container.read(counterProvider.notifier).increment();
 
     // Should trigger didDisposeProvider
     container.dispose();
