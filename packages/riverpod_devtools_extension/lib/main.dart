@@ -28,6 +28,10 @@ class RiverpodInspector extends StatefulWidget {
 class _RiverpodInspectorState extends State<RiverpodInspector> {
   final List<ProviderEvent> _events = [];
   final Map<String, ProviderInfo> _providers = {};
+
+  /// The set of provider names that are currently selected for filtering.
+  /// If empty, no filtering is applied (all events are shown).
+  final Set<String> _selectedProviderNames = {};
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
   final Set<int> _expandedEventIndices = {};
@@ -163,12 +167,29 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           width: double.infinity,
           height: 32,
           alignment: Alignment.centerLeft,
-          child: Text(
-            'Providers (${_providers.length})',
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+          child: Row(
+            children: [
+              Text(
+                'Providers (${_providers.length})',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              const Spacer(),
+              if (_selectedProviderNames.isNotEmpty)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _selectedProviderNames.clear();
+                  }),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 24),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text('Show All', style: TextStyle(fontSize: 10)),
+                ),
+            ],
           ),
         ),
         Expanded(
@@ -183,8 +204,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   itemCount: _providers.length,
                   itemBuilder: (context, index) {
                     final provider = _providers.values.elementAt(index);
+                    final isSelected =
+                        _selectedProviderNames.contains(provider.name);
                     return ListTile(
                       dense: true,
+                      selected: isSelected,
+                      selectedTileColor: Colors.blue.withOpacity(0.1),
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            _selectedProviderNames.remove(provider.name);
+                          } else {
+                            _selectedProviderNames.add(provider.name);
+                          }
+                        });
+                      },
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 0,
@@ -266,11 +300,41 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                 )
-              : ListView.builder(
-                  itemCount: _events.length,
-                  itemBuilder: (context, index) {
-                    final event = _events[index];
-                    return _buildEventTile(event, index);
+              : Builder(
+                  builder: (context) {
+                    final filteredEvents = _selectedProviderNames.isEmpty
+                        ? _events
+                        : _events
+                            .where((e) =>
+                                _selectedProviderNames.contains(e.providerName))
+                            .toList();
+
+                    if (filteredEvents.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No events found for selected providers',
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600]),
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: filteredEvents.length,
+                      itemBuilder: (context, index) {
+                        final event = filteredEvents[index];
+                        // We need to pass the original index or handle expansion state correctly if it depends on index.
+                        // However, _expandedEventIndices tracks by index.
+                        // If we filter, indices shift.
+                        // A better way for expansion is to track by event instance or some ID.
+                        // But for now, let's see if we can just disable unique expansion tracking or map it.
+                        // The current _buildEventTile uses 'index' for expansion state: _expandedEventIndices.contains(index).
+                        // If we filter, 'index' 0 is different.
+                        // The simplest fix for now without large refactor is to find the original index.
+                        final originalIndex = _events.indexOf(event);
+                        return _buildEventTile(event, originalIndex);
+                      },
+                    );
                   },
                 ),
         ),
@@ -377,9 +441,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       });
                     },
                     child: Icon(
-                      isExpanded
-                          ? Icons.expand_less
-                          : Icons.expand_more,
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
                       size: 16,
                       color: Colors.grey[600],
                     ),
