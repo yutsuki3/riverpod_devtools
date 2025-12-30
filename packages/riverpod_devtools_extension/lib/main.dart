@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:devtools_extensions/devtools_extensions.dart';
+import 'package:diff_match_patch/diff_match_patch.dart';
 import 'package:flutter/material.dart';
 import 'package:vm_service/vm_service.dart';
 
@@ -361,14 +362,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       EventType.disposed => Icons.remove_circle_outline,
     };
 
-    final subtitle = switch (event.type) {
-      EventType.added => event.value ?? 'null',
-      EventType.updated => '${event.previousValue} → ${event.value}',
-      EventType.disposed => 'disposed',
-    };
-
     final isExpanded = _expandedEventIndices.contains(index);
-    final isLongText = subtitle.length > 100;
+
+    // Construct the summary subtitle (collapsed view)
+    String summarySubtitle;
+    if (event.type == EventType.updated) {
+      summarySubtitle = '${event.previousValue} → ${event.value}';
+    } else {
+      summarySubtitle = event.value ??
+          (event.type == EventType.disposed ? 'disposed' : 'null');
+    }
+
+    // Check if we should treat this as "long text" for the expand/collapse arrow visibility
+    // For updated events, we almost always want to allow expansion to see the diff clearly if it's not trivial
+    final isLongText =
+        summarySubtitle.length > 50 || event.type == EventType.updated;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -382,76 +390,187 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListTile(
-            dense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 6,
-              vertical: 0,
-            ),
-            minVerticalPadding: 2,
-            visualDensity: const VisualDensity(
-              horizontal: -4,
-              vertical: -4,
-            ),
-            leading: Icon(icon, color: color, size: 14),
-            title: Text(
-              event.providerName,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
-            ),
-            subtitle: isLongText && !isExpanded
-                ? Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                    ),
-                  )
-                : Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                    ),
+          InkWell(
+            onTap: isLongText
+                ? () {
+                    setState(() {
+                      if (isExpanded) {
+                        _expandedEventIndices.remove(index);
+                      } else {
+                        _expandedEventIndices.add(index);
+                      }
+                    });
+                  }
+                : null,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header Row: Icon, ProviderName, Timestamp, Expand Arrow
+                  Row(
+                    children: [
+                      Icon(icon, color: color, size: 14),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          event.providerName,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${event.timestamp.hour.toString().padLeft(2, '0')}:'
+                        '${event.timestamp.minute.toString().padLeft(2, '0')}:'
+                        '${event.timestamp.second.toString().padLeft(2, '0')}',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                      ),
+                      if (isLongText) ...[
+                        const SizedBox(width: 4),
+                        Icon(
+                          isExpanded ? Icons.expand_less : Icons.expand_more,
+                          size: 16,
+                          color: Colors.grey[600],
+                        ),
+                      ],
+                    ],
                   ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${event.timestamp.hour.toString().padLeft(2, '0')}:'
-                  '${event.timestamp.minute.toString().padLeft(2, '0')}:'
-                  '${event.timestamp.second.toString().padLeft(2, '0')}',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
-                ),
-                if (isLongText) ...[
-                  const SizedBox(width: 4),
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (isExpanded) {
-                          _expandedEventIndices.remove(index);
-                        } else {
-                          _expandedEventIndices.add(index);
-                        }
-                      });
-                    },
-                    child: Icon(
-                      isExpanded ? Icons.expand_less : Icons.expand_more,
-                      size: 16,
-                      color: Colors.grey[600],
+
+                  // Content View
+                  if (!isExpanded)
+                    // Collapsed: Show summary (truncated)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, top: 2),
+                      child: Text(
+                        summarySubtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                          color: Colors.grey,
+                        ),
+                      ),
+                    )
+                  else
+                    // Expanded: Show detailed view
+                    Padding(
+                      padding:
+                          const EdgeInsets.only(left: 20, top: 4, bottom: 4),
+                      child: _buildExpandedContent(event),
                     ),
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildExpandedContent(ProviderEvent event) {
+    if (event.type == EventType.updated) {
+      final oldText = event.previousValue ?? '';
+      final newText = event.value ?? '';
+      final diffs = diff(oldText, newText);
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildDiffBlock('Previous', diffs, isPrevious: true),
+          const SizedBox(height: 4),
+          _buildDiffBlock('Current', diffs, isPrevious: false),
+        ],
+      );
+    }
+
+    // For Added / Disposed, just show the value full
+    return SelectableText(
+      event.value ?? 'null',
+      style: const TextStyle(
+        fontSize: 10,
+        fontFamily: 'monospace',
+      ),
+    );
+  }
+
+  Widget _buildDiffBlock(String label, List<Diff> diffs,
+      {required bool isPrevious}) {
+    final labelColor = isPrevious
+        ? const Color(0xFFFFB4AB) // Soft Red/Pink for Previous label
+        : const Color(0xFF86EFAC); // Soft Green for Current label
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: labelColor,
+          ),
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.black12,
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: SelectableText.rich(
+            TextSpan(
+              children: diffs.map((d) {
+                final text = d.text;
+                if (isPrevious) {
+                  // In "Previous", we show EQUAL and DELETE.
+                  // DELETE is highlighted. INSERT is skipped.
+                  if (d.operation == DIFF_INSERT) {
+                    return const TextSpan();
+                  }
+                  final isDelete = d.operation == DIFF_DELETE;
+                  return TextSpan(
+                    text: text,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      backgroundColor: isDelete
+                          ? const Color(0xFF442D2D) // Muted Dark Red bg
+                          : null,
+                      color: isDelete
+                          ? const Color(0xFFFFB4AB) // Soft Red/Pink fg
+                          : null,
+                    ),
+                  );
+                } else {
+                  // In "Current", we show EQUAL and INSERT.
+                  // INSERT is highlighted. DELETE is skipped.
+                  if (d.operation == DIFF_DELETE) {
+                    return const TextSpan();
+                  }
+                  final isInsert = d.operation == DIFF_INSERT;
+                  return TextSpan(
+                    text: text,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                      backgroundColor: isInsert
+                          ? const Color(0xFF2D4431) // Muted Dark Green bg
+                          : null,
+                      color: isInsert
+                          ? const Color(0xFF86EFAC) // Soft Green fg
+                          : null,
+                    ),
+                  );
+                }
+              }).toList(),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

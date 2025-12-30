@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   devtools_extensions: ^0.3.0
   devtools_app_shared: ^0.3.0
+  diff_match_patch: ^0.4.1
   vm_service: ^14.0.0
 
 dev_dependencies:
