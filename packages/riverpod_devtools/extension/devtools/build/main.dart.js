@@ -75635,7 +75635,7 @@ if(s.f.a!==0)o.push(A.amS(B.Rl,new A.ahe(s),A.aar(r,r,r,r,r,r,r,r,r,r,r,r,B.M0,B
 o=A.qN(B.d9,A.a73(o,B.aY),B.I,B.ez,r,32,r,B.lP,1/0)
 q=q.a
 return A.nA(A.b([o,A.x9(q===0?A.lc(A.fN("No providers yet",r,r,A.c_(r,r,B.aV,r,r,r,r,r,r,r,r,12,r,r,r,r,r,!0,r,r,r,r,r,r,r,r)),r,r):A.arg(new A.ahf(s),q),1)],p),B.aO,B.aY)},
-a__(){var s=null,r=t.E,q=A.qN(B.d9,A.a73(A.b([B.Rm,B.xv,A.aqP(s,B.yU,B.D6,16,new A.ah7(this),B.bq,"Clear log")],r),B.aY),B.I,B.ez,s,32,s,B.Cv,1/0)
+a__(){var s=null,r=t.E,q=A.qN(B.d9,A.a73(A.b([B.Rm,B.xv,A.aqP(s,B.yU,B.D6,16,new A.ah7(this),B.bq,"Clear All")],r),B.aY),B.I,B.ez,s,32,s,B.Cv,1/0)
 return A.nA(A.b([q,A.x9(this.d.length===0?A.lc(A.fN("No events yet",s,s,A.c_(s,s,B.aV,s,s,s,s,s,s,s,s,12,s,s,s,s,s,!0,s,s,s,s,s,s,s,s)),s,s):new A.ey(new A.ah8(this),s),1)],r),B.aO,B.aY)},
 a_0(a,b){var s,r,q,p,o,n,m,l,k=null,j=a.a,i=j.a
 switch(i){case 0:s=B.Bg
