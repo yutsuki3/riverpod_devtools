@@ -207,48 +207,54 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     final provider = _providers.values.elementAt(index);
                     final isSelected =
                         _selectedProviderNames.contains(provider.name);
-                    return ListTile(
-                      dense: true,
-                      selected: isSelected,
-                      selectedTileColor: Colors.blue.withOpacity(0.1),
-                      onTap: () {
-                        setState(() {
-                          if (isSelected) {
-                            _selectedProviderNames.remove(provider.name);
-                          } else {
-                            _selectedProviderNames.add(provider.name);
-                          }
-                        });
-                      },
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 0,
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        splashFactory: NoSplash.splashFactory,
+                        highlightColor: Colors.transparent,
                       ),
-                      minVerticalPadding: 2,
-                      visualDensity: const VisualDensity(
-                        horizontal: -4,
-                        vertical: -4,
-                      ),
-                      leading: Icon(
-                        provider.status == ProviderStatus.active
-                            ? Icons.circle
-                            : Icons.circle_outlined,
-                        size: 10,
-                        color: provider.status == ProviderStatus.active
-                            ? Colors.greenAccent
-                            : Colors.grey[600],
-                      ),
-                      title: Text(
-                        provider.name,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      subtitle: Text(
-                        provider.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey[500],
+                      child: ListTile(
+                        dense: true,
+                        selected: isSelected,
+                        selectedTileColor: Colors.blue.withOpacity(0.1),
+                        onTap: () {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedProviderNames.remove(provider.name);
+                            } else {
+                              _selectedProviderNames.add(provider.name);
+                            }
+                          });
+                        },
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 0,
+                        ),
+                        minVerticalPadding: 2,
+                        visualDensity: const VisualDensity(
+                          horizontal: -4,
+                          vertical: -4,
+                        ),
+                        leading: Icon(
+                          provider.status == ProviderStatus.active
+                              ? Icons.circle
+                              : Icons.circle_outlined,
+                          size: 10,
+                          color: provider.status == ProviderStatus.active
+                              ? Colors.greenAccent
+                              : Colors.grey[600],
+                        ),
+                        title: Text(
+                          provider.name,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        subtitle: Text(
+                          provider.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey[500],
+                          ),
                         ),
                       ),
                     );
@@ -285,7 +291,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   _events.clear();
                   _expandedEventIndices.clear();
                 }),
-                tooltip: 'Clear log',
+                tooltip: 'Clear All',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
                 iconSize: 16,
@@ -358,7 +364,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     final icon = switch (event.type) {
       EventType.added => Icons.add_circle_outline,
-      EventType.updated => Icons.edit_outlined,
+      EventType.updated => Icons.change_circle_outlined,
       EventType.disposed => Icons.remove_circle_outline,
     };
 
@@ -391,6 +397,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
             onTap: isLongText
                 ? () {
                     setState(() {
