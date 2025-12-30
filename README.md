@@ -36,11 +36,15 @@ This section is for contributors who want to develop or modify this package.
 ```
 riverpod_devtools/
 ├── packages/
-│   └── riverpod_devtools/          # Main package
-│       ├── lib/                     # Package source code
-│       ├── test/                    # Unit tests
-│       ├── extension/devtools/      # DevTools extension UI
-│       └── example/                 # Example app
+│   ├── riverpod_devtools/           # Main package (published to pub.dev)
+│   │   ├── lib/                     # Package source code
+│   │   ├── test/                    # Unit tests
+│   │   ├── extension/devtools/      # Built DevTools extension UI
+│   │   └── example/                 # Example app
+│   └── riverpod_devtools_extension/ # DevTools extension source (Flutter web app)
+│       ├── lib/                     # Extension UI source code
+│       └── web/                     # Web assets
+├── example/                         # Standalone example app
 └── README.md                        # This file
 ```
 
@@ -52,7 +56,7 @@ riverpod_devtools/
    cd riverpod_devtools
    ```
 
-2. Install dependencies:
+2. Install dependencies for the main package:
    ```bash
    cd packages/riverpod_devtools
    flutter pub get
@@ -65,19 +69,30 @@ riverpod_devtools/
 
 4. Run the example app:
    ```bash
+   # From the repository root
    cd example
+   flutter run
+
+   # Or use the package's example
+   cd packages/riverpod_devtools/example
    flutter run
    ```
 
 ### Building the DevTools Extension
 
-The DevTools extension UI is built separately:
+The DevTools extension UI is a Flutter web app that needs to be built separately:
 
 ```bash
+# From the repository root
 cd packages/riverpod_devtools_extension
 flutter pub get
-flutter build web --release --output=../riverpod_devtools/extension/devtools/build
+flutter build web --release
+
+# The built files need to be copied to the main package
+# (This is typically done automatically by the build script)
 ```
+
+**Note:** The built extension is included in `packages/riverpod_devtools/extension/devtools/build/` and published with the package.
 
 ### Running Tests
 
