@@ -1,6 +1,6 @@
 name: riverpod_devtools
 description: DevTools extension for Riverpod - inspect and monitor your providers in real-time.
-version: 0.1.0
+version: 0.2.0
 repository: https://github.com/yutsuki3/riverpod_devtools
 
 environment:

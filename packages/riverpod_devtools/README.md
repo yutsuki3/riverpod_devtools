@@ -27,11 +27,11 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^0.1.0
-      flutter_riverpod: ^2.6.1 # or compatible version
+      riverpod_devtools: ^0.2.0
+      flutter_riverpod: ^2.6.1 # or ^3.0.0 - both are supported
     ```
 
-    **Note:** This package is currently in early development.
+    **Note:** This package supports both Riverpod 2.x and 3.x. This package is currently in early development.
 
 2.  Add `RiverpodDevToolsObserver` to your `ProviderScope`:
 
