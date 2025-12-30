@@ -159,12 +159,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   }
 
   Widget _buildProviderList() {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          color: Colors.grey[900],
+          color: theme.colorScheme.surfaceContainerHighest,
           width: double.infinity,
           height: 32,
           alignment: Alignment.centerLeft,
@@ -198,7 +199,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
               ? Center(
                   child: Text(
                     'No providers yet',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant),
                   ),
                 )
               : ListView.builder(
@@ -215,7 +218,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       child: ListTile(
                         dense: true,
                         selected: isSelected,
-                        selectedTileColor: Colors.blue.withOpacity(0.1),
+                        selectedTileColor:
+                            theme.colorScheme.primary.withValues(alpha: 0.1),
                         onTap: () {
                           setState(() {
                             if (isSelected) {
@@ -241,7 +245,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           size: 10,
                           color: provider.status == ProviderStatus.active
                               ? Colors.greenAccent
-                              : Colors.grey[600],
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
                         title: Text(
                           provider.name,
@@ -253,7 +257,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10,
-                            color: Colors.grey[500],
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -266,12 +270,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   }
 
   Widget _buildEventLog() {
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          color: Colors.grey[900],
+          color: theme.colorScheme.surfaceContainerHighest,
           width: double.infinity,
           height: 32,
           alignment: Alignment.centerLeft,
@@ -304,7 +309,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
               ? Center(
                   child: Text(
                     'No events yet',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant),
                   ),
                 )
               : Builder(
@@ -320,8 +327,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       return Center(
                         child: Text(
                           'No events found for selected providers',
-                          style:
-                              TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant),
                         ),
                       );
                     }
@@ -350,17 +358,19 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   }
 
   Widget _buildEventTile(ProviderEvent event, int index) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final color = switch (event.type) {
-      EventType.added => const Color(0xFF4CAF50), // Green
-      EventType.updated => const Color(0xFF2196F3), // Blue
-      EventType.disposed => const Color(0xFFFF9800), // Orange
+      EventType.added =>
+        isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32), // Green
+      EventType.updated =>
+        isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0), // Blue
+      EventType.disposed =>
+        isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00), // Orange
     };
 
-    final backgroundColor = switch (event.type) {
-      EventType.added => const Color(0xFF1B5E20).withOpacity(0.2),
-      EventType.updated => const Color(0xFF0D47A1).withOpacity(0.2),
-      EventType.disposed => const Color(0xFFE65100).withOpacity(0.2),
-    };
+    final backgroundColor = diffBackgroundColor(event.type, isDark);
 
     final icon = switch (event.type) {
       EventType.added => Icons.add_circle_outline,
@@ -434,14 +444,16 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         '${event.timestamp.hour.toString().padLeft(2, '0')}:'
                         '${event.timestamp.minute.toString().padLeft(2, '0')}:'
                         '${event.timestamp.second.toString().padLeft(2, '0')}',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                        style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: 10),
                       ),
                       if (isLongText) ...[
                         const SizedBox(width: 4),
                         Icon(
                           isExpanded ? Icons.expand_less : Icons.expand_more,
                           size: 16,
-                          color: Colors.grey[600],
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ],
                     ],
@@ -456,10 +468,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         summarySubtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
                           fontFamily: 'monospace',
-                          color: Colors.grey,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                     )
@@ -507,9 +519,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   Widget _buildDiffBlock(String label, List<Diff> diffs,
       {required bool isPrevious}) {
+    // If we're in dark mode, use lighter pastels for labels/diff text so they pop against dark bg.
+    // If we're in light mode, use darker/richer colors so they pop against light bg.
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     final labelColor = isPrevious
-        ? const Color(0xFFFFB4AB) // Soft Red/Pink for Previous label
-        : const Color(0xFF86EFAC); // Soft Green for Current label
+        ? (isDark ? const Color(0xFFFFB4AB) : const Color(0xFFD32F2F))
+        : (isDark ? const Color(0xFF86EFAC) : const Color(0xFF2E7D32));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -526,7 +543,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           width: double.infinity,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Colors.black12,
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(2),
           ),
           child: SelectableText.rich(
@@ -546,11 +564,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       fontSize: 10,
                       fontFamily: 'monospace',
                       backgroundColor: isDelete
-                          ? const Color(0xFF442D2D) // Muted Dark Red bg
+                          ? (isDark
+                              ? const Color(0xFF442D2D)
+                              : const Color(0xFFFFEBEE))
                           : null,
                       color: isDelete
-                          ? const Color(0xFFFFB4AB) // Soft Red/Pink fg
-                          : null,
+                          ? (isDark
+                              ? const Color(0xFFFFB4AB)
+                              : const Color(0xFFC62828))
+                          : theme.colorScheme.onSurface,
                     ),
                   );
                 } else {
@@ -566,11 +588,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       fontSize: 10,
                       fontFamily: 'monospace',
                       backgroundColor: isInsert
-                          ? const Color(0xFF2D4431) // Muted Dark Green bg
+                          ? (isDark
+                              ? const Color(0xFF2D4431)
+                              : const Color(0xFFE8F5E9))
                           : null,
                       color: isInsert
-                          ? const Color(0xFF86EFAC) // Soft Green fg
-                          : null,
+                          ? (isDark
+                              ? const Color(0xFF86EFAC)
+                              : const Color(0xFF1B5E20))
+                          : theme.colorScheme.onSurface,
                     ),
                   );
                 }
@@ -580,6 +606,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         ),
       ],
     );
+  }
+
+  Color diffBackgroundColor(EventType type, bool isDark) {
+    if (isDark) {
+      return switch (type) {
+        EventType.added => const Color(0xFF1B5E20).withValues(alpha: 0.2),
+        EventType.updated => const Color(0xFF0D47A1).withValues(alpha: 0.2),
+        EventType.disposed => const Color(0xFFE65100).withValues(alpha: 0.2),
+      };
+    } else {
+      return switch (type) {
+        EventType.added => const Color(0xFFE8F5E9), // Light Green
+        EventType.updated => const Color(0xFFE3F2FD), // Light Blue
+        EventType.disposed => const Color(0xFFFFF3E0), // Light Orange
+      };
+    }
   }
 }
 
