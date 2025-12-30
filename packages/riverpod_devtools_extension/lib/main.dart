@@ -30,6 +30,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   final Map<String, ProviderInfo> _providers = {};
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
+  final Set<int> _expandedEventIndices = {};
 
   @override
   void initState() {
@@ -157,39 +158,63 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           color: Colors.grey[900],
           width: double.infinity,
-          height: 48,
+          height: 32,
           alignment: Alignment.centerLeft,
           child: Text(
             'Providers (${_providers.length})',
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
           ),
         ),
         Expanded(
           child: _providers.isEmpty
-              ? const Center(child: Text('No providers yet'))
+              ? Center(
+                  child: Text(
+                    'No providers yet',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                )
               : ListView.builder(
                   itemCount: _providers.length,
                   itemBuilder: (context, index) {
                     final provider = _providers.values.elementAt(index);
                     return ListTile(
                       dense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 0,
+                      ),
+                      minVerticalPadding: 2,
+                      visualDensity: const VisualDensity(
+                        horizontal: -4,
+                        vertical: -4,
+                      ),
                       leading: Icon(
                         provider.status == ProviderStatus.active
                             ? Icons.circle
                             : Icons.circle_outlined,
-                        size: 12,
+                        size: 10,
                         color: provider.status == ProviderStatus.active
-                            ? Colors.green
-                            : Colors.grey,
+                            ? Colors.greenAccent
+                            : Colors.grey[600],
                       ),
-                      title: Text(provider.name),
+                      title: Text(
+                        provider.name,
+                        style: const TextStyle(fontSize: 11),
+                      ),
                       subtitle: Text(
                         provider.value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[500],
+                        ),
                       ),
                     );
                   },
@@ -204,34 +229,48 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
           color: Colors.grey[900],
           width: double.infinity,
-          height: 48,
+          height: 32,
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
               const Text(
                 'Event Log',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
               ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18),
-                onPressed: () => setState(() => _events.clear()),
+                icon: const Icon(Icons.delete_outline, size: 16),
+                onPressed: () => setState(() {
+                  _events.clear();
+                  _expandedEventIndices.clear();
+                }),
                 tooltip: 'Clear log',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 16,
               ),
             ],
           ),
         ),
         Expanded(
           child: _events.isEmpty
-              ? const Center(child: Text('No events yet'))
+              ? Center(
+                  child: Text(
+                    'No events yet',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                )
               : ListView.builder(
                   itemCount: _events.length,
                   itemBuilder: (context, index) {
                     final event = _events[index];
-                    return _buildEventTile(event);
+                    return _buildEventTile(event, index);
                   },
                 ),
         ),
@@ -239,11 +278,17 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
-  Widget _buildEventTile(ProviderEvent event) {
+  Widget _buildEventTile(ProviderEvent event, int index) {
     final color = switch (event.type) {
-      EventType.added => Colors.green,
-      EventType.updated => Colors.blue,
-      EventType.disposed => Colors.orange,
+      EventType.added => const Color(0xFF4CAF50), // Green
+      EventType.updated => const Color(0xFF2196F3), // Blue
+      EventType.disposed => const Color(0xFFFF9800), // Orange
+    };
+
+    final backgroundColor = switch (event.type) {
+      EventType.added => const Color(0xFF1B5E20).withOpacity(0.2),
+      EventType.updated => const Color(0xFF0D47A1).withOpacity(0.2),
+      EventType.disposed => const Color(0xFFE65100).withOpacity(0.2),
     };
 
     final icon = switch (event.type) {
@@ -258,16 +303,92 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       EventType.disposed => 'disposed',
     };
 
-    return ListTile(
-      dense: true,
-      leading: Icon(icon, color: color, size: 18),
-      title: Text(event.providerName),
-      subtitle: Text(subtitle),
-      trailing: Text(
-        '${event.timestamp.hour.toString().padLeft(2, '0')}:'
-        '${event.timestamp.minute.toString().padLeft(2, '0')}:'
-        '${event.timestamp.second.toString().padLeft(2, '0')}',
-        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+    final isExpanded = _expandedEventIndices.contains(index);
+    final isLongText = subtitle.length > 100;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border(
+          left: BorderSide(color: color, width: 2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 6,
+              vertical: 0,
+            ),
+            minVerticalPadding: 2,
+            visualDensity: const VisualDensity(
+              horizontal: -4,
+              vertical: -4,
+            ),
+            leading: Icon(icon, color: color, size: 14),
+            title: Text(
+              event.providerName,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+            subtitle: isLongText && !isExpanded
+                ? Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                    ),
+                  )
+                : Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${event.timestamp.hour.toString().padLeft(2, '0')}:'
+                  '${event.timestamp.minute.toString().padLeft(2, '0')}:'
+                  '${event.timestamp.second.toString().padLeft(2, '0')}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                ),
+                if (isLongText) ...[
+                  const SizedBox(width: 4),
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (isExpanded) {
+                          _expandedEventIndices.remove(index);
+                        } else {
+                          _expandedEventIndices.add(index);
+                        }
+                      });
+                    },
+                    child: Icon(
+                      isExpanded
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                      size: 16,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
