@@ -1,4 +1,4 @@
-# riverpod_devtools
+# Riverpod DevTools
 
 [![pub package](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools)
 
@@ -6,67 +6,135 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
 <img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/demo.gif" width="100%" alt="Riverpod DevTools Demo" />
 
-## Features
+## 📦 Packages
 
-- **Provider Graph**: Visualize the relationships between your providers correctly (Coming soon!).
-- **State Inspector**: View the current state of your providers.
-- **Event Log**: Track provider lifecycle events (add, update, dispose).
-- **History Tracking**: Jump back in time to see previous states.
+This repository contains the following packages:
 
-## Getting started
+| Package | Version | Description |
+|---------|---------|-------------|
+| [riverpod_devtools](./packages/riverpod_devtools) | [![pub](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools) | DevTools extension for Riverpod |
 
-1.  Add `riverpod_devtools` to your `pubspec.yaml`:
+## 🚀 Quick Start
 
-    Run the command:
+For end-users who want to use this package in their Flutter app, please see the [package README](./packages/riverpod_devtools/README.md) or visit [pub.dev](https://pub.dev/packages/riverpod_devtools).
 
-    ```bash
-    flutter pub add riverpod_devtools
-    ```
+```bash
+flutter pub add riverpod_devtools
+```
 
-    Or manually add it:
+## 🛠️ Development
 
-    ```yaml
-    dependencies:
-      riverpod_devtools: ^0.1.0
-      flutter_riverpod: ^2.6.1 # or compatible version
-    ```
+This section is for contributors who want to develop or modify this package.
 
-    **Note:** This package is currently in early development.
+### Prerequisites
 
-2.  Add `RiverpodDevToolsObserver` to your `ProviderScope`:
+- Flutter SDK (>=3.0.0)
+- Dart SDK (>=3.5.0)
 
-    While the DevTools extension is automatically detected, you **must** add the observer to enable communication between your app and the DevTools.
+### Repository Structure
 
-    ```dart
-    import 'package:flutter_riverpod/flutter_riverpod.dart';
-    import 'package:riverpod_devtools/riverpod_devtools.dart';
+```
+riverpod_devtools/
+├── packages/
+│   └── riverpod_devtools/          # Main package
+│       ├── lib/                     # Package source code
+│       ├── test/                    # Unit tests
+│       ├── extension/devtools/      # DevTools extension UI
+│       └── example/                 # Example app
+└── README.md                        # This file
+```
 
-    void main() {
-      runApp(
-        ProviderScope(
-          observers: [
-            RiverpodDevToolsObserver(),
-          ],
-          child: MyApp(),
-        ),
-      );
-    }
-    ```
+### Getting Started with Development
 
-## Usage
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yutsuki3/riverpod_devtools.git
+   cd riverpod_devtools
+   ```
 
-1.  Run your Flutter app.
-2.  Open semantic DevTools (open the debugger).
-3.  Look for the "Riverpod" tab in DevTools.
-4.  Interact with your app and watch the events and state updates in the DevTools tab.
+2. Install dependencies:
+   ```bash
+   cd packages/riverpod_devtools
+   flutter pub get
+   ```
 
-## Additional information
+3. Run tests:
+   ```bash
+   flutter test
+   ```
 
--   **Repository**: [https://github.com/yutsuki3/riverpod_devtools](https://github.com/yutsuki3/riverpod_devtools)
--   **Issues**: [https://github.com/yutsuki3/riverpod_devtools/issues](https://github.com/yutsuki3/riverpod_devtools/issues)
+4. Run the example app:
+   ```bash
+   cd example
+   flutter run
+   ```
 
-Contributions are welcome!
+### Building the DevTools Extension
 
-## License
+The DevTools extension UI is built separately:
 
-This package is released under the MIT License. See [LICENSE](LICENSE) for details.
+```bash
+cd packages/riverpod_devtools_extension
+flutter pub get
+flutter build web --release --output=../riverpod_devtools/extension/devtools/build
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+cd packages/riverpod_devtools
+flutter test
+
+# Run with coverage
+flutter test --coverage
+```
+
+### Code Quality
+
+```bash
+# Run analyzer
+flutter analyze
+
+# Format code
+dart format .
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Contribution Guidelines
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Reporting Issues
+
+Please use the [GitHub issue tracker](https://github.com/yutsuki3/riverpod_devtools/issues) to report bugs or request features.
+
+## 📝 Version Compatibility
+
+| riverpod_devtools | flutter_riverpod | Flutter |
+|-------------------|------------------|---------|
+| 0.2.x             | >=2.6.1 <4.0.0   | >=3.0.0 |
+| 0.1.x             | ^2.6.1           | >=3.0.0 |
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🔗 Links
+
+- **Package**: [pub.dev/packages/riverpod_devtools](https://pub.dev/packages/riverpod_devtools)
+- **Repository**: [github.com/yutsuki3/riverpod_devtools](https://github.com/yutsuki3/riverpod_devtools)
+- **Issues**: [github.com/yutsuki3/riverpod_devtools/issues](https://github.com/yutsuki3/riverpod_devtools/issues)
+- **Riverpod**: [riverpod.dev](https://riverpod.dev)
+
+## 🙏 Acknowledgments
+
+- Thanks to the [Riverpod](https://github.com/rrousselGit/riverpod) team for creating an amazing state management solution
+- Inspired by the official [Flutter DevTools](https://flutter.dev/devtools)
