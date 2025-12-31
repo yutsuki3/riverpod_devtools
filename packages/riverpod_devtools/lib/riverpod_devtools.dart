@@ -107,12 +107,142 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     developer.postEvent('riverpod:$kind', data);
   }
 
-  String _serializeValue(Object? value) {
+  /// Serializes a value to a structured JSON format for DevTools
+  Map<String, Object?> _serializeValue(Object? value) {
+    if (value == null) {
+      return {
+        'type': 'null',
+        'value': null,
+      };
+    }
+
+    // Try JSON serialization first
     try {
-      if (value == null) return 'null';
-      return jsonEncode(value);
-    } catch (_) {
-      return value.toString();
+      final encoded = jsonEncode(value);
+      return {
+        'type': value.runtimeType.toString(),
+        'value': jsonDecode(encoded), // Store as decoded JSON for structure
+      };
+    } catch (e) {
+      // Check if the object has a toJson() method
+      try {
+        final dynamic obj = value;
+        // ignore: avoid_dynamic_calls
+        final json = obj.toJson();
+        if (json is Map<String, dynamic>) {
+          final encoded = jsonEncode(json);
+          return {
+            'type': value.runtimeType.toString(),
+            'value': jsonDecode(encoded),
+          };
+        }
+      } catch (_) {
+        // toJson() doesn't exist or failed, continue with manual extraction
+      }
+
+      // For non-JSON-serializable objects, provide more details
+      final stringValue = value.toString();
+
+      // Try to extract useful information based on type
+      final Map<String, Object?> result = {
+        'type': value.runtimeType.toString(),
+        'string': stringValue,
+      };
+
+      // For collections, add length/size info and try to serialize elements
+      if (value is List) {
+        result['length'] = value.length;
+        result['isEmpty'] = value.isEmpty;
+        // Try to serialize list elements
+        try {
+          result['items'] = value.map((item) {
+            try {
+              // Try JSON encode for each item
+              final encoded = jsonEncode(item);
+              return {
+                'type': item.runtimeType.toString(),
+                'value': jsonDecode(encoded),
+              };
+            } catch (_) {
+              // If item is not JSON serializable, just store its string representation
+              return {
+                'type': item.runtimeType.toString(),
+                'string': item.toString(),
+              };
+            }
+          }).toList();
+        } catch (_) {
+          // If we can't serialize items, just keep the string representation
+        }
+      } else if (value is Map) {
+        result['length'] = value.length;
+        result['isEmpty'] = value.isEmpty;
+        // Try to serialize map entries
+        try {
+          result['entries'] = value.entries.map((entry) {
+            final key = entry.key;
+            final val = entry.value;
+            try {
+              // Try JSON encode for the value
+              final encoded = jsonEncode(val);
+              return {
+                'key': key.toString(),
+                'value': {
+                  'type': val.runtimeType.toString(),
+                  'value': jsonDecode(encoded),
+                },
+              };
+            } catch (_) {
+              // If value is not JSON serializable, store its string representation
+              return {
+                'key': key.toString(),
+                'value': {
+                  'type': val.runtimeType.toString(),
+                  'string': val.toString(),
+                },
+              };
+            }
+          }).toList();
+        } catch (_) {
+          // If we can't serialize entries, keep the keys list
+          result['keys'] = value.keys.map((k) => k.toString()).toList();
+        }
+      } else if (value is Set) {
+        result['length'] = value.length;
+        result['isEmpty'] = value.isEmpty;
+        // Try to serialize set elements (convert to list for serialization)
+        try {
+          result['items'] = value.map((item) {
+            try {
+              // Try JSON encode for each item
+              final encoded = jsonEncode(item);
+              return {
+                'type': item.runtimeType.toString(),
+                'value': jsonDecode(encoded),
+              };
+            } catch (_) {
+              // If item is not JSON serializable, just store its string representation
+              return {
+                'type': item.runtimeType.toString(),
+                'string': item.toString(),
+              };
+            }
+          }).toList();
+        } catch (_) {
+          // If we can't serialize items, just keep the string representation
+        }
+      }
+
+      // For AsyncValue from Riverpod
+      if (stringValue.startsWith('AsyncData')) {
+        result['asyncState'] = 'data';
+      } else if (stringValue.startsWith('AsyncLoading')) {
+        result['asyncState'] = 'loading';
+      } else if (stringValue.startsWith('AsyncError')) {
+        result['asyncState'] = 'error';
+      }
+
+      return result;
     }
   }
 }

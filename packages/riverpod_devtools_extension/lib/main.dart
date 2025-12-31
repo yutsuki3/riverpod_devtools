@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:devtools_extensions/devtools_extensions.dart';
-import 'package:diff_match_patch/diff_match_patch.dart';
 import 'package:flutter/material.dart';
 import 'package:vm_service/vm_service.dart';
 
@@ -57,6 +56,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     super.dispose();
   }
 
+  /// Normalize a value to Map<String, dynamic> format
+  Map<String, dynamic> _normalizeValue(dynamic rawValue) {
+    if (rawValue == null) {
+      return {'type': 'null', 'value': null};
+    }
+    if (rawValue is Map) {
+      return Map<String, dynamic>.from(rawValue);
+    }
+    // For primitive types, wrap in a simple structure
+    return {
+      'type': rawValue.runtimeType.toString(),
+      'string': rawValue.toString(),
+    };
+  }
+
   Future<void> _subscribeToEvents() async {
     await serviceManager.onServiceAvailable;
 
@@ -72,14 +86,23 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       final data = event.extensionData?.data ?? {};
       final providerName = data['provider'] as String? ?? 'Unknown';
       final providerId = data['providerId'] as String? ?? 'Unknown';
-      final value = (data['newValue'] ?? data['value'])?.toString() ?? 'null';
+      final rawValue = data['newValue'] ?? data['value'];
+      final rawPreviousValue = data['previousValue'];
       final timestamp = data['timestamp'] as int?;
+
+      // Convert values to Map<String, dynamic> if they're already Maps,
+      // or wrap primitive types in a simple structure
+      final value = _normalizeValue(rawValue);
+      final previousValue = _normalizeValue(rawPreviousValue);
 
       // Create a unique key for this event to deduplicate
       // Format: kind:providerId:value
       // We don't use timestamp in the key because we WANT to deduplicate
       // identically valued updates that happen inside the same logical "tick"
-      final eventKey = '$kind:$providerId:$value';
+      final valueString = value.containsKey('string')
+          ? value['string']
+          : (value.containsKey('value') ? value['value'].toString() : value.toString());
+      final eventKey = '$kind:$providerId:$valueString';
 
       if (_processedEventKeys.contains(eventKey)) {
         return;
@@ -121,7 +144,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             type: EventType.updated,
             providerId: providerId,
             providerName: providerName,
-            previousValue: data['previousValue']?.toString(),
+            previousValue: previousValue,
             value: value,
             timestamp: eventTimestamp,
           ));
@@ -129,7 +152,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           _providers[providerName] = ProviderInfo(
             id: providerId,
             name: providerName,
-            value: _providers[providerName]?.value ?? 'null',
+            value: _providers[providerName]?.value ?? {'type': 'null', 'value': null},
             status: ProviderStatus.disposed,
           );
           _addEvent(ProviderEvent(
@@ -287,7 +310,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           style: const TextStyle(fontSize: 11),
                         ),
                         subtitle: Text(
-                          provider.value,
+                          provider.getValueString(),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -405,10 +428,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     // Construct the summary subtitle (collapsed view)
     String summarySubtitle;
     if (event.type == EventType.updated) {
-      summarySubtitle = '${event.previousValue} → ${event.value}';
+      summarySubtitle = '${event.getPreviousValueString()} → ${event.getValueString()}';
     } else {
-      summarySubtitle = event.value ??
-          (event.type == EventType.disposed ? 'disposed' : 'null');
+      summarySubtitle = event.getValueString();
     }
 
     // Check if we should treat this as "long text" for the expand/collapse arrow visibility
@@ -516,36 +538,24 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   Widget _buildExpandedContent(ProviderEvent event) {
     if (event.type == EventType.updated) {
-      // Use cached diffs for performance
-      final diffs = event.getDiffs();
-
+      // For updated events, show both previous and current as tree views
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildDiffBlock('Previous', diffs, isPrevious: true),
-          const SizedBox(height: 4),
-          _buildDiffBlock('Current', diffs, isPrevious: false),
+          _buildValueSection('Previous', event.previousValue, isPrevious: true),
+          const SizedBox(height: 8),
+          _buildValueSection('Current', event.value, isPrevious: false),
         ],
       );
     }
 
-    // For Added / Disposed, just show the value full
-    return SelectableText(
-      event.value ?? 'null',
-      style: const TextStyle(
-        fontSize: 10,
-        fontFamily: 'monospace',
-      ),
-    );
+    // For Added / Disposed, show JSON tree view
+    return _buildJsonTreeView(event.value);
   }
 
-  Widget _buildDiffBlock(String label, List<Diff> diffs,
-      {required bool isPrevious}) {
-    // If we're in dark mode, use lighter pastels for labels/diff text so they pop against dark bg.
-    // If we're in light mode, use darker/richer colors so they pop against light bg.
+  Widget _buildValueSection(String label, Map<String, dynamic>? data, {required bool isPrevious}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
     final labelColor = isPrevious
         ? (isDark ? const Color(0xFFFFB4AB) : const Color(0xFFD32F2F))
         : (isDark ? const Color(0xFF86EFAC) : const Color(0xFF2E7D32));
@@ -565,70 +575,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           width: double.infinity,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest
-                .withValues(alpha: 0.5),
+            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(2),
           ),
-          child: SelectableText.rich(
-            TextSpan(
-              children: diffs.map((d) {
-                final text = d.text;
-                if (isPrevious) {
-                  // In "Previous", we show EQUAL and DELETE.
-                  // DELETE is highlighted. INSERT is skipped.
-                  if (d.operation == DIFF_INSERT) {
-                    return const TextSpan();
-                  }
-                  final isDelete = d.operation == DIFF_DELETE;
-                  return TextSpan(
-                    text: text,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      backgroundColor: isDelete
-                          ? (isDark
-                              ? const Color(0xFF442D2D)
-                              : const Color(0xFFFFEBEE))
-                          : null,
-                      color: isDelete
-                          ? (isDark
-                              ? const Color(0xFFFFB4AB)
-                              : const Color(0xFFC62828))
-                          : theme.colorScheme.onSurface,
-                    ),
-                  );
-                } else {
-                  // In "Current", we show EQUAL and INSERT.
-                  // INSERT is highlighted. DELETE is skipped.
-                  if (d.operation == DIFF_DELETE) {
-                    return const TextSpan();
-                  }
-                  final isInsert = d.operation == DIFF_INSERT;
-                  return TextSpan(
-                    text: text,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'monospace',
-                      backgroundColor: isInsert
-                          ? (isDark
-                              ? const Color(0xFF2D4431)
-                              : const Color(0xFFE8F5E9))
-                          : null,
-                      color: isInsert
-                          ? (isDark
-                              ? const Color(0xFF86EFAC)
-                              : const Color(0xFF1B5E20))
-                          : theme.colorScheme.onSurface,
-                    ),
-                  );
-                }
-              }).toList(),
-            ),
-          ),
+          child: _buildJsonTreeView(data),
         ),
       ],
     );
   }
+
 
   Color diffBackgroundColor(EventType type, bool isDark) {
     if (isDark) {
@@ -645,6 +600,242 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       };
     }
   }
+
+  /// Build JSON tree view with expand/collapse functionality
+  Widget _buildJsonTreeView(Map<String, dynamic>? data) {
+    if (data == null) {
+      return const Text('null', style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
+    }
+
+    // Always show as tree view - let users expand to see structure
+    return _JsonTreeView(data: data, initiallyExpanded: true);
+  }
+}
+
+/// A widget that displays JSON data in a tree structure with expand/collapse
+class _JsonTreeView extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final int indent;
+  final bool initiallyExpanded;
+
+  const _JsonTreeView({
+    required this.data,
+    this.indent = 0,
+    this.initiallyExpanded = false,
+  });
+
+  @override
+  State<_JsonTreeView> createState() => _JsonTreeViewState();
+}
+
+class _JsonTreeViewState extends State<_JsonTreeView> {
+  final Set<String> _expandedKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // If initiallyExpanded is true, expand all top-level keys
+    if (widget.initiallyExpanded) {
+      for (final entry in widget.data.entries) {
+        if (entry.value is Map || entry.value is List) {
+          _expandedKeys.add(entry.key);
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final entries = widget.data.entries.toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: entries.map((entry) {
+        final key = entry.key;
+        final value = entry.value;
+        final isExpanded = _expandedKeys.contains(key);
+
+        // Determine if the value is expandable (Map or List)
+        final isExpandable = value is Map || value is List;
+
+        return Padding(
+          padding: EdgeInsets.only(left: widget.indent * 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: isExpandable
+                    ? () {
+                        setState(() {
+                          if (isExpanded) {
+                            _expandedKeys.remove(key);
+                          } else {
+                            _expandedKeys.add(key);
+                          }
+                        });
+                      }
+                    : null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isExpandable)
+                      Icon(
+                        isExpanded ? Icons.arrow_drop_down : Icons.arrow_right,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      )
+                    else
+                      const SizedBox(width: 16),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: '$key: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            if (!isExpandable || !isExpanded)
+                              TextSpan(
+                                text: _formatValue(value),
+                                style: TextStyle(
+                                  color: _getValueColor(value, theme),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isExpandable && isExpanded)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16.0, top: 2),
+                  child: _buildExpandedValue(value),
+                ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildExpandedValue(dynamic value) {
+    if (value is Map) {
+      return _JsonTreeView(
+        data: Map<String, dynamic>.from(value),
+        indent: widget.indent + 1,
+      );
+    } else if (value is List) {
+      return _buildListView(value);
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildListView(List list) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(list.length, (index) {
+        final item = list[index];
+        final isExpandable = item is Map || item is List;
+        final isExpanded = _expandedKeys.contains('[$index]');
+
+        return Padding(
+          padding: EdgeInsets.only(left: (widget.indent + 1) * 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                onTap: isExpandable
+                    ? () {
+                        setState(() {
+                          final key = '[$index]';
+                          if (isExpanded) {
+                            _expandedKeys.remove(key);
+                          } else {
+                            _expandedKeys.add(key);
+                          }
+                        });
+                      }
+                    : null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isExpandable)
+                      Icon(
+                        isExpanded ? Icons.arrow_drop_down : Icons.arrow_right,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      )
+                    else
+                      const SizedBox(width: 16),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontFamily: 'monospace',
+                            color: theme.colorScheme.onSurface,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: '[$index]: ',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                              ),
+                            ),
+                            if (!isExpandable || !isExpanded)
+                              TextSpan(
+                                text: _formatValue(item),
+                                style: TextStyle(
+                                  color: _getValueColor(item, theme),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (isExpandable && isExpanded)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: _buildExpandedValue(item),
+                ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  String _formatValue(dynamic value) {
+    if (value == null) return 'null';
+    if (value is String) return '"$value"';
+    if (value is num || value is bool) return value.toString();
+    if (value is List) return '[${value.length} items]';
+    if (value is Map) return '{${value.length} keys}';
+    return value.toString();
+  }
+
+  Color _getValueColor(dynamic value, ThemeData theme) {
+    if (value == null) return theme.colorScheme.onSurfaceVariant;
+    if (value is String) return const Color(0xFF4CAF50); // Green for strings
+    if (value is num) return const Color(0xFF2196F3); // Blue for numbers
+    if (value is bool) return const Color(0xFFFF9800); // Orange for booleans
+    return theme.colorScheme.onSurface;
+  }
 }
 
 enum ProviderStatus { active, disposed }
@@ -654,7 +845,7 @@ enum EventType { added, updated, disposed }
 class ProviderInfo {
   final String id;
   final String name;
-  final String value;
+  final Map<String, dynamic> value;
   final ProviderStatus status;
 
   ProviderInfo({
@@ -663,21 +854,31 @@ class ProviderInfo {
     required this.value,
     required this.status,
   });
+
+  /// Get string representation of value for display
+  String getValueString() {
+    // If it has 'string', use that
+    if (value.containsKey('string')) {
+      return value['string'] as String;
+    }
+    // Otherwise, try to convert value to string
+    if (value.containsKey('value')) {
+      return value['value']?.toString() ?? 'null';
+    }
+    return value.toString();
+  }
 }
 
 class ProviderEvent {
   final EventType type;
   final String providerId;
   final String providerName;
-  final String? previousValue;
-  final String? value;
+  final Map<String, dynamic>? previousValue;
+  final Map<String, dynamic>? value;
   final DateTime timestamp;
 
   /// Unique ID for this event (used for expansion state tracking)
   late final String id;
-
-  /// Cached diff results for performance
-  List<Diff>? _cachedDiffs;
 
   ProviderEvent({
     required this.type,
@@ -691,13 +892,27 @@ class ProviderEvent {
     id = '${timestamp.microsecondsSinceEpoch}_$providerId';
   }
 
-  /// Get diff results with caching for performance
-  List<Diff> getDiffs() {
-    if (_cachedDiffs == null && type == EventType.updated) {
-      final oldText = previousValue ?? '';
-      final newText = value ?? '';
-      _cachedDiffs = diff(oldText, newText);
-    }
-    return _cachedDiffs ?? [];
+  /// Get string representation for display
+  String getValueString() {
+    if (value == null) return 'null';
+    return _formatValueForDisplay(value!);
   }
+
+  String getPreviousValueString() {
+    if (previousValue == null) return 'null';
+    return _formatValueForDisplay(previousValue!);
+  }
+
+  String _formatValueForDisplay(Map<String, dynamic> data) {
+    // If it has 'string', use that
+    if (data.containsKey('string')) {
+      return data['string'] as String;
+    }
+    // Otherwise, try to convert value to string
+    if (data.containsKey('value')) {
+      return data['value']?.toString() ?? 'null';
+    }
+    return data.toString();
+  }
+
 }
