@@ -44,6 +44,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// ID-based expansion state (instead of index-based)
   final Set<String> _expandedEventIds = {};
 
+  /// Split ratio for the resizable divider (0.0 to 1.0)
+  /// Represents the fraction of width allocated to the provider list
+  double _splitRatio = 0.33;
+
   @override
   void initState() {
     super.initState();
@@ -204,18 +208,54 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 1,
-          child: _buildProviderList(),
-        ),
-        const VerticalDivider(width: 1),
-        Expanded(
-          flex: 2,
-          child: _buildEventLog(),
-        ),
-      ],
+    final theme = Theme.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        final providerListWidth = totalWidth * _splitRatio;
+        const dividerWidth = 4.0;
+        final eventLogWidth = totalWidth - providerListWidth - dividerWidth;
+
+        return Row(
+          children: [
+            SizedBox(
+              width: providerListWidth,
+              child: _buildProviderList(),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onHorizontalDragUpdate: (details) {
+                setState(() {
+                  final newRatio = _splitRatio + details.delta.dx / totalWidth;
+                  // Constrain ratio between 0.2 and 0.8 to prevent panels from becoming too small
+                  _splitRatio = newRatio.clamp(0.2, 0.8);
+                });
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.resizeColumn,
+                child: Container(
+                  width: dividerWidth,
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                  child: Center(
+                    child: Container(
+                      width: 1.5,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(0.75),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(
+              width: eventLogWidth,
+              child: _buildEventLog(),
+            ),
+          ],
+        );
+      },
     );
   }
 
