@@ -35,18 +35,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Index structure for fast filtering: provider name -> list of events
   final Map<String, List<ProviderEvent>> _eventsByProvider = {};
 
-  /// The set of provider names that are currently selected for filtering.
-  /// If empty, no filtering is applied (all events are shown).
-  final Set<String> _selectedProviderNames = {};
+  /// The currently selected provider name for detail view.
+  /// If null, no provider is selected.
+  String? _selectedProviderName;
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
 
   /// ID-based expansion state (instead of index-based)
   final Set<String> _expandedEventIds = {};
 
-  /// Split ratio for the resizable divider (0.0 to 1.0)
+  /// Split ratio for the left divider (0.0 to 1.0)
   /// Represents the fraction of width allocated to the provider list
-  double _splitRatio = 0.33;
+  double _leftSplitRatio = 0.2;
+
+  /// Split ratio for the right divider (0.0 to 1.0)
+  /// Represents the fraction of remaining width allocated to the detail panel
+  double _rightSplitRatio = 0.375;
 
   @override
   void initState() {
@@ -192,18 +196,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   /// Get filtered events using index structure for performance
   List<ProviderEvent> get _filteredEvents {
-    if (_selectedProviderNames.isEmpty) return _events;
+    if (_selectedProviderName == null) return _events;
 
-    final result = <ProviderEvent>[];
-    for (final name in _selectedProviderNames) {
-      final providerEvents = _eventsByProvider[name];
-      if (providerEvents != null) {
-        result.addAll(providerEvents);
-      }
-    }
-    // Sort by timestamp (newest first)
-    result.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    return result;
+    final providerEvents = _eventsByProvider[_selectedProviderName];
+    return providerEvents ?? [];
   }
 
   @override
@@ -212,43 +208,51 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
-        final providerListWidth = totalWidth * _splitRatio;
         const dividerWidth = 4.0;
-        final eventLogWidth = totalWidth - providerListWidth - dividerWidth;
+
+        // Calculate widths for 3 columns
+        final providerListWidth = totalWidth * _leftSplitRatio;
+        final remainingWidth = totalWidth - providerListWidth - dividerWidth;
+        final detailPanelWidth = remainingWidth * _rightSplitRatio;
+        final eventLogWidth = remainingWidth - detailPanelWidth - dividerWidth;
 
         return Row(
           children: [
+            // Left: Provider List
             SizedBox(
               width: providerListWidth,
               child: _buildProviderList(),
             ),
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onHorizontalDragUpdate: (details) {
+
+            // Left Divider
+            _buildDivider(
+              theme: theme,
+              onDrag: (delta) {
                 setState(() {
-                  final newRatio = _splitRatio + details.delta.dx / totalWidth;
-                  // Constrain ratio between 0.2 and 0.8 to prevent panels from becoming too small
-                  _splitRatio = newRatio.clamp(0.2, 0.8);
+                  final newRatio = _leftSplitRatio + delta / totalWidth;
+                  _leftSplitRatio = newRatio.clamp(0.15, 0.5);
                 });
               },
-              child: MouseRegion(
-                cursor: SystemMouseCursors.resizeColumn,
-                child: Container(
-                  width: dividerWidth,
-                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                  child: Center(
-                    child: Container(
-                      width: 1.5,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(0.75),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ),
+
+            // Center: Detail Panel
+            SizedBox(
+              width: detailPanelWidth,
+              child: _buildDetailPanel(),
+            ),
+
+            // Right Divider
+            _buildDivider(
+              theme: theme,
+              onDrag: (delta) {
+                setState(() {
+                  final newRatio = _rightSplitRatio + delta / remainingWidth;
+                  _rightSplitRatio = newRatio.clamp(0.3, 0.7);
+                });
+              },
+            ),
+
+            // Right: Event Log
             SizedBox(
               width: eventLogWidth,
               child: _buildEventLog(),
@@ -256,6 +260,33 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildDivider({
+    required ThemeData theme,
+    required void Function(double delta) onDrag,
+  }) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeColumn,
+        child: Container(
+          width: 4.0,
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+          child: Center(
+            child: Container(
+              width: 1.5,
+              height: 32,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outline.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(0.75),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -272,27 +303,25 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
-              Text(
-                _selectedProviderNames.isEmpty
-                    ? 'Providers'
-                    : 'Providers (${_selectedProviderNames.length})',
-                style: const TextStyle(
+              const Text(
+                'Providers',
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
               ),
               const Spacer(),
-              if (_selectedProviderNames.isNotEmpty)
+              if (_selectedProviderName != null)
                 TextButton(
                   onPressed: () => setState(() {
-                    _selectedProviderNames.clear();
+                    _selectedProviderName = null;
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: const Size(0, 24),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text('Show All', style: TextStyle(fontSize: 10)),
+                  child: const Text('Clear', style: TextStyle(fontSize: 10)),
                 ),
             ],
           ),
@@ -311,8 +340,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   itemCount: _providers.length,
                   itemBuilder: (context, index) {
                     final provider = _providers.values.elementAt(index);
-                    final isSelected =
-                        _selectedProviderNames.contains(provider.name);
+                    final isSelected = _selectedProviderName == provider.name;
                     return Theme(
                       data: Theme.of(context).copyWith(
                         splashFactory: NoSplash.splashFactory,
@@ -322,9 +350,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         onTap: () {
                           setState(() {
                             if (isSelected) {
-                              _selectedProviderNames.remove(provider.name);
+                              _selectedProviderName = null;
                             } else {
-                              _selectedProviderNames.add(provider.name);
+                              _selectedProviderName = provider.name;
                             }
                           });
                         },
@@ -368,6 +396,237 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
+  Widget _buildDetailPanel() {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          color: theme.colorScheme.surfaceContainerHighest,
+          width: double.infinity,
+          height: 32,
+          alignment: Alignment.centerLeft,
+          child: const Text(
+            'Provider Details',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+
+        // Content
+        Expanded(
+          child: _selectedProviderName == null
+              ? Center(
+                  child: Text(
+                    'Select a provider to view details',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              : Builder(
+                  builder: (context) {
+                    final provider = _providers[_selectedProviderName];
+                    if (provider == null) {
+                      return Center(
+                        child: Text(
+                          'Provider not found',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      );
+                    }
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Status indicator for disposed providers
+                          if (provider.status == ProviderStatus.disposed)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: Colors.orange.withValues(alpha: 0.3),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 16,
+                                    color: Colors.orange,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'This provider has been disposed',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      color:
+                                          Colors.orange.withValues(alpha: 0.9),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                          // State Section
+                          _buildDetailSection(
+                            title: 'Current State',
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                  color: theme.colorScheme.outline
+                                      .withValues(alpha: 0.2),
+                                ),
+                              ),
+                              child: _buildJsonTreeView(provider.value),
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Depends On Section
+                          _buildDetailSection(
+                            title: 'Depends On',
+                            child: _buildDependencyList(
+                              dependencies: [],
+                              emptyMessage: 'No dependencies',
+                              theme: theme,
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
+
+                          // Used By Section
+                          _buildDetailSection(
+                            title: 'Used By',
+                            child: _buildDependencyList(
+                              dependencies: [],
+                              emptyMessage: 'Not used by any providers',
+                              theme: theme,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailSection({
+    required String title,
+    required Widget child,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        child,
+      ],
+    );
+  }
+
+  Widget _buildDependencyList({
+    required List<String> dependencies,
+    required String emptyMessage,
+    required ThemeData theme,
+  }) {
+    if (dependencies.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          emptyMessage,
+          style: TextStyle(
+            fontSize: 10,
+            color: theme.colorScheme.onSurfaceVariant,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: dependencies.map((name) {
+        return InkWell(
+          onTap: () {
+            setState(() {
+              _selectedProviderName = name;
+            });
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 2),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 10,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: theme.colorScheme.primary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildEventLog() {
     final theme = Theme.of(context);
     return Column(
@@ -382,9 +641,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           child: Row(
             children: [
               Text(
-                _selectedProviderNames.isEmpty
+                _selectedProviderName == null
                     ? 'Event Log'
-                    : 'Event Log (Filtered)',
+                    : 'Event Log ($_selectedProviderName)',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
@@ -468,9 +727,28 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     final isExpanded = _expandedEventIds.contains(event.id);
 
+    // Calculate relative time from previous event for the same provider
+    // The newest event shows the time difference from the previous (older) event
+    String? relativeTime;
+    final providerEvents = _eventsByProvider[event.providerName];
+    if (providerEvents != null && providerEvents.length > 1) {
+      final currentIndex = providerEvents.indexOf(event);
+      // Events are sorted newest first, so index 0 is the newest
+      // We want to show the time diff on newer events (smaller index)
+      // comparing with older events (larger index)
+      if (currentIndex >= 0 && currentIndex < providerEvents.length - 1) {
+        // Get the next older event (at index currentIndex + 1)
+        final olderEvent = providerEvents[currentIndex + 1];
+        final timeDiff = event.timestamp.difference(olderEvent.timestamp);
+        relativeTime = _formatRelativeTime(timeDiff);
+      }
+    }
+
     // Construct the summary subtitle (collapsed view)
     String summarySubtitle;
-    if (event.type == EventType.updated) {
+    if (event.type == EventType.disposed) {
+      summarySubtitle = 'disposed';
+    } else if (event.type == EventType.updated) {
       summarySubtitle =
           '${event.getPreviousValueString()} → ${event.getValueString()}';
     } else {
@@ -479,8 +757,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     // Check if we should treat this as "long text" for the expand/collapse arrow visibility
     // For updated events, we almost always want to allow expansion to see the diff clearly if it's not trivial
-    final isLongText =
-        summarySubtitle.length > 50 || event.type == EventType.updated;
+    // Disposed events should not be expandable
+    final isLongText = event.type == EventType.disposed
+        ? false
+        : (summarySubtitle.length > 50 || event.type == EventType.updated);
 
     return Container(
       key: key,
@@ -529,13 +809,30 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           ),
                         ),
                       ),
-                      Text(
-                        '${event.timestamp.hour.toString().padLeft(2, '0')}:'
-                        '${event.timestamp.minute.toString().padLeft(2, '0')}:'
-                        '${event.timestamp.second.toString().padLeft(2, '0')}',
-                        style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant,
-                            fontSize: 10),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${event.timestamp.hour.toString().padLeft(2, '0')}:'
+                            '${event.timestamp.minute.toString().padLeft(2, '0')}:'
+                            '${event.timestamp.second.toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontSize: 10),
+                          ),
+                          if (relativeTime != null) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              relativeTime,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7),
+                                fontSize: 9,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       if (isLongText) ...[
                         const SizedBox(width: 4),
@@ -628,6 +925,26 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         ),
       ],
     );
+  }
+
+  /// Format relative time difference for display
+  String _formatRelativeTime(Duration duration) {
+    final totalSeconds = duration.inSeconds;
+
+    if (totalSeconds < 1) {
+      final ms = duration.inMilliseconds;
+      return '(+${ms}ms)';
+    } else if (totalSeconds < 60) {
+      return '(+${totalSeconds}s)';
+    } else if (totalSeconds < 3600) {
+      final minutes = totalSeconds ~/ 60;
+      final seconds = totalSeconds % 60;
+      return seconds > 0 ? '(+${minutes}m${seconds}s)' : '(+${minutes}m)';
+    } else {
+      final hours = totalSeconds ~/ 3600;
+      final minutes = (totalSeconds % 3600) ~/ 60;
+      return minutes > 0 ? '(+${hours}h${minutes}m)' : '(+${hours}h)';
+    }
   }
 
   Color diffBackgroundColor(EventType type, bool isDark) {
