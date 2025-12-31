@@ -69,7 +69,10 @@ class HomePage extends StatelessWidget {
 
 // Scene 1: Lifecycle (Init/Dispose)
 final lifecycleCounterProvider =
-    NotifierProvider.autoDispose<LifecycleCounter, int>(LifecycleCounter.new);
+    NotifierProvider.autoDispose<LifecycleCounter, int>(
+      LifecycleCounter.new,
+      name: 'CounterProvider',
+    );
 
 class LifecycleCounter extends Notifier<int> {
   @override
@@ -136,6 +139,7 @@ class Todo {
 
 final todoListProvider = NotifierProvider.autoDispose<TodoList, List<Todo>>(
   TodoList.new,
+  name: 'TodoListProvider',
 );
 
 class TodoList extends Notifier<List<Todo>> {
@@ -205,7 +209,7 @@ class ComplexStatePage extends ConsumerWidget {
 final asyncNumberProvider = FutureProvider.autoDispose<int>((ref) async {
   await Future.delayed(const Duration(seconds: 2));
   return Random().nextInt(100);
-});
+}, name: 'AsyncNumberProvider');
 
 class AsyncStatePage extends ConsumerWidget {
   const AsyncStatePage({super.key});

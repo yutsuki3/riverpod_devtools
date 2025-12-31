@@ -1,16 +1,35 @@
-# test_app
+# Riverpod DevTools Example App
 
-A new Flutter project.
+This is a standalone example application demonstrating the usage of [riverpod_devtools](https://pub.dev/packages/riverpod_devtools).
+
+## Features
+
+This example showcases:
+- Provider lifecycle tracking (init/dispose)
+- Complex state management with lists
+- Async state handling
+- Stress testing with large event logs
+
+## Supported Platforms
+
+- iOS
+- Android
+- Web
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+1. Make sure you have Flutter installed
+2. Run `flutter pub get` to install dependencies
+3. Run the app:
+   ```bash
+   flutter run
+   ```
 
-A few resources to get you started if this is your first Flutter project:
+## Using DevTools
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+1. Run the app
+2. Open Flutter DevTools
+3. Navigate to the "Riverpod" tab
+4. Interact with the app to see provider events in real-time
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+For more information about the package, visit [pub.dev/packages/riverpod_devtools](https://pub.dev/packages/riverpod_devtools).
