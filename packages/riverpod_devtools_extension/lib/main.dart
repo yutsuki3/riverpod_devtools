@@ -101,7 +101,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       // identically valued updates that happen inside the same logical "tick"
       final valueString = value.containsKey('string')
           ? value['string']
-          : (value.containsKey('value') ? value['value'].toString() : value.toString());
+          : (value.containsKey('value')
+              ? value['value'].toString()
+              : value.toString());
       final eventKey = '$kind:$providerId:$valueString';
 
       if (_processedEventKeys.contains(eventKey)) {
@@ -152,7 +154,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           _providers[providerName] = ProviderInfo(
             id: providerId,
             name: providerName,
-            value: _providers[providerName]?.value ?? {'type': 'null', 'value': null},
+            value: _providers[providerName]?.value ??
+                {'type': 'null', 'value': null},
             status: ProviderStatus.disposed,
           );
           _addEvent(ProviderEvent(
@@ -230,7 +233,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           child: Row(
             children: [
               Text(
-                'Providers (${_providers.length})',
+                _selectedProviderNames.isEmpty
+                    ? 'Providers'
+                    : 'Providers (${_selectedProviderNames.length})',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
@@ -273,11 +278,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         splashFactory: NoSplash.splashFactory,
                         highlightColor: Colors.transparent,
                       ),
-                      child: ListTile(
-                        dense: true,
-                        selected: isSelected,
-                        selectedTileColor:
-                            theme.colorScheme.primary.withValues(alpha: 0.1),
+                      child: InkWell(
                         onTap: () {
                           setState(() {
                             if (isSelected) {
@@ -287,35 +288,35 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                             }
                           });
                         },
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 0,
-                        ),
-                        minVerticalPadding: 2,
-                        visualDensity: const VisualDensity(
-                          horizontal: -4,
-                          vertical: -4,
-                        ),
-                        leading: Icon(
-                          provider.status == ProviderStatus.active
-                              ? Icons.circle
-                              : Icons.circle_outlined,
-                          size: 10,
-                          color: provider.status == ProviderStatus.active
-                              ? Colors.greenAccent
-                              : theme.colorScheme.onSurfaceVariant,
-                        ),
-                        title: Text(
-                          provider.name,
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        subtitle: Text(
-                          provider.getValueString(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.colorScheme.onSurfaceVariant,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          color: isSelected
+                              ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                              : null,
+                          child: Row(
+                            children: [
+                              Icon(
+                                provider.status == ProviderStatus.active
+                                    ? Icons.circle
+                                    : Icons.circle_outlined,
+                                size: 8,
+                                color: provider.status == ProviderStatus.active
+                                    ? Colors.greenAccent
+                                    : theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  provider.name,
+                                  style: const TextStyle(fontSize: 10),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -340,9 +341,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           alignment: Alignment.centerLeft,
           child: Row(
             children: [
-              const Text(
-                'Event Log',
-                style: TextStyle(
+              Text(
+                _selectedProviderNames.isEmpty
+                    ? 'Event Log'
+                    : 'Event Log (Filtered)',
+                style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),
@@ -428,7 +431,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     // Construct the summary subtitle (collapsed view)
     String summarySubtitle;
     if (event.type == EventType.updated) {
-      summarySubtitle = '${event.getPreviousValueString()} → ${event.getValueString()}';
+      summarySubtitle =
+          '${event.getPreviousValueString()} → ${event.getValueString()}';
     } else {
       summarySubtitle = event.getValueString();
     }
@@ -553,7 +557,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     return _buildJsonTreeView(event.value);
   }
 
-  Widget _buildValueSection(String label, Map<String, dynamic>? data, {required bool isPrevious}) {
+  Widget _buildValueSection(String label, Map<String, dynamic>? data,
+      {required bool isPrevious}) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final labelColor = isPrevious
@@ -575,7 +580,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           width: double.infinity,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(2),
           ),
           child: _buildJsonTreeView(data),
@@ -583,7 +589,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       ],
     );
   }
-
 
   Color diffBackgroundColor(EventType type, bool isDark) {
     if (isDark) {
@@ -604,7 +609,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Build JSON tree view with expand/collapse functionality
   Widget _buildJsonTreeView(Map<String, dynamic>? data) {
     if (data == null) {
-      return const Text('null', style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
+      return const Text('null',
+          style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
     }
 
     // Always show as tree view - let users expand to see structure
@@ -791,7 +797,8 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                             TextSpan(
                               text: '[$index]: ',
                               style: TextStyle(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                                color: theme.colorScheme.primary
+                                    .withValues(alpha: 0.7),
                               ),
                             ),
                             if (!isExpandable || !isExpanded)
@@ -914,5 +921,4 @@ class ProviderEvent {
     }
     return data.toString();
   }
-
 }
