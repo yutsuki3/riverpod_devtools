@@ -149,10 +149,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
         'string': stringValue,
       };
 
-      // For collections, add length/size info and try to serialize elements
+      // For collections, try to serialize elements
       if (value is List) {
-        result['length'] = value.length;
-        result['isEmpty'] = value.isEmpty;
         // Try to serialize list elements
         try {
           result['items'] = value.map((item) {
@@ -175,8 +173,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
           // If we can't serialize items, just keep the string representation
         }
       } else if (value is Map) {
-        result['length'] = value.length;
-        result['isEmpty'] = value.isEmpty;
         // Try to serialize map entries
         try {
           result['entries'] = value.entries.map((entry) {
@@ -208,8 +204,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
           result['keys'] = value.keys.map((k) => k.toString()).toList();
         }
       } else if (value is Set) {
-        result['length'] = value.length;
-        result['isEmpty'] = value.isEmpty;
         // Try to serialize set elements (convert to list for serialization)
         try {
           result['items'] = value.map((item) {
