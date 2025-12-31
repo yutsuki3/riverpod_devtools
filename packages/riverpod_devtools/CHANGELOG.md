@@ -1,3 +1,8 @@
+## 0.3.0
+
+- Refresh provider list UI and add filtering feature
+- Add example pages (`collections`, `lifecycle`, `todo`, `async`) and new demos for Set, Map, and nested collections
+
 ## 0.2.0
 
 - **Breaking**: Updated to support both Riverpod 2.x and 3.x (`flutter_riverpod: '>=2.6.1 <4.0.0'`)

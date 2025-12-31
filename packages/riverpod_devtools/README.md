@@ -27,7 +27,7 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^0.2.0
+      riverpod_devtools: ^0.3.0
       flutter_riverpod: ^2.6.1 # or ^3.0.0 - both are supported
     ```
 
