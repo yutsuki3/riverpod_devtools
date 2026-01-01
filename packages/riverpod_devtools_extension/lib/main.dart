@@ -378,32 +378,34 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 _providerSearchQuery = value;
               });
             },
-            style: const TextStyle(fontSize: 11),
+            style: const TextStyle(fontSize: 10),
             decoration: InputDecoration(
               hintText: 'Search providers...',
               hintStyle: TextStyle(
-                fontSize: 11,
+                fontSize: 10,
                 color:
                     theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
               ),
               prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.only(left: 6),
                 child: Icon(
                   Icons.search,
-                  size: 16,
+                  size: 14,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
               prefixIconConstraints: const BoxConstraints(
-                minWidth: 24,
+                minWidth: 20,
+                minHeight: 20,
               ),
               suffixIcon: SizedBox(
-                width: 24,
+                width: 20,
+                height: 20,
                 child: _providerSearchQuery.isNotEmpty
                     ? IconButton(
                         icon: Icon(
                           Icons.clear,
-                          size: 16,
+                          size: 14,
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
                         onPressed: () {
@@ -418,9 +420,12 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     : null,
               ),
               isDense: true,
+              constraints: const BoxConstraints(
+                maxHeight: 32,
+              ),
               contentPadding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 4,
+                horizontal: 6,
+                vertical: 6,
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(4),
