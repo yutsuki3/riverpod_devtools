@@ -1273,16 +1273,23 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                       }
                     : null,
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     if (isExpandable)
-                      Icon(
-                        isExpanded ? Icons.arrow_drop_down : Icons.arrow_right,
-                        size: 16,
-                        color: theme.colorScheme.onSurfaceVariant,
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: Icon(
+                          isExpanded
+                              ? Icons.arrow_drop_down
+                              : Icons.arrow_right,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       )
                     else
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
+                    const SizedBox(width: 2),
                     Expanded(
                       child: RichText(
                         text: TextSpan(
@@ -1290,6 +1297,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                             fontSize: 10,
                             fontFamily: 'monospace',
                             color: theme.colorScheme.onSurface,
+                            height: 1.4,
                           ),
                           children: [
                             TextSpan(
@@ -1365,16 +1373,23 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                       }
                     : null,
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     if (isExpandable)
-                      Icon(
-                        isExpanded ? Icons.arrow_drop_down : Icons.arrow_right,
-                        size: 16,
-                        color: theme.colorScheme.onSurfaceVariant,
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: Icon(
+                          isExpanded
+                              ? Icons.arrow_drop_down
+                              : Icons.arrow_right,
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       )
                     else
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
+                    const SizedBox(width: 2),
                     Expanded(
                       child: RichText(
                         text: TextSpan(
@@ -1382,6 +1397,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                             fontSize: 10,
                             fontFamily: 'monospace',
                             color: theme.colorScheme.onSurface,
+                            height: 1.4,
                           ),
                           children: [
                             TextSpan(
