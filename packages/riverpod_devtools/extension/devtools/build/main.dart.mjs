@@ -568,8 +568,12 @@ class CompiledApp {
       _1843: (ms, c) =>
       setTimeout(() => dartInstance.exports.$invokeCallback(c),ms),
       _1844: (handle) => clearTimeout(handle),
+      _1845: (ms, c) =>
+      setInterval(() => dartInstance.exports.$invokeCallback(c), ms),
+      _1846: (handle) => clearInterval(handle),
       _1847: (c) =>
       queueMicrotask(() => dartInstance.exports.$invokeCallback(c)),
+      _1848: () => Date.now(),
       _1849: (x0,x1) => new WebSocket(x0,x1),
       _1850: (x0,x1) => x0.send(x1),
       _1851: (x0,x1) => x0.send(x1),

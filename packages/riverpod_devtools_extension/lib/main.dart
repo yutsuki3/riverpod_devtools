@@ -41,6 +41,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
 
+  /// Search query for filtering providers
+  String _providerSearchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
+
   /// ID-based expansion state (instead of index-based)
   final Set<String> _expandedEventIds = {};
 
@@ -61,6 +65,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   @override
   void dispose() {
     _extensionSubscription?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -219,6 +224,18 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     }
   }
 
+  /// Get filtered providers based on search query
+  List<ProviderInfo> get _filteredProviders {
+    if (_providerSearchQuery.isEmpty) {
+      return _providers.values.toList();
+    }
+
+    final query = _providerSearchQuery.toLowerCase();
+    return _providers.values
+        .where((provider) => provider.name.toLowerCase().contains(query))
+        .toList();
+  }
+
   /// Get filtered events using index structure for performance
   List<ProviderEvent> get _filteredEvents {
     if (_selectedProviderName == null) return _events;
@@ -351,6 +368,82 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             ],
           ),
         ),
+        // Search field
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {
+                _providerSearchQuery = value;
+              });
+            },
+            style: const TextStyle(fontSize: 11),
+            decoration: InputDecoration(
+              hintText: 'Search providers...',
+              hintStyle: TextStyle(
+                fontSize: 11,
+                color:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              ),
+              prefixIcon: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Icon(
+                  Icons.search,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 24,
+              ),
+              suffixIcon: SizedBox(
+                width: 24,
+                child: _providerSearchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(
+                          Icons.clear,
+                          size: 16,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _searchController.clear();
+                            _providerSearchQuery = '';
+                          });
+                        },
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      )
+                    : null,
+              ),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: BorderSide(
+                  color: theme.colorScheme.primary,
+                  width: 1.5,
+                ),
+              ),
+            ),
+          ),
+        ),
         Expanded(
           child: _providers.isEmpty
               ? Center(
@@ -361,58 +454,79 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         color: theme.colorScheme.onSurfaceVariant),
                   ),
                 )
-              : ListView.builder(
-                  itemCount: _providers.length,
-                  itemBuilder: (context, index) {
-                    final provider = _providers.values.elementAt(index);
-                    final isSelected = _selectedProviderName == provider.name;
-                    return Theme(
-                      data: Theme.of(context).copyWith(
-                        splashFactory: NoSplash.splashFactory,
-                        highlightColor: Colors.transparent,
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedProviderName = null;
-                            } else {
-                              _selectedProviderName = provider.name;
-                            }
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          color: isSelected
-                              ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                              : null,
-                          child: Row(
-                            children: [
-                              Icon(
-                                provider.status == ProviderStatus.active
-                                    ? Icons.circle
-                                    : Icons.circle_outlined,
-                                size: 8,
-                                color: provider.status == ProviderStatus.active
-                                    ? Colors.greenAccent
-                                    : theme.colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  provider.name,
-                                  style: const TextStyle(fontSize: 10),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+              : Builder(
+                  builder: (context) {
+                    final filteredProviders = _filteredProviders;
+
+                    if (filteredProviders.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No providers found',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                      ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: filteredProviders.length,
+                      itemBuilder: (context, index) {
+                        final provider = filteredProviders[index];
+                        final isSelected =
+                            _selectedProviderName == provider.name;
+                        return Theme(
+                          data: Theme.of(context).copyWith(
+                            splashFactory: NoSplash.splashFactory,
+                            highlightColor: Colors.transparent,
+                          ),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedProviderName = null;
+                                } else {
+                                  _selectedProviderName = provider.name;
+                                }
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              color: isSelected
+                                  ? theme.colorScheme.primary
+                                      .withValues(alpha: 0.1)
+                                  : null,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    provider.status == ProviderStatus.active
+                                        ? Icons.circle
+                                        : Icons.circle_outlined,
+                                    size: 8,
+                                    color: provider.status ==
+                                            ProviderStatus.active
+                                        ? Colors.greenAccent
+                                        : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      provider.name,
+                                      style: const TextStyle(fontSize: 10),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     );
                   },
                 ),
