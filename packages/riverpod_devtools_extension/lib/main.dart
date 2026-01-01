@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:vm_service/vm_service.dart';
 
 void main() {
@@ -35,9 +37,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Index structure for fast filtering: provider name -> list of events
   final Map<String, List<ProviderEvent>> _eventsByProvider = {};
 
-  /// The currently selected provider name for detail view.
-  /// If null, no provider is selected.
-  String? _selectedProviderName;
+  /// The currently selected provider names for detail view.
+  /// Empty set means no provider is selected.
+  final Set<String> _selectedProviderNames = {};
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
 
@@ -238,10 +240,19 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   /// Get filtered events using index structure for performance
   List<ProviderEvent> get _filteredEvents {
-    if (_selectedProviderName == null) return _events;
+    if (_selectedProviderNames.isEmpty) return _events;
 
-    final providerEvents = _eventsByProvider[_selectedProviderName];
-    return providerEvents ?? [];
+    // Combine events from all selected providers
+    final allEvents = <ProviderEvent>[];
+    for (final providerName in _selectedProviderNames) {
+      final providerEvents = _eventsByProvider[providerName];
+      if (providerEvents != null) {
+        allEvents.addAll(providerEvents);
+      }
+    }
+    // Sort by timestamp (newest first)
+    allEvents.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return allEvents;
   }
 
   @override
@@ -353,10 +364,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 ),
               ),
               const Spacer(),
-              if (_selectedProviderName != null)
+              if (_selectedProviderNames.isNotEmpty)
                 TextButton(
                   onPressed: () => setState(() {
-                    _selectedProviderName = null;
+                    _selectedProviderNames.clear();
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -480,53 +491,72 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       itemBuilder: (context, index) {
                         final provider = filteredProviders[index];
                         final isSelected =
-                            _selectedProviderName == provider.name;
+                            _selectedProviderNames.contains(provider.name);
                         return Theme(
                           data: Theme.of(context).copyWith(
                             splashFactory: NoSplash.splashFactory,
                             highlightColor: Colors.transparent,
                           ),
-                          child: InkWell(
-                            onTap: () {
+                          child: Listener(
+                            onPointerDown: (event) {
                               setState(() {
-                                if (isSelected) {
-                                  _selectedProviderName = null;
+                                final isCtrlOrCmd = event.kind ==
+                                        PointerDeviceKind.mouse &&
+                                    (HardwareKeyboard.instance.isMetaPressed ||
+                                        HardwareKeyboard
+                                            .instance.isControlPressed);
+
+                                if (isCtrlOrCmd) {
+                                  // Multi-selection mode: toggle
+                                  if (isSelected) {
+                                    _selectedProviderNames
+                                        .remove(provider.name);
+                                  } else {
+                                    _selectedProviderNames.add(provider.name);
+                                  }
                                 } else {
-                                  _selectedProviderName = provider.name;
+                                  // Single selection mode: select only this one
+                                  _selectedProviderNames.clear();
+                                  _selectedProviderNames.add(provider.name);
                                 }
                               });
                             },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              color: isSelected
-                                  ? theme.colorScheme.primary
-                                      .withValues(alpha: 0.1)
-                                  : null,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    provider.status == ProviderStatus.active
-                                        ? Icons.circle
-                                        : Icons.circle_outlined,
-                                    size: 8,
-                                    color: provider.status ==
-                                            ProviderStatus.active
-                                        ? Colors.greenAccent
-                                        : theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      provider.name,
-                                      style: const TextStyle(fontSize: 10),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
+                            child: InkWell(
+                              onTap: () {
+                                // Handled by Listener above
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                color: isSelected
+                                    ? theme.colorScheme.primary
+                                        .withValues(alpha: 0.1)
+                                    : null,
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      provider.status == ProviderStatus.active
+                                          ? Icons.circle
+                                          : Icons.circle_outlined,
+                                      size: 8,
+                                      color: provider.status ==
+                                              ProviderStatus.active
+                                          ? Colors.greenAccent
+                                          : theme.colorScheme.onSurfaceVariant,
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        provider.name,
+                                        style: const TextStyle(fontSize: 10),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -535,6 +565,20 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     );
                   },
                 ),
+        ),
+        // Operation hint
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          child: Text(
+            'Tip: Ctrl/Cmd+Click for multi-selection',
+            style: TextStyle(
+              fontSize: 8,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
         ),
       ],
     );
@@ -564,7 +608,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
         // Content
         Expanded(
-          child: _selectedProviderName == null
+          child: _selectedProviderNames.isEmpty
               ? Center(
                   child: Text(
                     'Select a provider to view details',
@@ -576,7 +620,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 )
               : Builder(
                   builder: (context) {
-                    final provider = _providers[_selectedProviderName];
+                    final provider = _providers[_selectedProviderNames.first];
                     if (provider == null) {
                       return Center(
                         child: Text(
@@ -815,7 +859,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 return InkWell(
                   onTap: () {
                     setState(() {
-                      _selectedProviderName = name;
+                      _selectedProviderNames.clear();
+                      _selectedProviderNames.add(name);
                     });
                   },
                   child: Container(
@@ -874,9 +919,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           child: Row(
             children: [
               Text(
-                _selectedProviderName == null
+                _selectedProviderNames.isEmpty
                     ? 'Event Log'
-                    : 'Event Log ($_selectedProviderName)',
+                    : _selectedProviderNames.length == 1
+                        ? 'Event Log (${_selectedProviderNames.first})'
+                        : 'Event Log (${_selectedProviderNames.length} providers)',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
