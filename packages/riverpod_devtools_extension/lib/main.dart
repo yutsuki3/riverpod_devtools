@@ -79,6 +79,17 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     };
   }
 
+  /// Get providers that depend on (use) the given provider
+  List<String> _getUsedBy(String providerName) {
+    final usedBy = <String>[];
+    for (final entry in _providers.entries) {
+      if (entry.value.dependencies.contains(providerName)) {
+        usedBy.add(entry.key);
+      }
+    }
+    return usedBy;
+  }
+
   Future<void> _subscribeToEvents() async {
     await serviceManager.onServiceAvailable;
 
@@ -97,6 +108,17 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       final rawValue = data['newValue'] ?? data['value'];
       final rawPreviousValue = data['previousValue'];
       final timestamp = data['timestamp'] as int?;
+
+      // Safely extract dependencies list
+      List<String> dependencies = [];
+      try {
+        final rawDeps = data['dependencies'];
+        if (rawDeps is List) {
+          dependencies = rawDeps.map((e) => e.toString()).toList();
+        }
+      } catch (e) {
+        // Keep empty list on error
+      }
 
       // Convert values to Map<String, dynamic> if they're already Maps,
       // or wrap primitive types in a simple structure
@@ -135,6 +157,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             name: providerName,
             value: value,
             status: ProviderStatus.active,
+            dependencies: dependencies,
           );
           _addEvent(ProviderEvent(
             type: EventType.added,
@@ -149,6 +172,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             name: providerName,
             value: value,
             status: ProviderStatus.active,
+            dependencies: dependencies,
           );
           _addEvent(ProviderEvent(
             type: EventType.updated,
@@ -165,6 +189,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             value: _providers[providerName]?.value ??
                 {'type': 'null', 'value': null},
             status: ProviderStatus.disposed,
+            dependencies: _providers[providerName]?.dependencies ?? [],
           );
           _addEvent(ProviderEvent(
             type: EventType.disposed,
@@ -509,23 +534,54 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
                           const SizedBox(height: 16),
 
-                          // Depends On Section
+                          // Depends On Section (Beta)
                           _buildDetailSection(
-                            title: 'Depends On',
-                            child: _buildDependencyList(
-                              dependencies: [],
-                              emptyMessage: 'No dependencies',
-                              theme: theme,
+                            title: 'Depends On (Beta)',
+                            betaBadge: true,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 6,
+                                  ),
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.blue.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Dependencies are detected by observing update patterns. '
+                                    'May include false positives.',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                                _buildDependencyList(
+                                  dependencies: provider.dependencies,
+                                  emptyMessage: 'No dependencies detected yet',
+                                  theme: theme,
+                                ),
+                              ],
                             ),
                           ),
 
                           const SizedBox(height: 16),
 
-                          // Used By Section
+                          // Used By Section (Beta)
                           _buildDetailSection(
-                            title: 'Used By',
+                            title: 'Used By (Beta)',
+                            betaBadge: true,
                             child: _buildDependencyList(
-                              dependencies: [],
+                              dependencies: _getUsedBy(provider.name),
                               emptyMessage: 'Not used by any providers',
                               theme: theme,
                             ),
@@ -543,18 +599,45 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   Widget _buildDetailSection({
     required String title,
     required Widget child,
+    bool betaBadge = false,
   }) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            color: theme.colorScheme.primary,
-          ),
+        Row(
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            if (betaBadge) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(3),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  'BETA',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 4),
         child,
@@ -1211,12 +1294,14 @@ class ProviderInfo {
   final String name;
   final Map<String, dynamic> value;
   final ProviderStatus status;
+  final List<String> dependencies;
 
   ProviderInfo({
     required this.id,
     required this.name,
     required this.value,
     required this.status,
+    this.dependencies = const [],
   });
 
   /// Get string representation of value for display

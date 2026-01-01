@@ -4,6 +4,7 @@ import 'package:riverpod_devtools/riverpod_devtools.dart';
 
 import 'pages/async_page.dart';
 import 'pages/collections_page.dart';
+import 'pages/dependencies_page.dart';
 import 'pages/lifecycle_page.dart';
 import 'pages/todo_page.dart';
 
@@ -70,6 +71,14 @@ class HomePage extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const CollectionsPage()),
                   ),
               child: const Text('Collections Demo (Set/Map/Nested)'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const DependenciesPage()),
+                  ),
+              child: const Text('Dependencies Demo'),
             ),
           ],
         ),
