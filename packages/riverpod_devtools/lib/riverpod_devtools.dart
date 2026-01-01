@@ -30,10 +30,12 @@ class _DependencyTracker {
   // Track the current update wave (batch)
   final List<_UpdateEvent> _currentBatch = [];
   DateTime? _lastUpdateTime;
-  static const _batchWindowMs = 100; // Updates within 100ms are considered the same wave
+  static const _batchWindowMs =
+      100; // Updates within 100ms are considered the same wave
 
   /// Called when a provider is updated
-  void recordUpdate(String providerId, String providerName, {required bool isUpdate}) {
+  void recordUpdate(String providerId, String providerName,
+      {required bool isUpdate}) {
     final now = DateTime.now();
 
     // Check if a new wave has started
@@ -44,7 +46,8 @@ class _DependencyTracker {
       _currentBatch.clear();
     }
 
-    _currentBatch.add(_UpdateEvent(providerId, providerName, now, isUpdate: isUpdate));
+    _currentBatch
+        .add(_UpdateEvent(providerId, providerName, now, isUpdate: isUpdate));
     _lastUpdateTime = now;
   }
 
@@ -68,9 +71,7 @@ class _DependencyTracker {
       if (current.providerId == previous.providerId) continue;
 
       // Record as candidate
-      _candidateDependencies
-          .putIfAbsent(current.providerId, () => {})
-          .update(
+      _candidateDependencies.putIfAbsent(current.providerId, () => {}).update(
             previous.providerName,
             (count) => count + 1,
             ifAbsent: () => 1,
@@ -83,7 +84,8 @@ class _DependencyTracker {
 
   /// Determine confirmed dependencies from candidates
   void _confirmDependencies() {
-    const minOccurrences = 1; // Confirm after observing once (for faster detection)
+    const minOccurrences =
+        1; // Confirm after observing once (for faster detection)
 
     for (final entry in _candidateDependencies.entries) {
       final providerId = entry.key;
@@ -121,9 +123,11 @@ class _UpdateEvent {
   final String providerId;
   final String providerName;
   final DateTime timestamp;
-  final bool isUpdate; // true if from didUpdateProvider, false if from didAddProvider
+  final bool
+      isUpdate; // true if from didUpdateProvider, false if from didAddProvider
 
-  _UpdateEvent(this.providerId, this.providerName, this.timestamp, {required this.isUpdate});
+  _UpdateEvent(this.providerId, this.providerName, this.timestamp,
+      {required this.isUpdate});
 }
 
 final _dependencyTracker = _DependencyTracker();

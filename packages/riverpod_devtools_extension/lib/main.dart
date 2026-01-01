@@ -589,6 +589,50 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Provider Name (Large Display)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  provider.name,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      provider.status == ProviderStatus.active
+                                          ? Icons.circle
+                                          : Icons.circle_outlined,
+                                      size: 12,
+                                      color: provider.status ==
+                                              ProviderStatus.active
+                                          ? Colors.greenAccent
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      provider.status == ProviderStatus.active
+                                          ? 'Active'
+                                          : 'Disposed',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
                           // Status indicator for disposed providers
                           if (provider.status == ProviderStatus.disposed)
                             Container(
@@ -648,20 +692,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
                           const SizedBox(height: 16),
 
-                          // Depends On Section (Beta)
+                          // Dependencies Section (with Beta badge)
                           _buildDetailSection(
-                            title: 'Depends On (Beta)',
+                            title: 'Dependencies',
                             betaBadge: true,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Note UI
                                 Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 6,
                                   ),
-                                  margin: const EdgeInsets.only(bottom: 8),
+                                  margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
                                     color: Colors.blue.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(4),
@@ -679,25 +724,25 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                     ),
                                   ),
                                 ),
-                                _buildDependencyList(
+
+                                // Depends On subsection
+                                _buildDependencySubsection(
+                                  title: 'Depends On',
                                   dependencies: provider.dependencies,
                                   emptyMessage: 'No dependencies detected yet',
                                   theme: theme,
                                 ),
+
+                                const SizedBox(height: 12),
+
+                                // Used By subsection
+                                _buildDependencySubsection(
+                                  title: 'Used By',
+                                  dependencies: _getUsedBy(provider.name),
+                                  emptyMessage: 'Not used by any providers',
+                                  theme: theme,
+                                ),
                               ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 16),
-
-                          // Used By Section (Beta)
-                          _buildDetailSection(
-                            title: 'Used By (Beta)',
-                            betaBadge: true,
-                            child: _buildDependencyList(
-                              dependencies: _getUsedBy(provider.name),
-                              emptyMessage: 'Not used by any providers',
-                              theme: theme,
                             ),
                           ),
                         ],
@@ -759,68 +804,90 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
-  Widget _buildDependencyList({
+  Widget _buildDependencySubsection({
+    required String title,
     required List<String> dependencies,
     required String emptyMessage,
     required ThemeData theme,
   }) {
-    if (dependencies.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(
-          emptyMessage,
-          style: TextStyle(
-            fontSize: 10,
-            color: theme.colorScheme.onSurfaceVariant,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: dependencies.map((name) {
-        return InkWell(
-          onTap: () {
-            setState(() {
-              _selectedProviderName = name;
-            });
-          },
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            margin: const EdgeInsets.only(bottom: 2),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Subsection title
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 10,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    name,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: theme.colorScheme.primary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
           ),
-        );
-      }).toList(),
+          // Dependency list
+          if (dependencies.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              child: Text(
+                emptyMessage,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            )
+          else
+            Column(
+              children: dependencies.map((name) {
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedProviderName = name;
+                    });
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    margin: const EdgeInsets.only(bottom: 2),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 10,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: theme.colorScheme.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
     );
   }
 
