@@ -633,44 +633,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                             ),
                           ),
 
-                          // Status indicator for disposed providers
-                          if (provider.status == ProviderStatus.disposed)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 6,
-                              ),
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                                border: Border.all(
-                                  color: Colors.orange.withValues(alpha: 0.3),
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.warning_amber_rounded,
-                                    size: 16,
-                                    color: Colors.orange,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'This provider has been disposed',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500,
-                                      color:
-                                          Colors.orange.withValues(alpha: 0.9),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
                           // State Section
                           _buildDetailSection(
                             title: 'Current State',
@@ -777,7 +739,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             if (betaBadge) ...[
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                padding: const EdgeInsets.fromLTRB(3, 2, 3, 1),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest
                       .withValues(alpha: 0.5),
