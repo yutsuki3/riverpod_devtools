@@ -777,21 +777,23 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             if (betaBadge) ...[
               const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(3),
+                  color: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(2),
                   border: Border.all(
-                    color: Colors.orange.withValues(alpha: 0.5),
-                    width: 1,
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    width: 0.5,
                   ),
                 ),
                 child: Text(
                   'BETA',
                   style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange.withValues(alpha: 0.9),
+                    fontSize: 7,
+                    fontWeight: FontWeight.w500,
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.6),
                   ),
                 ),
               ),
