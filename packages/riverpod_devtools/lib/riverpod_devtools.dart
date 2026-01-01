@@ -164,9 +164,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // Record update (for dependency learning)
     _dependencyTracker.recordUpdate(providerId, providerName, isUpdate: false);
 
-    // Log dependencies for this provider
-    _logProviderDependencies(context, provider);
-
     // Get dependencies for this provider
     final dependencies = _dependencyTracker.getDependencies(providerId);
 
@@ -196,9 +193,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
     // Record update (for dependency learning)
     _dependencyTracker.recordUpdate(providerId, providerName, isUpdate: true);
-
-    // Log dependencies for this provider
-    _logProviderDependencies(context, provider);
 
     // Get dependencies for this provider
     final dependencies = _dependencyTracker.getDependencies(providerId);
@@ -253,41 +247,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       return name?.toString() ?? provider.runtimeType.toString();
     } catch (_) {
       return provider.runtimeType.toString();
-    }
-  }
-
-  /// Log provider dependencies
-  /// Learning-based approach: infers dependencies by observing update patterns
-  void _logProviderDependencies(Object context, dynamic provider) {
-    try {
-      final providerId = identityHashCode(provider).toString();
-      final providerName = _getProviderName(provider);
-
-      // Get learning-based dependencies
-      final dependencies = _dependencyTracker.getDependencies(providerId);
-
-      // ignore: avoid_print
-      print('\n=== [RiverpodDevTools] Provider Dependencies ===');
-      // ignore: avoid_print
-      print('Provider: $providerName (ID: $providerId)');
-
-      if (dependencies.isNotEmpty) {
-        // ignore: avoid_print
-        print('Dependencies (detected by update patterns):');
-        for (final dep in dependencies) {
-          // ignore: avoid_print
-          print('  -> $dep');
-        }
-      } else {
-        // ignore: avoid_print
-        print('No dependencies detected yet (requires provider updates)');
-      }
-
-      // ignore: avoid_print
-      print('=== End Dependencies ===\n');
-    } catch (e) {
-      // ignore: avoid_print
-      print('Error in _logProviderDependencies: $e');
     }
   }
 
