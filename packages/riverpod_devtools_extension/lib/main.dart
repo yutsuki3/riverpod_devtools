@@ -174,6 +174,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             timestamp: eventTimestamp,
           ));
         } else if (kind == 'riverpod:provider_updated') {
+          // Categorize the event type based on the update characteristics
+          final eventType = _categorizeEventType(
+            previousValue: previousValue,
+            value: value,
+            currentDependencies: dependencies,
+            providerName: providerName,
+          );
+
           _providers[providerName] = ProviderInfo(
             id: providerId,
             name: providerName,
@@ -182,7 +190,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             dependencies: dependencies,
           );
           _addEvent(ProviderEvent(
-            type: EventType.updated,
+            type: eventType,
             providerId: providerId,
             providerName: providerName,
             previousValue: previousValue,
@@ -207,6 +215,104 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         }
       });
     });
+  }
+
+  /// Determine the specific event type based on event characteristics
+  EventType _categorizeEventType({
+    required Map<String, dynamic>? previousValue,
+    required Map<String, dynamic>? value,
+    required List<String> currentDependencies,
+    required String providerName,
+  }) {
+    // Check for dependency changes
+    final previousProvider = _providers[providerName];
+    if (previousProvider != null) {
+      final prevDeps = previousProvider.dependencies;
+      if (!_listsEqual(prevDeps, currentDependencies)) {
+        return EventType.dependencyChange;
+      }
+    }
+
+    // Check for AsyncValue state transitions
+    if (value != null && value.containsKey('type')) {
+      final valueType = value['type'] as String?;
+      final prevType = previousValue?.containsKey('type') == true
+          ? previousValue!['type'] as String?
+          : null;
+
+      // AsyncComplete: transition from loading to data
+      if (prevType == 'AsyncLoading' && valueType == 'AsyncData') {
+        return EventType.asyncComplete;
+      }
+
+      // Invalidate: transition to loading or null
+      if (valueType == 'AsyncLoading' || valueType == 'null') {
+        return EventType.invalidate;
+      }
+    }
+
+    // Check for rebuild (same value)
+    if (previousValue != null &&
+        value != null &&
+        _mapsEqual(previousValue, value)) {
+      return EventType.rebuild;
+    }
+
+    // Check for refresh (explicit re-fetch with different value)
+    // This is detected when an AsyncData changes to another AsyncData with different value
+    if (previousValue != null && value != null) {
+      final prevType = previousValue.containsKey('type')
+          ? previousValue['type'] as String?
+          : null;
+      final currType = value.containsKey('type') ? value['type'] as String? : null;
+
+      if (prevType == 'AsyncData' && currType == 'AsyncData') {
+        final prevData = previousValue.containsKey('value')
+            ? previousValue['value']
+            : null;
+        final currData = value.containsKey('value') ? value['value'] : null;
+
+        if (prevData != currData) {
+          return EventType.refresh;
+        }
+      }
+    }
+
+    // Default to updated
+    return EventType.updated;
+  }
+
+  /// Helper to compare two lists for equality
+  bool _listsEqual(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Helper to compare two maps for equality
+  bool _mapsEqual(Map<String, dynamic> a, Map<String, dynamic> b) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key)) return false;
+      final aVal = a[key];
+      final bVal = b[key];
+      if (aVal is Map && bVal is Map) {
+        if (!_mapsEqual(
+            aVal as Map<String, dynamic>, bVal as Map<String, dynamic>)) {
+          return false;
+        }
+      } else if (aVal is List && bVal is List) {
+        if (aVal.length != bVal.length) return false;
+        for (var i = 0; i < aVal.length; i++) {
+          if (aVal[i] != bVal[i]) return false;
+        }
+      } else if (aVal != bVal) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /// Add an event with ring buffer logic and index updates
@@ -1010,6 +1116,16 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0), // Blue
       EventType.disposed =>
         isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00), // Orange
+      EventType.invalidate =>
+        isDark ? const Color(0xFFEF5350) : const Color(0xFFC62828), // Red
+      EventType.refresh =>
+        isDark ? const Color(0xFF26C6DA) : const Color(0xFF00838F), // Cyan
+      EventType.rebuild =>
+        isDark ? const Color(0xFFAB47BC) : const Color(0xFF6A1B9A), // Purple
+      EventType.dependencyChange =>
+        isDark ? const Color(0xFFFFCA28) : const Color(0xFFF57F17), // Amber
+      EventType.asyncComplete =>
+        isDark ? const Color(0xFF9CCC65) : const Color(0xFF558B2F), // Lime
     };
 
     final backgroundColor = diffBackgroundColor(event.type, isDark);
@@ -1018,6 +1134,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       EventType.added => Icons.add_circle_outline,
       EventType.updated => Icons.change_circle_outlined,
       EventType.disposed => Icons.remove_circle_outline,
+      EventType.invalidate => Icons.refresh_outlined,
+      EventType.refresh => Icons.sync_outlined,
+      EventType.rebuild => Icons.autorenew_outlined,
+      EventType.dependencyChange => Icons.link_outlined,
+      EventType.asyncComplete => Icons.check_circle_outline,
     };
 
     final isExpanded = _expandedEventIds.contains(event.id);
@@ -1041,13 +1162,33 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     // Construct the summary subtitle (collapsed view)
     String summarySubtitle;
-    if (event.type == EventType.disposed) {
-      summarySubtitle = 'disposed';
-    } else if (event.type == EventType.updated) {
-      summarySubtitle =
-          '${event.getPreviousValueString()} → ${event.getValueString()}';
-    } else {
-      summarySubtitle = event.getValueString();
+    switch (event.type) {
+      case EventType.disposed:
+        summarySubtitle = 'disposed';
+        break;
+      case EventType.invalidate:
+        summarySubtitle = 'invalidated → ${event.getValueString()}';
+        break;
+      case EventType.refresh:
+        summarySubtitle =
+            'refreshed: ${event.getPreviousValueString()} → ${event.getValueString()}';
+        break;
+      case EventType.rebuild:
+        summarySubtitle = 'rebuilt (same value)';
+        break;
+      case EventType.dependencyChange:
+        summarySubtitle = 'dependencies changed';
+        break;
+      case EventType.asyncComplete:
+        summarySubtitle = 'completed → ${event.getValueString()}';
+        break;
+      case EventType.updated:
+        summarySubtitle =
+            '${event.getPreviousValueString()} → ${event.getValueString()}';
+        break;
+      case EventType.added:
+        summarySubtitle = event.getValueString();
+        break;
     }
 
     // Check if we should treat this as "long text" for the expand/collapse arrow visibility
@@ -1055,7 +1196,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     // Disposed events should not be expandable
     final isLongText = event.type == EventType.disposed
         ? false
-        : (summarySubtitle.length > 50 || event.type == EventType.updated);
+        : (summarySubtitle.length > 50 ||
+            event.type == EventType.updated ||
+            event.type == EventType.refresh ||
+            event.type == EventType.invalidate ||
+            event.type == EventType.asyncComplete);
 
     return Container(
       key: key,
@@ -1248,12 +1393,23 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         EventType.added => const Color(0xFF1B5E20).withValues(alpha: 0.2),
         EventType.updated => const Color(0xFF0D47A1).withValues(alpha: 0.2),
         EventType.disposed => const Color(0xFFE65100).withValues(alpha: 0.2),
+        EventType.invalidate => const Color(0xFFB71C1C).withValues(alpha: 0.2),
+        EventType.refresh => const Color(0xFF006064).withValues(alpha: 0.2),
+        EventType.rebuild => const Color(0xFF4A148C).withValues(alpha: 0.2),
+        EventType.dependencyChange =>
+          const Color(0xFFF57F17).withValues(alpha: 0.2),
+        EventType.asyncComplete => const Color(0xFF33691E).withValues(alpha: 0.2),
       };
     } else {
       return switch (type) {
         EventType.added => const Color(0xFFE8F5E9), // Light Green
         EventType.updated => const Color(0xFFE3F2FD), // Light Blue
         EventType.disposed => const Color(0xFFFFF3E0), // Light Orange
+        EventType.invalidate => const Color(0xFFFFEBEE), // Light Red
+        EventType.refresh => const Color(0xFFE0F7FA), // Light Cyan
+        EventType.rebuild => const Color(0xFFF3E5F5), // Light Purple
+        EventType.dependencyChange => const Color(0xFFFFF9C4), // Light Amber
+        EventType.asyncComplete => const Color(0xFFF1F8E9), // Light Lime
       };
     }
   }
@@ -1515,7 +1671,16 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
 enum ProviderStatus { active, disposed }
 
-enum EventType { added, updated, disposed }
+enum EventType {
+  added,
+  updated,
+  disposed,
+  invalidate,
+  refresh,
+  rebuild,
+  dependencyChange,
+  asyncComplete,
+}
 
 class ProviderInfo {
   final String id;
