@@ -486,9 +486,17 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       );
                     }
 
-                    return ListView.builder(
-                      itemCount: filteredProviders.length,
-                      itemBuilder: (context, index) {
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        // Tapping empty area deselects all
+                        setState(() {
+                          _selectedProviderNames.clear();
+                        });
+                      },
+                      child: ListView.builder(
+                        itemCount: filteredProviders.length,
+                        itemBuilder: (context, index) {
                         final provider = filteredProviders[index];
                         final isSelected =
                             _selectedProviderNames.contains(provider.name);
@@ -515,9 +523,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                     _selectedProviderNames.add(provider.name);
                                   }
                                 } else {
-                                  // Single selection mode: select only this one
-                                  _selectedProviderNames.clear();
-                                  _selectedProviderNames.add(provider.name);
+                                  // Single selection mode
+                                  if (isSelected && _selectedProviderNames.length == 1) {
+                                    // If clicking the only selected provider, deselect it
+                                    _selectedProviderNames.clear();
+                                  } else {
+                                    // Otherwise, select only this one
+                                    _selectedProviderNames.clear();
+                                    _selectedProviderNames.add(provider.name);
+                                  }
                                 }
                               });
                             },
@@ -562,6 +576,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           ),
                         );
                       },
+                    ),
                     );
                   },
                 ),
