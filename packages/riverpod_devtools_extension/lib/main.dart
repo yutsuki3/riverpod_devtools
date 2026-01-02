@@ -40,6 +40,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// The currently selected provider names for detail view.
   /// Empty set means no provider is selected.
   final Set<String> _selectedProviderNames = {};
+
+  /// The currently active tab (provider name) when multiple providers are selected
+  String? _activeTabProviderName;
+
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
 
@@ -368,6 +372,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 TextButton(
                   onPressed: () => setState(() {
                     _selectedProviderNames.clear();
+                    _activeTabProviderName = null;
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -492,6 +497,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         // Tapping empty area deselects all
                         setState(() {
                           _selectedProviderNames.clear();
+                          _activeTabProviderName = null;
                         });
                       },
                       child: ListView.builder(
@@ -519,18 +525,31 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                   if (isSelected) {
                                     _selectedProviderNames
                                         .remove(provider.name);
+                                    // If removed the active tab, update it
+                                    if (_activeTabProviderName == provider.name) {
+                                      _activeTabProviderName = _selectedProviderNames.isNotEmpty
+                                          ? _selectedProviderNames.first
+                                          : null;
+                                    }
                                   } else {
                                     _selectedProviderNames.add(provider.name);
+                                    // If this is the first selection or active tab is not set, set it
+                                    if (_activeTabProviderName == null ||
+                                        !_selectedProviderNames.contains(_activeTabProviderName)) {
+                                      _activeTabProviderName = provider.name;
+                                    }
                                   }
                                 } else {
                                   // Single selection mode
                                   if (isSelected && _selectedProviderNames.length == 1) {
                                     // If clicking the only selected provider, deselect it
                                     _selectedProviderNames.clear();
+                                    _activeTabProviderName = null;
                                   } else {
                                     // Otherwise, select only this one
                                     _selectedProviderNames.clear();
                                     _selectedProviderNames.add(provider.name);
+                                    _activeTabProviderName = provider.name;
                                   }
                                 }
                               });
@@ -621,6 +640,84 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           ),
         ),
 
+        // Tabs (only show when multiple providers selected)
+        if (_selectedProviderNames.length > 1)
+          Container(
+            height: 28,
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: _selectedProviderNames.map((providerName) {
+                final isActive = _activeTabProviderName == providerName;
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _activeTabProviderName = providerName;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                          : null,
+                      border: isActive
+                          ? Border(
+                              bottom: BorderSide(
+                                color: theme.colorScheme.primary,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          providerName.length > 20
+                              ? '${providerName.substring(0, 20)}...'
+                              : providerName,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                            color: isActive
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedProviderNames.remove(providerName);
+                              if (_activeTabProviderName == providerName) {
+                                _activeTabProviderName = _selectedProviderNames.isNotEmpty
+                                    ? _selectedProviderNames.first
+                                    : null;
+                              }
+                            });
+                          },
+                          child: Icon(
+                            Icons.close,
+                            size: 12,
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
         // Content
         Expanded(
           child: _selectedProviderNames.isEmpty
@@ -635,7 +732,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 )
               : Builder(
                   builder: (context) {
-                    final provider = _providers[_selectedProviderNames.first];
+                    // Determine which provider to display
+                    String displayProviderName;
+                    if (_selectedProviderNames.length == 1) {
+                      displayProviderName = _selectedProviderNames.first;
+                    } else {
+                      // Multiple selection: use active tab or first selected
+                      if (_activeTabProviderName != null &&
+                          _selectedProviderNames.contains(_activeTabProviderName)) {
+                        displayProviderName = _activeTabProviderName!;
+                      } else {
+                        displayProviderName = _selectedProviderNames.first;
+                        _activeTabProviderName = displayProviderName;
+                      }
+                    }
+
+                    final provider = _providers[displayProviderName];
                     if (provider == null) {
                       return Center(
                         child: Text(
@@ -876,6 +988,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     setState(() {
                       _selectedProviderNames.clear();
                       _selectedProviderNames.add(name);
+                      _activeTabProviderName = name;
                     });
                   },
                   child: Container(
