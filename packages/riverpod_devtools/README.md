@@ -4,14 +4,14 @@
 
 A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time.
 
-<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/demo.gif" width="100%" alt="Riverpod DevTools Demo" />
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_040.png" width="100%" alt="Riverpod DevTools Demo" />
 
 ## Features
 
-- **Provider Graph**: Visualize the relationships between your providers correctly (Coming soon!).
-- **State Inspector**: View the current state of your providers.
-- **Event Log**: Track provider lifecycle events (add, update, dispose).
-- **History Tracking**: Jump back in time to see previous states.
+- **Provider Graph**: Visualize the relationships between your providers (Beta: Learning-based tracking).
+- **State Inspector**: View the current state of your providers with type labels and optimized display.
+- **Event Log**: Track provider lifecycle events with hierarchical grouping and sub-events.
+- **Light Mode Support**: Seamlessly switch between light and dark themes.
 
 ## Getting started
 
@@ -27,11 +27,11 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^0.3.0
-      flutter_riverpod: ^2.6.1 # or ^3.0.0 - both are supported
+      riverpod_devtools: ^0.4.0
+      flutter_riverpod: '>=2.3.0 <4.0.0'
     ```
 
-    **Note:** This package supports both Riverpod 2.x and 3.x. This package is currently in early development.
+    **Note:** This package supports both Riverpod 2.x and 3.x.
 
 2.  Add `RiverpodDevToolsObserver` to your `ProviderScope`:
 
@@ -57,7 +57,7 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
 1.  Run your Flutter app.
 2.  Open semantic DevTools (open the debugger).
-3.  Look for the "Riverpod" tab in DevTools.
+3.  Look for the "riverpod_devtools" tab in DevTools.
 4.  Interact with your app and watch the events and state updates in the DevTools tab.
 
 ## Additional information

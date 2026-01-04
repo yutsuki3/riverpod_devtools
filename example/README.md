@@ -29,7 +29,7 @@ This example showcases:
 
 1. Run the app
 2. Open Flutter DevTools
-3. Navigate to the "Riverpod" tab
+3. Navigate to the "riverpod_devtools" tab
 4. Interact with the app to see provider events in real-time
 
 For more information about the package, visit [pub.dev/packages/riverpod_devtools](https://pub.dev/packages/riverpod_devtools).
