@@ -1454,6 +1454,12 @@ class _JsonTreeView extends StatefulWidget {
 class _JsonTreeViewState extends State<_JsonTreeView> {
   final Set<String> _expandedKeys = {};
 
+  /// Number of items to show by default for large collections
+  static const int _loadLimit = 50;
+
+  /// Keys that are currently showing more items
+  final Set<String> _showingMoreKeys = {};
+
   @override
   void initState() {
     super.initState();
@@ -1470,193 +1476,241 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final entries = widget.data.entries.toList();
+    final allEntries = widget.data.entries.toList();
+    final bool isLarge = allEntries.length > _loadLimit;
+    final bool showingMore = _showingMoreKeys.contains('__root__');
+
+    final entries = (isLarge && !showingMore)
+        ? allEntries.take(_loadLimit).toList()
+        : allEntries;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: entries.map((entry) {
-        final key = entry.key;
-        final value = entry.value;
-        final isExpanded = _expandedKeys.contains(key);
+      children: [
+        ...entries.map((entry) {
+          final key = entry.key;
+          final value = entry.value;
+          final isExpanded = _expandedKeys.contains(key);
 
-        // Determine if the value is expandable (Map or List)
-        final isExpandable = value is Map || value is List;
+          // Determine if the value is expandable (Map or List)
+          final isExpandable = value is Map || value is List;
 
-        return Padding(
-          padding: EdgeInsets.only(left: widget.indent * 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: isExpandable
-                    ? () {
-                        setState(() {
-                          if (isExpanded) {
-                            _expandedKeys.remove(key);
-                          } else {
-                            _expandedKeys.add(key);
-                          }
-                        });
-                      }
-                    : null,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (isExpandable)
-                      SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: Icon(
-                          isExpanded
-                              ? Icons.arrow_drop_down
-                              : Icons.arrow_right,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 14),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'monospace',
-                            color: theme.colorScheme.onSurface,
-                            height: 1.4,
+          return Padding(
+            padding: EdgeInsets.only(left: widget.indent * 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: isExpandable
+                      ? () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedKeys.remove(key);
+                            } else {
+                              _expandedKeys.add(key);
+                            }
+                          });
+                        }
+                      : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (isExpandable)
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: Icon(
+                            isExpanded
+                                ? Icons.arrow_drop_down
+                                : Icons.arrow_right,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          children: [
-                            TextSpan(
-                              text: '$key: ',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
+                        )
+                      else
+                        const SizedBox(width: 14),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                              color: theme.colorScheme.onSurface,
+                              height: 1.4,
                             ),
-                            if (!isExpandable || !isExpanded)
+                            children: [
                               TextSpan(
-                                text: _formatValue(value),
+                                text: '$key: ',
                                 style: TextStyle(
-                                  color: _getValueColor(value, theme),
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
                                 ),
                               ),
-                          ],
+                              if (!isExpandable || !isExpanded)
+                                TextSpan(
+                                  text: _formatValue(value),
+                                  style: TextStyle(
+                                    color: _getValueColor(value, theme),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (isExpandable && isExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, top: 2),
+                    child: _buildExpandedValue(value, key),
+                  ),
+              ],
+            ),
+          );
+        }),
+        if (isLarge && !showingMore)
+          Padding(
+            padding: EdgeInsets.only(left: (widget.indent * 8.0) + 16),
+            child: TextButton(
+              onPressed: () => setState(() => _showingMoreKeys.add('__root__')),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              if (isExpandable && isExpanded)
-                Padding(
-                  padding: const EdgeInsets.only(left: 8.0, top: 2),
-                  child: _buildExpandedValue(value),
-                ),
-            ],
+              child: Text(
+                'Show ${allEntries.length - _loadLimit} more items...',
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
           ),
-        );
-      }).toList(),
+      ],
     );
   }
 
-  Widget _buildExpandedValue(dynamic value) {
+  Widget _buildExpandedValue(dynamic value, String parentKey) {
     if (value is Map) {
       return _JsonTreeView(
         data: Map<String, dynamic>.from(value),
         indent: widget.indent + 1,
       );
     } else if (value is List) {
-      return _buildListView(value);
+      return _buildListView(value, parentKey);
     }
     return const SizedBox.shrink();
   }
 
-  Widget _buildListView(List list) {
+  Widget _buildListView(List list, String parentKey) {
     final theme = Theme.of(context);
+    final bool isLarge = list.length > _loadLimit;
+    final bool showingMore = _showingMoreKeys.contains(parentKey);
+
+    final displayList =
+        (isLarge && !showingMore) ? list.take(_loadLimit).toList() : list;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(list.length, (index) {
-        final item = list[index];
-        final isExpandable = item is Map || item is List;
-        final isExpanded = _expandedKeys.contains('[$index]');
+      children: [
+        ...List.generate(displayList.length, (index) {
+          final item = displayList[index];
+          final isExpandable = item is Map || item is List;
+          final itemKey = '$parentKey[$index]';
+          final isExpanded = _expandedKeys.contains(itemKey);
 
-        return Padding(
-          padding: EdgeInsets.only(left: (widget.indent + 1) * 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: isExpandable
-                    ? () {
-                        setState(() {
-                          final key = '[$index]';
-                          if (isExpanded) {
-                            _expandedKeys.remove(key);
-                          } else {
-                            _expandedKeys.add(key);
-                          }
-                        });
-                      }
-                    : null,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (isExpandable)
-                      SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: Icon(
-                          isExpanded
-                              ? Icons.arrow_drop_down
-                              : Icons.arrow_right,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 14),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'monospace',
-                            color: theme.colorScheme.onSurface,
-                            height: 1.4,
+          return Padding(
+            padding: EdgeInsets.only(left: (widget.indent + 1) * 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: isExpandable
+                      ? () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedKeys.remove(itemKey);
+                            } else {
+                              _expandedKeys.add(itemKey);
+                            }
+                          });
+                        }
+                      : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (isExpandable)
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: Icon(
+                            isExpanded
+                                ? Icons.arrow_drop_down
+                                : Icons.arrow_right,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          children: [
-                            TextSpan(
-                              text: '[$index]: ',
-                              style: TextStyle(
-                                color: theme.colorScheme.primary
-                                    .withValues(alpha: 0.7),
-                              ),
+                        )
+                      else
+                        const SizedBox(width: 14),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                              color: theme.colorScheme.onSurface,
+                              height: 1.4,
                             ),
-                            if (!isExpandable || !isExpanded)
+                            children: [
                               TextSpan(
-                                text: _formatValue(item),
+                                text: '[$index]: ',
                                 style: TextStyle(
-                                  color: _getValueColor(item, theme),
+                                  color: theme.colorScheme.primary
+                                      .withValues(alpha: 0.7),
                                 ),
                               ),
-                          ],
+                              if (!isExpandable || !isExpanded)
+                                TextSpan(
+                                  text: _formatValue(item),
+                                  style: TextStyle(
+                                    color: _getValueColor(item, theme),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (isExpandable && isExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _buildExpandedValue(item, itemKey),
+                  ),
+              ],
+            ),
+          );
+        }),
+        if (isLarge && !showingMore)
+          Padding(
+            padding: EdgeInsets.only(left: ((widget.indent + 1) * 8.0) + 16),
+            child: TextButton(
+              onPressed: () => setState(() => _showingMoreKeys.add(parentKey)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              if (isExpandable && isExpanded)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: _buildExpandedValue(item),
-                ),
-            ],
+              child: Text(
+                'Show ${list.length - _loadLimit} more items...',
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
           ),
-        );
-      }),
+      ],
     );
   }
 
@@ -1697,15 +1751,46 @@ class ProviderInfo {
     this.dependencies = const [],
   });
 
+  String? _valueStringCache;
+
   /// Get string representation of value for display
   String getValueString() {
+    if (_valueStringCache != null) return _valueStringCache!;
+
     // If it has 'string', use that
     if (value.containsKey('string')) {
-      return value['string'] as String;
+      return _valueStringCache = value['string'] as String;
     }
+
     // Otherwise, try to convert value to string
     if (value.containsKey('value')) {
-      return value['value']?.toString() ?? 'null';
+      final rawValue = value['value'];
+      return _valueStringCache = _safeToString(rawValue);
+    }
+
+    return _valueStringCache = _safeToString(value);
+  }
+
+  String _safeToString(dynamic value) {
+    if (value == null) return 'null';
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+
+    if (value is List) {
+      if (value.length > 10) {
+        return '[${value.take(10).map((e) => _safeToString(e)).join(', ')}, ...]';
+      }
+      return value.toString();
+    }
+    if (value is Map) {
+      if (value.length > 5) {
+        final entries = value.entries
+            .take(5)
+            .map((e) => '${e.key}: ${_safeToString(e.value)}')
+            .join(', ');
+        return '{$entries, ...}';
+      }
+      return value.toString();
     }
     return value.toString();
   }
@@ -1734,15 +1819,18 @@ class ProviderEvent {
     id = '${timestamp.microsecondsSinceEpoch}_$providerId';
   }
 
+  String? _valueStringCache;
+  String? _previousValueStringCache;
+
   /// Get string representation for display
   String getValueString() {
     if (value == null) return 'null';
-    return _formatValueForDisplay(value!);
+    return _valueStringCache ??= _formatValueForDisplay(value!);
   }
 
   String getPreviousValueString() {
     if (previousValue == null) return 'null';
-    return _formatValueForDisplay(previousValue!);
+    return _previousValueStringCache ??= _formatValueForDisplay(previousValue!);
   }
 
   String _formatValueForDisplay(Map<String, dynamic> data) {
@@ -1752,8 +1840,32 @@ class ProviderEvent {
     }
     // Otherwise, try to convert value to string
     if (data.containsKey('value')) {
-      return data['value']?.toString() ?? 'null';
+      return _safeToString(data['value']);
     }
-    return data.toString();
+    return _safeToString(data);
+  }
+
+  String _safeToString(dynamic value) {
+    if (value == null) return 'null';
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+
+    if (value is List) {
+      if (value.length > 10) {
+        return '[${value.take(10).map((e) => _safeToString(e)).join(', ')}, ...]';
+      }
+      return value.toString();
+    }
+    if (value is Map) {
+      if (value.length > 5) {
+        final entries = value.entries
+            .take(5)
+            .map((e) => '${e.key}: ${_safeToString(e.value)}')
+            .join(', ');
+        return '{$entries, ...}';
+      }
+      return value.toString();
+    }
+    return value.toString();
   }
 }
