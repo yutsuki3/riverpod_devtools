@@ -1097,12 +1097,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           _activeTabProviderName = name;
                         }
                       });
-                      // Flash only when adding a new provider (not when switching tabs)
+                      // Flash and scroll only when adding a new provider (not when switching tabs)
                       if (wasNotSelected) {
                         _flashProvider(name);
+                        _scrollToProvider(name);
                       }
-                      // Always scroll to the provider if it's not visible
-                      _scrollToProvider(name);
                     },
                     child: Container(
                       width: double.infinity,
