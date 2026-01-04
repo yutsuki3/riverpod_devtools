@@ -347,8 +347,9 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
             }
           }).toList();
         } catch (_) {
-          // If we can't serialize entries, keep the keys list
-          result['keys'] = value.keys.map((k) => k.toString()).toList();
+          // If we can't serialize entries, keep the string representation
+          result['type'] = 'Map';
+          result['string'] = value.toString();
         }
       } else if (value is Set) {
         // Try to serialize set elements (convert to list for serialization)

@@ -158,19 +158,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     final targetOffset = index * estimatedItemHeight;
 
     // Get viewport dimensions
-    final viewportHeight = _providerListScrollController.position.viewportDimension;
+    final viewportHeight =
+        _providerListScrollController.position.viewportDimension;
     final currentOffset = _providerListScrollController.offset;
     final maxOffset = _providerListScrollController.position.maxScrollExtent;
 
     // Check if item is already visible
     final itemTop = targetOffset;
     final itemBottom = targetOffset + estimatedItemHeight;
-    final isVisible = itemTop >= currentOffset && itemBottom <= currentOffset + viewportHeight;
+    final isVisible = itemTop >= currentOffset &&
+        itemBottom <= currentOffset + viewportHeight;
 
     if (!isVisible) {
       // Center the item in the viewport
-      final centeredOffset = (targetOffset - viewportHeight / 2 + estimatedItemHeight / 2)
-          .clamp(0.0, maxOffset);
+      final centeredOffset =
+          (targetOffset - viewportHeight / 2 + estimatedItemHeight / 2)
+              .clamp(0.0, maxOffset);
 
       _providerListScrollController.animateTo(
         centeredOffset,
@@ -1259,13 +1262,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final color = switch (event.type) {
+    // Override with specific semantic colors if they fit better than theme colors
+    final semanticColor = switch (event.type) {
       EventType.added =>
-        isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32), // Green
+        isDark ? const Color(0xFF81C784) : const Color(0xFF4CAF50), // Green
       EventType.updated =>
-        isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0), // Blue
+        isDark ? const Color(0xFF64B5F6) : const Color(0xFF2196F3), // Blue
       EventType.disposed =>
-        isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00), // Orange
+        isDark ? const Color(0xFF9E9E9E) : const Color(0xFF757575), // Grey
     };
 
     final backgroundColor = diffBackgroundColor(event.type, isDark);
@@ -1279,16 +1283,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     final isExpanded = _expandedEventIds.contains(event.id);
 
     // Calculate relative time from previous event for the same provider
-    // The newest event shows the time difference from the previous (older) event
     String? relativeTime;
     final providerEvents = _eventsByProvider[event.providerName];
     if (providerEvents != null && providerEvents.length > 1) {
       final currentIndex = providerEvents.indexOf(event);
-      // Events are sorted newest first, so index 0 is the newest
-      // We want to show the time diff on newer events (smaller index)
-      // comparing with older events (larger index)
       if (currentIndex >= 0 && currentIndex < providerEvents.length - 1) {
-        // Get the next older event (at index currentIndex + 1)
         final olderEvent = providerEvents[currentIndex + 1];
         final timeDiff = event.timestamp.difference(olderEvent.timestamp);
         relativeTime = _formatRelativeTime(timeDiff);
@@ -1306,9 +1305,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       summarySubtitle = event.getValueString();
     }
 
-    // Check if we should treat this as "long text" for the expand/collapse arrow visibility
-    // For updated events, we almost always want to allow expansion to see the diff clearly if it's not trivial
-    // Disposed events should not be expandable
     final isLongText = event.type == EventType.disposed
         ? false
         : (summarySubtitle.length > 50 || event.type == EventType.updated);
@@ -1320,7 +1316,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(4),
         border: Border(
-          left: BorderSide(color: color, width: 2),
+          left: BorderSide(color: semanticColor, width: 3),
         ),
       ),
       child: Column(
@@ -1341,22 +1337,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   }
                 : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+              padding: const EdgeInsets.fromLTRB(8, 4, 6, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header Row: Icon, ProviderName, Timestamp, Expand Arrow
                   Row(
                     children: [
-                      Icon(icon, color: color, size: 14),
-                      const SizedBox(width: 6),
+                      Icon(icon, color: semanticColor, size: 14),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           event.providerName,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: color,
+                            color: semanticColor,
                           ),
                         ),
                       ),
@@ -1368,7 +1364,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                             '${event.timestamp.minute.toString().padLeft(2, '0')}:'
                             '${event.timestamp.second.toString().padLeft(2, '0')}',
                             style: TextStyle(
-                                color: theme.colorScheme.onSurfaceVariant,
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.8),
                                 fontSize: 10),
                           ),
                           if (relativeTime != null) ...[
@@ -1377,7 +1374,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               relativeTime,
                               style: TextStyle(
                                 color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
+                                    .withValues(alpha: 0.6),
                                 fontSize: 9,
                                 fontStyle: FontStyle.italic,
                               ),
@@ -1390,7 +1387,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         Icon(
                           isExpanded ? Icons.expand_less : Icons.expand_more,
                           size: 16,
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.5),
                         ),
                       ],
                     ],
@@ -1400,7 +1398,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   if (!isExpanded)
                     // Collapsed: Show summary (truncated)
                     Padding(
-                      padding: const EdgeInsets.only(left: 20, top: 2),
+                      padding: const EdgeInsets.only(left: 22, top: 4),
                       child: Text(
                         summarySubtitle,
                         maxLines: 1,
@@ -1408,7 +1406,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         style: TextStyle(
                           fontSize: 10,
                           fontFamily: 'monospace',
-                          color: theme.colorScheme.onSurface,
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.8),
                         ),
                       ),
                     )
@@ -1416,7 +1415,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     // Expanded: Show detailed view
                     Padding(
                       padding:
-                          const EdgeInsets.only(left: 20, top: 4, bottom: 4),
+                          const EdgeInsets.only(left: 22, top: 6, bottom: 4),
                       child: _buildExpandedContent(event),
                     ),
                 ],
@@ -1500,17 +1499,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   Color diffBackgroundColor(EventType type, bool isDark) {
     if (isDark) {
-      return switch (type) {
-        EventType.added => const Color(0xFF1B5E20).withValues(alpha: 0.2),
-        EventType.updated => const Color(0xFF0D47A1).withValues(alpha: 0.2),
-        EventType.disposed => const Color(0xFFE65100).withValues(alpha: 0.2),
-      };
+      return Colors.white.withValues(alpha: 0.03);
     } else {
-      return switch (type) {
-        EventType.added => const Color(0xFFE8F5E9), // Light Green
-        EventType.updated => const Color(0xFFE3F2FD), // Light Blue
-        EventType.disposed => const Color(0xFFFFF3E0), // Light Orange
-      };
+      return Colors.black.withValues(alpha: 0.02);
     }
   }
 
@@ -1580,11 +1571,46 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
       children: [
         ...entries.map((entry) {
           final key = entry.key;
-          final value = entry.value;
-          final isExpanded = _expandedKeys.contains(key);
+          final dynamic rawValue = entry.value;
 
-          // Determine if the value is expandable (Map or List)
-          final isExpandable = value is Map || value is List;
+          // Check if the value is a "wrapped" metadata Map
+          final bool isWrapped = rawValue is Map<String, dynamic> &&
+              (rawValue.containsKey('type') ||
+                  rawValue.containsKey('value') ||
+                  rawValue.containsKey('items') ||
+                  rawValue.containsKey('entries') ||
+                  rawValue.containsKey('string'));
+
+          dynamic displayValue = rawValue;
+          String? displayType;
+          String? asyncState;
+
+          if (isWrapped) {
+            final map = rawValue;
+            displayType = map['type'] as String?;
+            asyncState = map['asyncState'] as String?;
+
+            if (map.containsKey('value')) {
+              displayValue = map['value'];
+            } else if (map.containsKey('items')) {
+              displayValue = map['items'];
+            } else if (map.containsKey('entries')) {
+              // Convert entries list back to a Map for tree view
+              final entries = map['entries'] as List;
+              final newMap = <String, dynamic>{};
+              for (final e in entries) {
+                if (e is Map) {
+                  newMap[e['key'].toString()] = e['value'];
+                }
+              }
+              displayValue = newMap;
+            } else if (map.containsKey('string')) {
+              displayValue = map['string'];
+            }
+          }
+
+          final isExpanded = _expandedKeys.contains(key);
+          final isExpandable = displayValue is Map || displayValue is List;
 
           return Padding(
             padding: EdgeInsets.only(left: widget.indent * 8.0),
@@ -1638,11 +1664,37 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                                   color: theme.colorScheme.primary,
                                 ),
                               ),
+                              if (asyncState != null)
+                                TextSpan(
+                                  text: '[$asyncState] ',
+                                  style: TextStyle(
+                                    color: asyncState == 'data'
+                                        ? const Color(0xFF4CAF50)
+                                        : asyncState == 'loading'
+                                            ? Colors.grey
+                                            : const Color(0xFFE57373),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               if (!isExpandable || !isExpanded)
                                 TextSpan(
-                                  text: _formatValue(value),
+                                  text: _formatValue(displayValue),
                                   style: TextStyle(
-                                    color: _getValueColor(value, theme),
+                                    color: _getValueColor(displayValue, theme),
+                                  ),
+                                ),
+                              if (displayType != null &&
+                                  displayType != 'null' &&
+                                  displayType != 'String' &&
+                                  displayType != 'int' &&
+                                  displayType != 'double' &&
+                                  displayType != 'bool')
+                                TextSpan(
+                                  text: ' ($displayType)',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.5),
                                   ),
                                 ),
                             ],
@@ -1655,7 +1707,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                 if (isExpandable && isExpanded)
                   Padding(
                     padding: const EdgeInsets.only(left: 8.0, top: 2),
-                    child: _buildExpandedValue(value, key),
+                    child: _buildExpandedValue(displayValue, key),
                   ),
               ],
             ),
@@ -1705,8 +1757,42 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ...List.generate(displayList.length, (index) {
-          final item = displayList[index];
-          final isExpandable = item is Map || item is List;
+          final dynamic rawItem = displayList[index];
+
+          // Check if the item is a "wrapped" metadata Map
+          final bool isWrapped = rawItem is Map<String, dynamic> &&
+              (rawItem.containsKey('type') ||
+                  rawItem.containsKey('value') ||
+                  rawItem.containsKey('items') ||
+                  rawItem.containsKey('entries') ||
+                  rawItem.containsKey('string'));
+
+          dynamic displayItem = rawItem;
+          String? displayType;
+
+          if (isWrapped) {
+            final map = rawItem;
+            displayType = map['type'] as String?;
+            if (map.containsKey('value')) {
+              displayItem = map['value'];
+            } else if (map.containsKey('items')) {
+              displayItem = map['items'];
+            } else if (map.containsKey('entries')) {
+              // Convert entries list back to a Map for tree view
+              final entries = map['entries'] as List;
+              final newMap = <String, dynamic>{};
+              for (final e in entries) {
+                if (e is Map) {
+                  newMap[e['key'].toString()] = e['value'];
+                }
+              }
+              displayItem = newMap;
+            } else if (map.containsKey('string')) {
+              displayItem = map['string'];
+            }
+          }
+
+          final isExpandable = displayItem is Map || displayItem is List;
           final itemKey = '$parentKey[$index]';
           final isExpanded = _expandedKeys.contains(itemKey);
 
@@ -1764,9 +1850,23 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                               ),
                               if (!isExpandable || !isExpanded)
                                 TextSpan(
-                                  text: _formatValue(item),
+                                  text: _formatValue(displayItem),
                                   style: TextStyle(
-                                    color: _getValueColor(item, theme),
+                                    color: _getValueColor(displayItem, theme),
+                                  ),
+                                ),
+                              if (displayType != null &&
+                                  displayType != 'null' &&
+                                  displayType != 'String' &&
+                                  displayType != 'int' &&
+                                  displayType != 'double' &&
+                                  displayType != 'bool')
+                                TextSpan(
+                                  text: ' ($displayType)',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.5),
                                   ),
                                 ),
                             ],
@@ -1779,7 +1879,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                 if (isExpandable && isExpanded)
                   Padding(
                     padding: const EdgeInsets.only(top: 2),
-                    child: _buildExpandedValue(item, itemKey),
+                    child: _buildExpandedValue(displayItem, itemKey),
                   ),
               ],
             ),
@@ -1816,9 +1916,23 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   Color _getValueColor(dynamic value, ThemeData theme) {
     if (value == null) return theme.colorScheme.onSurfaceVariant;
-    if (value is String) return const Color(0xFF4CAF50); // Green for strings
-    if (value is num) return const Color(0xFF2196F3); // Blue for numbers
-    if (value is bool) return const Color(0xFFFF9800); // Orange for booleans
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (value is String) {
+      return isDark
+          ? const Color(0xFFCE9178) // VS Code String
+          : const Color(0xFFA31515); // VS Code Light String (Deep Red)
+    }
+    if (value is num) {
+      return isDark
+          ? const Color(0xFFB5CEA8) // VS Code Number
+          : const Color(0xFF098658); // VS Code Light Number (Deep Green)
+    }
+    if (value is bool) {
+      return isDark
+          ? const Color(0xFF569CD6) // VS Code Keyword/Constant
+          : const Color(0xFF0000FF); // VS Code Light Keyword (Blue)
+    }
     return theme.colorScheme.onSurface;
   }
 }
@@ -1849,17 +1963,34 @@ class ProviderInfo {
     if (_valueStringCache != null) return _valueStringCache!;
 
     // If it has 'string', use that
-    if (value.containsKey('string')) {
-      return _valueStringCache = value['string'] as String;
+    return _valueStringCache = _formatValueForDisplay(value);
+  }
+
+  String _formatValueForDisplay(Map<String, dynamic> data) {
+    // Check if the value is a "wrapped" metadata Map
+    final bool isWrapped = data.containsKey('type') ||
+        data.containsKey('value') ||
+        data.containsKey('items') ||
+        data.containsKey('entries') ||
+        data.containsKey('string');
+
+    if (!isWrapped) {
+      return _safeToString(data);
     }
 
-    // Otherwise, try to convert value to string
-    if (value.containsKey('value')) {
-      final rawValue = value['value'];
-      return _valueStringCache = _safeToString(rawValue);
+    if (data.containsKey('value')) {
+      return _safeToString(data['value']);
+    } else if (data.containsKey('items')) {
+      final items = data['items'] as List;
+      return '[${items.length} items]';
+    } else if (data.containsKey('entries')) {
+      final entries = data['entries'] as List;
+      return '{${entries.length} entries}';
+    } else if (data.containsKey('string')) {
+      return data['string'] as String;
     }
 
-    return _valueStringCache = _safeToString(value);
+    return _safeToString(data);
   }
 
   String _safeToString(dynamic value) {
@@ -1868,15 +1999,15 @@ class ProviderInfo {
     if (value is num || value is bool) return value.toString();
 
     if (value is List) {
-      if (value.length > 10) {
-        return '[${value.take(10).map((e) => _safeToString(e)).join(', ')}, ...]';
+      if (value.length > 5) {
+        return '[${value.take(5).map((e) => _safeToString(e)).join(', ')}, ...]';
       }
       return value.toString();
     }
     if (value is Map) {
-      if (value.length > 5) {
+      if (value.length > 3) {
         final entries = value.entries
-            .take(5)
+            .take(3)
             .map((e) => '${e.key}: ${_safeToString(e.value)}')
             .join(', ');
         return '{$entries, ...}';
@@ -1925,14 +2056,29 @@ class ProviderEvent {
   }
 
   String _formatValueForDisplay(Map<String, dynamic> data) {
-    // If it has 'string', use that
-    if (data.containsKey('string')) {
-      return data['string'] as String;
+    // Check if the value is a "wrapped" metadata Map
+    final bool isWrapped = data.containsKey('type') ||
+        data.containsKey('value') ||
+        data.containsKey('items') ||
+        data.containsKey('entries') ||
+        data.containsKey('string');
+
+    if (!isWrapped) {
+      return _safeToString(data);
     }
-    // Otherwise, try to convert value to string
+
     if (data.containsKey('value')) {
       return _safeToString(data['value']);
+    } else if (data.containsKey('items')) {
+      final items = data['items'] as List;
+      return '[${items.length} items]';
+    } else if (data.containsKey('entries')) {
+      final entries = data['entries'] as List;
+      return '{${entries.length} entries}';
+    } else if (data.containsKey('string')) {
+      return data['string'] as String;
     }
+
     return _safeToString(data);
   }
 
@@ -1942,15 +2088,15 @@ class ProviderEvent {
     if (value is num || value is bool) return value.toString();
 
     if (value is List) {
-      if (value.length > 10) {
-        return '[${value.take(10).map((e) => _safeToString(e)).join(', ')}, ...]';
+      if (value.length > 5) {
+        return '[${value.take(5).map((e) => _safeToString(e)).join(', ')}, ...]';
       }
       return value.toString();
     }
     if (value is Map) {
-      if (value.length > 5) {
+      if (value.length > 3) {
         final entries = value.entries
-            .take(5)
+            .take(3)
             .map((e) => '${e.key}: ${_safeToString(e.value)}')
             .join(', ');
         return '{$entries, ...}';
