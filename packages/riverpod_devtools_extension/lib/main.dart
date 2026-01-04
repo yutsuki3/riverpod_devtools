@@ -503,99 +503,105 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       child: ListView.builder(
                         itemCount: filteredProviders.length,
                         itemBuilder: (context, index) {
-                        final provider = filteredProviders[index];
-                        final isSelected =
-                            _selectedProviderNames.contains(provider.name);
-                        return Theme(
-                          data: Theme.of(context).copyWith(
-                            splashFactory: NoSplash.splashFactory,
-                            highlightColor: Colors.transparent,
-                          ),
-                          child: Listener(
-                            onPointerDown: (event) {
-                              setState(() {
-                                final isCtrlOrCmd = event.kind ==
-                                        PointerDeviceKind.mouse &&
-                                    (HardwareKeyboard.instance.isMetaPressed ||
-                                        HardwareKeyboard
-                                            .instance.isControlPressed);
+                          final provider = filteredProviders[index];
+                          final isSelected =
+                              _selectedProviderNames.contains(provider.name);
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              splashFactory: NoSplash.splashFactory,
+                              highlightColor: Colors.transparent,
+                            ),
+                            child: Listener(
+                              onPointerDown: (event) {
+                                setState(() {
+                                  final isCtrlOrCmd =
+                                      event.kind == PointerDeviceKind.mouse &&
+                                          (HardwareKeyboard
+                                                  .instance.isMetaPressed ||
+                                              HardwareKeyboard
+                                                  .instance.isControlPressed);
 
-                                if (isCtrlOrCmd) {
-                                  // Multi-selection mode: toggle
-                                  if (isSelected) {
-                                    _selectedProviderNames
-                                        .remove(provider.name);
-                                    // If removed the active tab, update it
-                                    if (_activeTabProviderName == provider.name) {
-                                      _activeTabProviderName = _selectedProviderNames.isNotEmpty
-                                          ? _selectedProviderNames.first
-                                          : null;
+                                  if (isCtrlOrCmd) {
+                                    // Multi-selection mode: toggle
+                                    if (isSelected) {
+                                      _selectedProviderNames
+                                          .remove(provider.name);
+                                      // If removed the active tab, update it
+                                      if (_activeTabProviderName ==
+                                          provider.name) {
+                                        _activeTabProviderName =
+                                            _selectedProviderNames.isNotEmpty
+                                                ? _selectedProviderNames.first
+                                                : null;
+                                      }
+                                    } else {
+                                      _selectedProviderNames.add(provider.name);
+                                      // If this is the first selection or active tab is not set, set it
+                                      if (_activeTabProviderName == null ||
+                                          !_selectedProviderNames.contains(
+                                              _activeTabProviderName)) {
+                                        _activeTabProviderName = provider.name;
+                                      }
                                     }
                                   } else {
-                                    _selectedProviderNames.add(provider.name);
-                                    // If this is the first selection or active tab is not set, set it
-                                    if (_activeTabProviderName == null ||
-                                        !_selectedProviderNames.contains(_activeTabProviderName)) {
+                                    // Single selection mode
+                                    if (isSelected &&
+                                        _selectedProviderNames.length == 1) {
+                                      // If clicking the only selected provider, deselect it
+                                      _selectedProviderNames.clear();
+                                      _activeTabProviderName = null;
+                                    } else {
+                                      // Otherwise, select only this one
+                                      _selectedProviderNames.clear();
+                                      _selectedProviderNames.add(provider.name);
                                       _activeTabProviderName = provider.name;
                                     }
                                   }
-                                } else {
-                                  // Single selection mode
-                                  if (isSelected && _selectedProviderNames.length == 1) {
-                                    // If clicking the only selected provider, deselect it
-                                    _selectedProviderNames.clear();
-                                    _activeTabProviderName = null;
-                                  } else {
-                                    // Otherwise, select only this one
-                                    _selectedProviderNames.clear();
-                                    _selectedProviderNames.add(provider.name);
-                                    _activeTabProviderName = provider.name;
-                                  }
-                                }
-                              });
-                            },
-                            child: InkWell(
-                              onTap: () {
-                                // Handled by Listener above
+                                });
                               },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                color: isSelected
-                                    ? theme.colorScheme.primary
-                                        .withValues(alpha: 0.1)
-                                    : null,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      provider.status == ProviderStatus.active
-                                          ? Icons.circle
-                                          : Icons.circle_outlined,
-                                      size: 8,
-                                      color: provider.status ==
-                                              ProviderStatus.active
-                                          ? Colors.greenAccent
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        provider.name,
-                                        style: const TextStyle(fontSize: 10),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                              child: InkWell(
+                                onTap: () {
+                                  // Handled by Listener above
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  color: isSelected
+                                      ? theme.colorScheme.primary
+                                          .withValues(alpha: 0.1)
+                                      : null,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        provider.status == ProviderStatus.active
+                                            ? Icons.circle
+                                            : Icons.circle_outlined,
+                                        size: 8,
+                                        color: provider.status ==
+                                                ProviderStatus.active
+                                            ? Colors.greenAccent
+                                            : theme
+                                                .colorScheme.onSurfaceVariant,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          provider.name,
+                                          style: const TextStyle(fontSize: 10),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -662,7 +668,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     });
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: isActive
                           ? theme.colorScheme.primary.withValues(alpha: 0.1)
@@ -685,7 +692,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               : providerName,
                           style: TextStyle(
                             fontSize: 9,
-                            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                            fontWeight:
+                                isActive ? FontWeight.bold : FontWeight.normal,
                             color: isActive
                                 ? theme.colorScheme.primary
                                 : theme.colorScheme.onSurface,
@@ -697,9 +705,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                             setState(() {
                               _selectedProviderNames.remove(providerName);
                               if (_activeTabProviderName == providerName) {
-                                _activeTabProviderName = _selectedProviderNames.isNotEmpty
-                                    ? _selectedProviderNames.first
-                                    : null;
+                                _activeTabProviderName =
+                                    _selectedProviderNames.isNotEmpty
+                                        ? _selectedProviderNames.first
+                                        : null;
                               }
                             });
                           },
@@ -739,7 +748,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     } else {
                       // Multiple selection: use active tab or first selected
                       if (_activeTabProviderName != null &&
-                          _selectedProviderNames.contains(_activeTabProviderName)) {
+                          _selectedProviderNames
+                              .contains(_activeTabProviderName)) {
                         displayProviderName = _activeTabProviderName!;
                       } else {
                         displayProviderName = _selectedProviderNames.first;
@@ -983,46 +993,88 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           else
             Column(
               children: dependencies.map((name) {
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedProviderNames.clear();
-                      _selectedProviderNames.add(name);
-                      _activeTabProviderName = name;
-                    });
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    margin: const EdgeInsets.only(bottom: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                final isSelected = _selectedProviderNames.contains(name);
+                final isActive = _activeTabProviderName == name;
+
+                return Tooltip(
+                  message: isActive
+                      ? 'Currently viewing $name'
+                      : isSelected
+                          ? 'Jump to $name'
+                          : 'Add $name to selection',
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        if (!isSelected) {
+                          _selectedProviderNames.add(name);
+                        } else {
+                          _activeTabProviderName = name;
+                        }
+                      });
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      margin: const EdgeInsets.only(bottom: 2),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? theme.colorScheme.primary
+                            : isSelected
+                                ? theme.colorScheme.primary
+                                    .withValues(alpha: 0.08)
+                                : theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: isActive
+                              ? theme.colorScheme.primary
+                              : isSelected
+                                  ? theme.colorScheme.primary
+                                      .withValues(alpha: 0.5)
+                                  : theme.colorScheme.outline
+                                      .withValues(alpha: 0.1),
+                          width: 1,
+                          style: isSelected && !isActive
+                              ? BorderStyle.solid
+                              : BorderStyle.solid,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 10,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: theme.colorScheme.primary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        children: [
+                          Icon(
+                            isActive
+                                ? Icons.visibility
+                                : isSelected
+                                    ? Icons.open_in_new
+                                    : Icons.add,
+                            size: 12,
+                            color: isActive
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.primary,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                                color: isActive
+                                    ? theme.colorScheme.onPrimary
+                                    : isSelected
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.onSurfaceVariant,
+                                fontWeight: isActive || isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -1431,7 +1483,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
         final isExpandable = value is Map || value is List;
 
         return Padding(
-          padding: EdgeInsets.only(left: widget.indent * 16.0),
+          padding: EdgeInsets.only(left: widget.indent * 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1498,7 +1550,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
               ),
               if (isExpandable && isExpanded)
                 Padding(
-                  padding: const EdgeInsets.only(left: 16.0, top: 2),
+                  padding: const EdgeInsets.only(left: 8.0, top: 2),
                   child: _buildExpandedValue(value),
                 ),
             ],
@@ -1530,7 +1582,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
         final isExpanded = _expandedKeys.contains('[$index]');
 
         return Padding(
-          padding: EdgeInsets.only(left: (widget.indent + 1) * 16.0),
+          padding: EdgeInsets.only(left: (widget.indent + 1) * 8.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
