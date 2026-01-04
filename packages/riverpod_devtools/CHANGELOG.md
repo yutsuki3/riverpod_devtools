@@ -1,3 +1,7 @@
+## 0.4.1
+
+- Fixed devtools config.yaml version mismatch (was 0.3.0, now matches package version 0.4.1)
+
 ## 0.4.0
 
 - Added Learning-based Dependency Tracking to support dependency visualization in Riverpod 3.x
