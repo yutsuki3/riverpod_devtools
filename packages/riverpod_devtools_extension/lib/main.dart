@@ -113,29 +113,37 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   }
 
   /// Flash a provider in the list to highlight it
-  void _flashProvider(String providerName) {
+  /// [flashCount] determines how many times to flash (1 or 2)
+  void _flashProvider(String providerName, {int flashCount = 2}) {
     _flashTimer?.cancel();
 
     setState(() {
       _flashingProviderName = providerName;
     });
 
-    // Flash twice (on-off-on-off) over 600ms
-    int flashCount = 0;
-    _flashTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
-      flashCount++;
-      if (flashCount >= 4) {
-        timer.cancel();
-        setState(() {
-          _flashingProviderName = null;
+    if (flashCount == 1) {
+      // Single flash: on(300ms) -> off
+      Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        setState(() => _flashingProviderName = null);
+      });
+    } else {
+      // Double flash: on(200ms) -> off(100ms) -> on(200ms) -> off
+      Timer(const Duration(milliseconds: 200), () {
+        if (!mounted) return;
+        setState(() => _flashingProviderName = null);
+
+        Timer(const Duration(milliseconds: 100), () {
+          if (!mounted) return;
+          setState(() => _flashingProviderName = providerName);
+
+          Timer(const Duration(milliseconds: 200), () {
+            if (!mounted) return;
+            setState(() => _flashingProviderName = null);
+          });
         });
-      } else {
-        setState(() {
-          // Toggle flash state
-          _flashingProviderName = flashCount.isEven ? null : providerName;
-        });
-      }
-    });
+      });
+    }
   }
 
   /// Scroll to a provider in the list
@@ -1081,6 +1089,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           : 'Add $name to selection',
                   child: InkWell(
                     onTap: () {
+                      final wasNotSelected = !isSelected;
                       setState(() {
                         if (!isSelected) {
                           _selectedProviderNames.add(name);
@@ -1088,9 +1097,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           _activeTabProviderName = name;
                         }
                       });
-                      // Flash the provider in the list to highlight it
-                      _flashProvider(name);
-                      // Scroll to the provider if it's not visible
+                      // Flash only when adding a new provider (not when switching tabs)
+                      if (wasNotSelected) {
+                        _flashProvider(name);
+                      }
+                      // Always scroll to the provider if it's not visible
                       _scrollToProvider(name);
                     },
                     child: Container(
