@@ -145,8 +145,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     if (index < 0 || !_providerListScrollController.hasClients) return;
 
-    // Estimated item height: padding (8) + icon height (~16) = ~24px per item
-    const double estimatedItemHeight = 24.0;
+    // Actual item height: vertical padding (8) + content height (~14) = ~22px per item
+    const double estimatedItemHeight = 22.0;
     final targetOffset = index * estimatedItemHeight;
 
     // Get viewport dimensions
