@@ -62,6 +62,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Represents the fraction of remaining width allocated to the detail panel
   double _rightSplitRatio = 0.375;
 
+  /// Provider name currently being flashed in the list
+  String? _flashingProviderName;
+
+  /// Timer for controlling flash animation
+  Timer? _flashTimer;
+
+  /// Scroll controller for provider list
+  final ScrollController _providerListScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +80,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   @override
   void dispose() {
     _extensionSubscription?.cancel();
+    _flashTimer?.cancel();
     _searchController.dispose();
+    _providerListScrollController.dispose();
     super.dispose();
   }
 
@@ -99,6 +110,74 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       }
     }
     return usedBy;
+  }
+
+  /// Flash a provider in the list to highlight it
+  /// [flashCount] determines how many times to flash (1 or 2)
+  void _flashProvider(String providerName, {int flashCount = 2}) {
+    _flashTimer?.cancel();
+
+    setState(() {
+      _flashingProviderName = providerName;
+    });
+
+    if (flashCount == 1) {
+      // Single flash: on(300ms) -> off
+      Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        setState(() => _flashingProviderName = null);
+      });
+    } else {
+      // Double flash: on(200ms) -> off(100ms) -> on(200ms) -> off
+      Timer(const Duration(milliseconds: 200), () {
+        if (!mounted) return;
+        setState(() => _flashingProviderName = null);
+
+        Timer(const Duration(milliseconds: 100), () {
+          if (!mounted) return;
+          setState(() => _flashingProviderName = providerName);
+
+          Timer(const Duration(milliseconds: 200), () {
+            if (!mounted) return;
+            setState(() => _flashingProviderName = null);
+          });
+        });
+      });
+    }
+  }
+
+  /// Scroll to a provider in the list
+  void _scrollToProvider(String providerName) {
+    final filteredProviders = _filteredProviders;
+    final index = filteredProviders.indexWhere((p) => p.name == providerName);
+
+    if (index < 0 || !_providerListScrollController.hasClients) return;
+
+    // Actual item height: vertical padding (8) + content height (~14) = ~22px per item
+    const double estimatedItemHeight = 22.0;
+    final targetOffset = index * estimatedItemHeight;
+
+    // Get viewport dimensions
+    final viewportHeight = _providerListScrollController.position.viewportDimension;
+    final currentOffset = _providerListScrollController.offset;
+    final maxOffset = _providerListScrollController.position.maxScrollExtent;
+
+    // Check if item is already visible
+    final itemTop = targetOffset;
+    final itemBottom = targetOffset + estimatedItemHeight;
+    final isVisible = itemTop >= currentOffset && itemBottom <= currentOffset + viewportHeight;
+
+    if (!isVisible) {
+      // Center the item in the viewport
+      final centeredOffset = (targetOffset - viewportHeight / 2 + estimatedItemHeight / 2)
+          .clamp(0.0, maxOffset);
+
+      _providerListScrollController.animateTo(
+        centeredOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Future<void> _subscribeToEvents() async {
@@ -501,11 +580,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         });
                       },
                       child: ListView.builder(
+                        controller: _providerListScrollController,
                         itemCount: filteredProviders.length,
                         itemBuilder: (context, index) {
                           final provider = filteredProviders[index];
                           final isSelected =
                               _selectedProviderNames.contains(provider.name);
+                          final isFlashing =
+                              _flashingProviderName == provider.name;
                           return Theme(
                             data: Theme.of(context).copyWith(
                               splashFactory: NoSplash.splashFactory,
@@ -568,10 +650,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                     horizontal: 8,
                                     vertical: 4,
                                   ),
-                                  color: isSelected
+                                  color: isFlashing
                                       ? theme.colorScheme.primary
-                                          .withValues(alpha: 0.1)
-                                      : null,
+                                          .withValues(alpha: 0.3)
+                                      : isSelected
+                                          ? theme.colorScheme.primary
+                                              .withValues(alpha: 0.1)
+                                          : null,
                                   child: Row(
                                     children: [
                                       Icon(
@@ -1004,6 +1089,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           : 'Add $name to selection',
                   child: InkWell(
                     onTap: () {
+                      final wasNotSelected = !isSelected;
                       setState(() {
                         if (!isSelected) {
                           _selectedProviderNames.add(name);
@@ -1011,6 +1097,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           _activeTabProviderName = name;
                         }
                       });
+                      // Flash and scroll only when adding a new provider (not when switching tabs)
+                      if (wasNotSelected) {
+                        _flashProvider(name);
+                        _scrollToProvider(name);
+                      }
                     },
                     child: Container(
                       width: double.infinity,
