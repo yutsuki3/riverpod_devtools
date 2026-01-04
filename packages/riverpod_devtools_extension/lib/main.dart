@@ -68,6 +68,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Timer for controlling flash animation
   Timer? _flashTimer;
 
+  /// Scroll controller for provider list
+  final ScrollController _providerListScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -79,6 +82,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     _extensionSubscription?.cancel();
     _flashTimer?.cancel();
     _searchController.dispose();
+    _providerListScrollController.dispose();
     super.dispose();
   }
 
@@ -132,6 +136,40 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         });
       }
     });
+  }
+
+  /// Scroll to a provider in the list
+  void _scrollToProvider(String providerName) {
+    final filteredProviders = _filteredProviders;
+    final index = filteredProviders.indexWhere((p) => p.name == providerName);
+
+    if (index < 0 || !_providerListScrollController.hasClients) return;
+
+    // Estimated item height: padding (8) + icon height (~16) = ~24px per item
+    const double estimatedItemHeight = 24.0;
+    final targetOffset = index * estimatedItemHeight;
+
+    // Get viewport dimensions
+    final viewportHeight = _providerListScrollController.position.viewportDimension;
+    final currentOffset = _providerListScrollController.offset;
+    final maxOffset = _providerListScrollController.position.maxScrollExtent;
+
+    // Check if item is already visible
+    final itemTop = targetOffset;
+    final itemBottom = targetOffset + estimatedItemHeight;
+    final isVisible = itemTop >= currentOffset && itemBottom <= currentOffset + viewportHeight;
+
+    if (!isVisible) {
+      // Center the item in the viewport
+      final centeredOffset = (targetOffset - viewportHeight / 2 + estimatedItemHeight / 2)
+          .clamp(0.0, maxOffset);
+
+      _providerListScrollController.animateTo(
+        centeredOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Future<void> _subscribeToEvents() async {
@@ -534,6 +572,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         });
                       },
                       child: ListView.builder(
+                        controller: _providerListScrollController,
                         itemCount: filteredProviders.length,
                         itemBuilder: (context, index) {
                           final provider = filteredProviders[index];
@@ -1051,6 +1090,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       });
                       // Flash the provider in the list to highlight it
                       _flashProvider(name);
+                      // Scroll to the provider if it's not visible
+                      _scrollToProvider(name);
                     },
                     child: Container(
                       width: double.infinity,
