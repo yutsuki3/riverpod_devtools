@@ -62,6 +62,12 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Represents the fraction of remaining width allocated to the detail panel
   double _rightSplitRatio = 0.375;
 
+  /// Provider name currently being flashed in the list
+  String? _flashingProviderName;
+
+  /// Timer for controlling flash animation
+  Timer? _flashTimer;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +77,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   @override
   void dispose() {
     _extensionSubscription?.cancel();
+    _flashTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -99,6 +106,32 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       }
     }
     return usedBy;
+  }
+
+  /// Flash a provider in the list to highlight it
+  void _flashProvider(String providerName) {
+    _flashTimer?.cancel();
+
+    setState(() {
+      _flashingProviderName = providerName;
+    });
+
+    // Flash twice (on-off-on-off) over 600ms
+    int flashCount = 0;
+    _flashTimer = Timer.periodic(const Duration(milliseconds: 150), (timer) {
+      flashCount++;
+      if (flashCount >= 4) {
+        timer.cancel();
+        setState(() {
+          _flashingProviderName = null;
+        });
+      } else {
+        setState(() {
+          // Toggle flash state
+          _flashingProviderName = flashCount.isEven ? null : providerName;
+        });
+      }
+    });
   }
 
   Future<void> _subscribeToEvents() async {
@@ -506,6 +539,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           final provider = filteredProviders[index];
                           final isSelected =
                               _selectedProviderNames.contains(provider.name);
+                          final isFlashing =
+                              _flashingProviderName == provider.name;
                           return Theme(
                             data: Theme.of(context).copyWith(
                               splashFactory: NoSplash.splashFactory,
@@ -568,10 +603,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                     horizontal: 8,
                                     vertical: 4,
                                   ),
-                                  color: isSelected
+                                  color: isFlashing
                                       ? theme.colorScheme.primary
-                                          .withValues(alpha: 0.1)
-                                      : null,
+                                          .withValues(alpha: 0.3)
+                                      : isSelected
+                                          ? theme.colorScheme.primary
+                                              .withValues(alpha: 0.1)
+                                          : null,
                                   child: Row(
                                     children: [
                                       Icon(
@@ -1011,6 +1049,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           _activeTabProviderName = name;
                         }
                       });
+                      // Flash the provider in the list to highlight it
+                      _flashProvider(name);
                     },
                     child: Container(
                       width: double.infinity,
