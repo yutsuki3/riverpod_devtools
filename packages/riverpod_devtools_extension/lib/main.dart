@@ -31,8 +31,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Maximum number of events to keep in memory (ring buffer)
   static const int _maxEventCount = 1000;
 
+  /// Maximum number of disposed providers to keep in memory
+  static const int _maxDisposedProviders = 100;
+
   final List<ProviderEvent> _events = [];
   final Map<String, ProviderInfo> _providers = {};
+
+  /// Track when providers were disposed for cleanup
+  final Map<String, DateTime> _disposedProviderTimestamps = {};
 
   /// Index structure for fast filtering: provider name -> list of events
   final Map<String, List<ProviderEvent>> _eventsByProvider = {};
@@ -290,6 +296,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             providerName: providerName,
             timestamp: eventTimestamp,
           ));
+
+          // Track disposal time for memory cleanup
+          _disposedProviderTimestamps[providerName] = eventTimestamp;
+          _cleanupDisposedProviders();
         }
       });
     });
@@ -309,6 +319,44 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       _eventsByProvider[removed.providerName]?.remove(removed);
       // Clean up expansion state for removed event
       _expandedEventIds.remove(removed.id);
+    }
+  }
+
+  /// Clean up old disposed providers to prevent memory leaks
+  void _cleanupDisposedProviders() {
+    // If we haven't exceeded the limit, no cleanup needed
+    if (_disposedProviderTimestamps.length <= _maxDisposedProviders) {
+      return;
+    }
+
+    // Sort disposed providers by timestamp (oldest first)
+    final sortedDisposed = _disposedProviderTimestamps.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    // Remove oldest disposed providers
+    final toRemove =
+        sortedDisposed.length - _maxDisposedProviders;
+    for (var i = 0; i < toRemove; i++) {
+      final providerName = sortedDisposed[i].key;
+      _providers.remove(providerName);
+      _disposedProviderTimestamps.remove(providerName);
+
+      // Clean up events for this provider
+      final events = _eventsByProvider.remove(providerName);
+      if (events != null) {
+        for (final event in events) {
+          _events.remove(event);
+          _expandedEventIds.remove(event.id);
+        }
+      }
+
+      // Clean up selection if this provider was selected
+      _selectedProviderNames.remove(providerName);
+      if (_activeTabProviderName == providerName) {
+        _activeTabProviderName = _selectedProviderNames.isNotEmpty
+            ? _selectedProviderNames.first
+            : null;
+      }
     }
   }
 
@@ -1210,6 +1258,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   _events.clear();
                   _eventsByProvider.clear();
                   _expandedEventIds.clear();
+                  _disposedProviderTimestamps.clear();
                 }),
                 tooltip: 'Clear All',
                 padding: EdgeInsets.zero,
