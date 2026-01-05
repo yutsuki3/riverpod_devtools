@@ -316,7 +316,16 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     // Ring buffer: remove oldest events if exceeding max count
     if (_events.length > _maxEventCount) {
       final removed = _events.removeAt(_maxEventCount);
-      _eventsByProvider[removed.providerName]?.remove(removed);
+
+      // Remove event from provider index and clean up empty lists
+      final providerEvents = _eventsByProvider[removed.providerName];
+      if (providerEvents != null) {
+        providerEvents.remove(removed);
+        if (providerEvents.isEmpty) {
+          _eventsByProvider.remove(removed.providerName);
+        }
+      }
+
       // Clean up expansion state for removed event
       _expandedEventIds.remove(removed.id);
     }
