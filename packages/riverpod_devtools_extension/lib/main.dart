@@ -472,19 +472,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     style: const TextStyle(fontSize: 10),
                   ),
                 ),
-              if (_selectedProviderNames.isNotEmpty)
-                TextButton(
-                  onPressed: () => setState(() {
-                    _selectedProviderNames.clear();
-                    _activeTabProviderName = null;
-                  }),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 24),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: const Text('Clear', style: TextStyle(fontSize: 10)),
-                ),
             ],
           ),
         ),
