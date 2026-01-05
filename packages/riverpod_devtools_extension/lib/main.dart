@@ -71,6 +71,12 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Scroll controller for provider list
   final ScrollController _providerListScrollController = ScrollController();
 
+  /// Set of hidden provider names
+  final Set<String> _hiddenProviderNames = {};
+
+  /// Currently hovered provider name (for showing hide icon)
+  String? _hoveredProviderName;
+
   @override
   void initState() {
     super.initState();
@@ -312,16 +318,20 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     }
   }
 
-  /// Get filtered providers based on search query
+  /// Get filtered providers based on search query and hidden state
   List<ProviderInfo> get _filteredProviders {
-    if (_providerSearchQuery.isEmpty) {
-      return _providers.values.toList();
+    var providers = _providers.values;
+
+    // Filter out hidden providers
+    providers = providers.where((provider) => !_hiddenProviderNames.contains(provider.name));
+
+    // Apply search filter
+    if (_providerSearchQuery.isNotEmpty) {
+      final query = _providerSearchQuery.toLowerCase();
+      providers = providers.where((provider) => provider.name.toLowerCase().contains(query));
     }
 
-    final query = _providerSearchQuery.toLowerCase();
-    return _providers.values
-        .where((provider) => provider.name.toLowerCase().contains(query))
-        .toList();
+    return providers.toList();
   }
 
   /// Get filtered events using index structure for performance
@@ -450,6 +460,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 ),
               ),
               const Spacer(),
+              if (_hiddenProviderNames.isNotEmpty)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _hiddenProviderNames.clear();
+                  }),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 24),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Show Hidden (${_hiddenProviderNames.length})',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                ),
               if (_selectedProviderNames.isNotEmpty)
                 TextButton(
                   onPressed: () => setState(() {
@@ -596,93 +621,130 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               splashFactory: NoSplash.splashFactory,
                               highlightColor: Colors.transparent,
                             ),
-                            child: Listener(
-                              onPointerDown: (event) {
-                                setState(() {
-                                  final isCtrlOrCmd =
-                                      event.kind == PointerDeviceKind.mouse &&
-                                          (HardwareKeyboard
-                                                  .instance.isMetaPressed ||
-                                              HardwareKeyboard
-                                                  .instance.isControlPressed);
+                            child: MouseRegion(
+                              onEnter: (_) {
+                                if (_selectedProviderNames.isEmpty) {
+                                  setState(() {
+                                    _hoveredProviderName = provider.name;
+                                  });
+                                }
+                              },
+                              onExit: (_) {
+                                if (_selectedProviderNames.isEmpty) {
+                                  setState(() {
+                                    _hoveredProviderName = null;
+                                  });
+                                }
+                              },
+                              child: Listener(
+                                onPointerDown: (event) {
+                                  setState(() {
+                                    final isCtrlOrCmd =
+                                        event.kind == PointerDeviceKind.mouse &&
+                                            (HardwareKeyboard
+                                                    .instance.isMetaPressed ||
+                                                HardwareKeyboard
+                                                    .instance.isControlPressed);
 
-                                  if (isCtrlOrCmd) {
-                                    // Multi-selection mode: toggle
-                                    if (isSelected) {
-                                      _selectedProviderNames
-                                          .remove(provider.name);
-                                      // If removed the active tab, update it
-                                      if (_activeTabProviderName ==
-                                          provider.name) {
-                                        _activeTabProviderName =
-                                            _selectedProviderNames.isNotEmpty
-                                                ? _selectedProviderNames.first
-                                                : null;
+                                    if (isCtrlOrCmd) {
+                                      // Multi-selection mode: toggle
+                                      if (isSelected) {
+                                        _selectedProviderNames
+                                            .remove(provider.name);
+                                        // If removed the active tab, update it
+                                        if (_activeTabProviderName ==
+                                            provider.name) {
+                                          _activeTabProviderName =
+                                              _selectedProviderNames.isNotEmpty
+                                                  ? _selectedProviderNames.first
+                                                  : null;
+                                        }
+                                      } else {
+                                        _selectedProviderNames.add(provider.name);
+                                        // If this is the first selection or active tab is not set, set it
+                                        if (_activeTabProviderName == null ||
+                                            !_selectedProviderNames.contains(
+                                                _activeTabProviderName)) {
+                                          _activeTabProviderName = provider.name;
+                                        }
                                       }
                                     } else {
-                                      _selectedProviderNames.add(provider.name);
-                                      // If this is the first selection or active tab is not set, set it
-                                      if (_activeTabProviderName == null ||
-                                          !_selectedProviderNames.contains(
-                                              _activeTabProviderName)) {
+                                      // Single selection mode
+                                      if (isSelected &&
+                                          _selectedProviderNames.length == 1) {
+                                        // If clicking the only selected provider, deselect it
+                                        _selectedProviderNames.clear();
+                                        _activeTabProviderName = null;
+                                      } else {
+                                        // Otherwise, select only this one
+                                        _selectedProviderNames.clear();
+                                        _selectedProviderNames.add(provider.name);
                                         _activeTabProviderName = provider.name;
                                       }
                                     }
-                                  } else {
-                                    // Single selection mode
-                                    if (isSelected &&
-                                        _selectedProviderNames.length == 1) {
-                                      // If clicking the only selected provider, deselect it
-                                      _selectedProviderNames.clear();
-                                      _activeTabProviderName = null;
-                                    } else {
-                                      // Otherwise, select only this one
-                                      _selectedProviderNames.clear();
-                                      _selectedProviderNames.add(provider.name);
-                                      _activeTabProviderName = provider.name;
-                                    }
-                                  }
-                                });
-                              },
-                              child: InkWell(
-                                onTap: () {
-                                  // Handled by Listener above
+                                  });
                                 },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  color: isFlashing
-                                      ? theme.colorScheme.primary
-                                          .withValues(alpha: 0.3)
-                                      : isSelected
-                                          ? theme.colorScheme.primary
-                                              .withValues(alpha: 0.1)
-                                          : null,
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        provider.status == ProviderStatus.active
-                                            ? Icons.circle
-                                            : Icons.circle_outlined,
-                                        size: 8,
-                                        color: provider.status ==
-                                                ProviderStatus.active
-                                            ? Colors.greenAccent
-                                            : theme
-                                                .colorScheme.onSurfaceVariant,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          provider.name,
-                                          style: const TextStyle(fontSize: 10),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                child: InkWell(
+                                  onTap: () {
+                                    // Handled by Listener above
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    color: isFlashing
+                                        ? theme.colorScheme.primary
+                                            .withValues(alpha: 0.3)
+                                        : isSelected
+                                            ? theme.colorScheme.primary
+                                                .withValues(alpha: 0.1)
+                                            : null,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          provider.status == ProviderStatus.active
+                                              ? Icons.circle
+                                              : Icons.circle_outlined,
+                                          size: 8,
+                                          color: provider.status ==
+                                                  ProviderStatus.active
+                                              ? Colors.greenAccent
+                                              : theme
+                                                  .colorScheme.onSurfaceVariant,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            provider.name,
+                                            style: const TextStyle(fontSize: 10),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        // Show hide icon when hovering and no providers are selected
+                                        if (_selectedProviderNames.isEmpty &&
+                                            _hoveredProviderName == provider.name)
+                                          SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: IconButton(
+                                              padding: EdgeInsets.zero,
+                                              iconSize: 14,
+                                              icon: Icon(
+                                                Icons.visibility_off_outlined,
+                                                color: theme.colorScheme.onSurfaceVariant,
+                                              ),
+                                              onPressed: () {
+                                                setState(() {
+                                                  _hiddenProviderNames.add(provider.name);
+                                                  _hoveredProviderName = null;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
