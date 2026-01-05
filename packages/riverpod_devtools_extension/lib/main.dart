@@ -1522,11 +1522,13 @@ class _JsonTreeView extends StatefulWidget {
   final Map<String, dynamic> data;
   final int indent;
   final bool initiallyExpanded;
+  final String? typeHeader;
 
   const _JsonTreeView({
     required this.data,
     this.indent = 0,
     this.initiallyExpanded = false,
+    this.typeHeader,
   });
 
   @override
@@ -1578,6 +1580,34 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Type header if provided
+        if (widget.typeHeader != null) ...[
+          Padding(
+            padding: EdgeInsets.only(
+              left: widget.indent * 8.0,
+              bottom: 4,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.data_object,
+                  size: 12,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.typeHeader!,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         ...entries.map((entry) {
           final key = entry.key;
           final dynamic rawValue = entry.value;
@@ -1710,8 +1740,11 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
           map.containsKey('entries');
 
       Map<String, dynamic> displayMap;
+      String? typeHeader;
+
       if (isWrappedObject) {
-        // This is a wrapped object - filter out metadata keys
+        // This is a wrapped object - extract type info and filter out metadata keys
+        typeHeader = map['type'] as String?;
         displayMap = Map<String, dynamic>.from(map);
         displayMap.remove('type');
         displayMap.remove('string');
@@ -1728,6 +1761,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
       return _JsonTreeView(
         data: displayMap,
         indent: widget.indent + 1,
+        typeHeader: typeHeader,
       );
     } else if (value is List) {
       return _buildListView(value, parentKey);
@@ -1735,7 +1769,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildListView(List list, String parentKey) {
+  Widget _buildListView(List list, String parentKey, {String? typeHeader}) {
     final theme = Theme.of(context);
     final bool isLarge = list.length > _loadLimit;
     final bool showingMore = _showingMoreKeys.contains(parentKey);
@@ -1746,6 +1780,34 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Type header if provided
+        if (typeHeader != null) ...[
+          Padding(
+            padding: EdgeInsets.only(
+              left: (widget.indent + 1) * 8.0,
+              bottom: 4,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.data_array,
+                  size: 12,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  typeHeader,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         ...List.generate(displayList.length, (index) {
           final dynamic rawItem = displayList[index];
 
