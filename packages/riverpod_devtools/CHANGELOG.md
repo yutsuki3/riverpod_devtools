@@ -1,3 +1,7 @@
+## 0.4.2
+
+- Fixed missing DevTools extension build files (index.html and other assets) that prevented the extension from loading properly
+
 ## 0.4.1
 
 - Fixed devtools config.yaml version mismatch (was 0.3.0, now matches package version 0.4.1)
