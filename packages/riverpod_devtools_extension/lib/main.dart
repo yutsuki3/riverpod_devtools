@@ -1542,6 +1542,15 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
   /// Keys that are currently showing more items
   final Set<String> _showingMoreKeys = {};
 
+  /// Keys for strings that are currently expanded (for long strings)
+  final Set<String> _expandedStrings = {};
+
+  /// Maximum string length before truncation
+  static const int _stringTruncateLength = 150;
+
+  /// Minimum string length to enable truncation
+  static const int _stringMinLengthForTruncation = 200;
+
   @override
   void initState() {
     super.initState();
@@ -1648,57 +1657,14 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                         const SizedBox(width: 14),
                       const SizedBox(width: 2),
                       Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              color: theme.colorScheme.onSurface,
-                              height: 1.4,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: '$key: ',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                              if (asyncState != null)
-                                TextSpan(
-                                  text: '[$asyncState] ',
-                                  style: TextStyle(
-                                    color: asyncState == 'data'
-                                        ? const Color(0xFF4CAF50)
-                                        : asyncState == 'loading'
-                                            ? Colors.grey
-                                            : const Color(0xFFE57373),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              if (!isExpandable || !isExpanded)
-                                TextSpan(
-                                  text: _formatValue(displayValue),
-                                  style: TextStyle(
-                                    color: _getValueColor(displayValue, theme),
-                                  ),
-                                ),
-                              if (displayType != null &&
-                                  displayType != 'null' &&
-                                  displayType != 'String' &&
-                                  displayType != 'int' &&
-                                  displayType != 'double' &&
-                                  displayType != 'bool')
-                                TextSpan(
-                                  text: ' ($displayType)',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.5),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        child: _buildValueDisplay(
+                          key: key,
+                          displayValue: displayValue,
+                          displayType: displayType,
+                          asyncState: asyncState,
+                          isExpandable: isExpandable,
+                          isExpanded: isExpanded,
+                          theme: theme,
                         ),
                       ),
                     ],
@@ -1832,45 +1798,14 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                         const SizedBox(width: 14),
                       const SizedBox(width: 2),
                       Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              color: theme.colorScheme.onSurface,
-                              height: 1.4,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: '[$index]: ',
-                                style: TextStyle(
-                                  color: theme.colorScheme.primary
-                                      .withValues(alpha: 0.7),
-                                ),
-                              ),
-                              if (!isExpandable || !isExpanded)
-                                TextSpan(
-                                  text: _formatValue(displayItem),
-                                  style: TextStyle(
-                                    color: _getValueColor(displayItem, theme),
-                                  ),
-                                ),
-                              if (displayType != null &&
-                                  displayType != 'null' &&
-                                  displayType != 'String' &&
-                                  displayType != 'int' &&
-                                  displayType != 'double' &&
-                                  displayType != 'bool')
-                                TextSpan(
-                                  text: ' ($displayType)',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.5),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        child: _buildListItemDisplay(
+                          index: index,
+                          itemKey: itemKey,
+                          displayItem: displayItem,
+                          displayType: displayType,
+                          isExpandable: isExpandable,
+                          isExpanded: isExpanded,
+                          theme: theme,
                         ),
                       ),
                     ],
@@ -1902,6 +1837,292 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
             ),
           ),
       ],
+    );
+  }
+
+  /// Builds the list item display widget with support for long string truncation
+  Widget _buildListItemDisplay({
+    required int index,
+    required String itemKey,
+    required dynamic displayItem,
+    required String? displayType,
+    required bool isExpandable,
+    required bool isExpanded,
+    required ThemeData theme,
+  }) {
+    // Check if this is a long string that needs truncation
+    final isLongString = displayItem is String &&
+        displayItem.length >= _stringMinLengthForTruncation;
+    final stringKey = '${widget.indent}_$itemKey';
+    final isStringExpanded = _expandedStrings.contains(stringKey);
+
+    if (isLongString && !isExpandable) {
+      // Long string handling for list items
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurface,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(
+                  text: '[$index]: ',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                  ),
+                ),
+                TextSpan(
+                  text: isStringExpanded
+                      ? '"$displayItem"'
+                      : '"${displayItem.substring(0, _stringTruncateLength)}..."',
+                  style: TextStyle(
+                    color: _getValueColor(displayItem, theme),
+                  ),
+                ),
+                if (displayType != null &&
+                    displayType != 'null' &&
+                    displayType != 'String' &&
+                    displayType != 'int' &&
+                    displayType != 'double' &&
+                    displayType != 'bool')
+                  TextSpan(
+                    text: ' ($displayType)',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isStringExpanded) {
+                  _expandedStrings.remove(stringKey);
+                } else {
+                  _expandedStrings.add(stringKey);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                isStringExpanded ? 'Show less' : 'Show more (${displayItem.length} chars)',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Normal list item display
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 10,
+          fontFamily: 'monospace',
+          color: theme.colorScheme.onSurface,
+          height: 1.4,
+        ),
+        children: [
+          TextSpan(
+            text: '[$index]: ',
+            style: TextStyle(
+              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+            ),
+          ),
+          if (!isExpandable || !isExpanded)
+            TextSpan(
+              text: _formatValue(displayItem),
+              style: TextStyle(
+                color: _getValueColor(displayItem, theme),
+              ),
+            ),
+          if (displayType != null &&
+              displayType != 'null' &&
+              displayType != 'String' &&
+              displayType != 'int' &&
+              displayType != 'double' &&
+              displayType != 'bool')
+            TextSpan(
+              text: ' ($displayType)',
+              style: TextStyle(
+                fontSize: 8,
+                color: theme.colorScheme.onSurfaceVariant
+                    .withValues(alpha: 0.5),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds the value display widget with support for long string truncation
+  Widget _buildValueDisplay({
+    required String key,
+    required dynamic displayValue,
+    required String? displayType,
+    required String? asyncState,
+    required bool isExpandable,
+    required bool isExpanded,
+    required ThemeData theme,
+  }) {
+    // Check if this is a long string that needs truncation
+    final isLongString = displayValue is String &&
+        displayValue.length >= _stringMinLengthForTruncation;
+    final stringKey = '${widget.indent}_$key';
+    final isStringExpanded = _expandedStrings.contains(stringKey);
+
+    if (isLongString && !isExpandable) {
+      // Long string handling
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurface,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(
+                  text: '$key: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                if (asyncState != null)
+                  TextSpan(
+                    text: '[$asyncState] ',
+                    style: TextStyle(
+                      color: asyncState == 'data'
+                          ? const Color(0xFF4CAF50)
+                          : asyncState == 'loading'
+                              ? Colors.grey
+                              : const Color(0xFFE57373),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                TextSpan(
+                  text: isStringExpanded
+                      ? '"$displayValue"'
+                      : '"${displayValue.substring(0, _stringTruncateLength)}..."',
+                  style: TextStyle(
+                    color: _getValueColor(displayValue, theme),
+                  ),
+                ),
+                if (displayType != null &&
+                    displayType != 'null' &&
+                    displayType != 'String' &&
+                    displayType != 'int' &&
+                    displayType != 'double' &&
+                    displayType != 'bool')
+                  TextSpan(
+                    text: ' ($displayType)',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isStringExpanded) {
+                  _expandedStrings.remove(stringKey);
+                } else {
+                  _expandedStrings.add(stringKey);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                isStringExpanded ? 'Show less' : 'Show more (${displayValue.length} chars)',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Normal value display
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 10,
+          fontFamily: 'monospace',
+          color: theme.colorScheme.onSurface,
+          height: 1.4,
+        ),
+        children: [
+          TextSpan(
+            text: '$key: ',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          if (asyncState != null)
+            TextSpan(
+              text: '[$asyncState] ',
+              style: TextStyle(
+                color: asyncState == 'data'
+                    ? const Color(0xFF4CAF50)
+                    : asyncState == 'loading'
+                        ? Colors.grey
+                        : const Color(0xFFE57373),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          if (!isExpandable || !isExpanded)
+            TextSpan(
+              text: _formatValue(displayValue),
+              style: TextStyle(
+                color: _getValueColor(displayValue, theme),
+              ),
+            ),
+          if (displayType != null &&
+              displayType != 'null' &&
+              displayType != 'String' &&
+              displayType != 'int' &&
+              displayType != 'double' &&
+              displayType != 'bool')
+            TextSpan(
+              text: ' ($displayType)',
+              style: TextStyle(
+                fontSize: 8,
+                color: theme.colorScheme.onSurfaceVariant
+                    .withValues(alpha: 0.5),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
