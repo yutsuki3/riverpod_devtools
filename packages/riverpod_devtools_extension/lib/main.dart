@@ -1701,8 +1701,32 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   Widget _buildExpandedValue(dynamic value, String parentKey) {
     if (value is Map) {
+      // Filter out metadata keys if this is a wrapped object
+      final map = value as Map<String, dynamic>;
+      final isWrappedObject = map.containsKey('type') ||
+          map.containsKey('string') ||
+          map.containsKey('value') ||
+          map.containsKey('items') ||
+          map.containsKey('entries');
+
+      Map<String, dynamic> displayMap;
+      if (isWrappedObject) {
+        // This is a wrapped object - filter out metadata keys
+        displayMap = Map<String, dynamic>.from(map);
+        displayMap.remove('type');
+        displayMap.remove('string');
+        displayMap.remove('asyncState');
+
+        // If there's no actual data left, return empty
+        if (displayMap.isEmpty) {
+          return const SizedBox.shrink();
+        }
+      } else {
+        displayMap = Map<String, dynamic>.from(map);
+      }
+
       return _JsonTreeView(
-        data: Map<String, dynamic>.from(value),
+        data: displayMap,
         indent: widget.indent + 1,
       );
     } else if (value is List) {
