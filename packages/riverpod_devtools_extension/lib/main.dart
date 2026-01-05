@@ -318,14 +318,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     }
   }
 
-  /// Get filtered providers based on search query and hidden state
+  /// Get filtered providers based on search query
   List<ProviderInfo> get _filteredProviders {
     var providers = _providers.values;
 
-    // Filter out hidden providers
-    providers = providers.where((provider) => !_hiddenProviderNames.contains(provider.name));
-
-    // Apply search filter
+    // Apply search filter (don't filter hidden providers - show them dimmed instead)
     if (_providerSearchQuery.isNotEmpty) {
       final query = _providerSearchQuery.toLowerCase();
       providers = providers.where((provider) => provider.name.toLowerCase().contains(query));
@@ -471,7 +468,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: Text(
-                    'Show Hidden (${_hiddenProviderNames.length})',
+                    'Show All (${_hiddenProviderNames.length})',
                     style: const TextStyle(fontSize: 10),
                   ),
                 ),
@@ -616,134 +613,151 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               _selectedProviderNames.contains(provider.name);
                           final isFlashing =
                               _flashingProviderName == provider.name;
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              splashFactory: NoSplash.splashFactory,
-                              highlightColor: Colors.transparent,
-                            ),
-                            child: MouseRegion(
-                              onEnter: (_) {
-                                if (_selectedProviderNames.isEmpty) {
-                                  setState(() {
-                                    _hoveredProviderName = provider.name;
-                                  });
-                                }
-                              },
-                              onExit: (_) {
-                                if (_selectedProviderNames.isEmpty) {
-                                  setState(() {
-                                    _hoveredProviderName = null;
-                                  });
-                                }
-                              },
-                              child: Listener(
-                                onPointerDown: (event) {
-                                  setState(() {
-                                    final isCtrlOrCmd =
-                                        event.kind == PointerDeviceKind.mouse &&
-                                            (HardwareKeyboard
-                                                    .instance.isMetaPressed ||
-                                                HardwareKeyboard
-                                                    .instance.isControlPressed);
+                          final isHidden =
+                              _hiddenProviderNames.contains(provider.name);
+                          final isHovered =
+                              _hoveredProviderName == provider.name;
 
-                                    if (isCtrlOrCmd) {
-                                      // Multi-selection mode: toggle
-                                      if (isSelected) {
-                                        _selectedProviderNames
-                                            .remove(provider.name);
-                                        // If removed the active tab, update it
-                                        if (_activeTabProviderName ==
-                                            provider.name) {
-                                          _activeTabProviderName =
-                                              _selectedProviderNames.isNotEmpty
-                                                  ? _selectedProviderNames.first
-                                                  : null;
+                          // Show visibility icon when: no providers selected AND (hidden OR hovered)
+                          final showVisibilityIcon = _selectedProviderNames.isEmpty &&
+                                                      (isHidden || isHovered);
+
+                          return Opacity(
+                            opacity: isHidden ? 0.4 : 1.0,
+                            child: Theme(
+                              data: Theme.of(context).copyWith(
+                                splashFactory: NoSplash.splashFactory,
+                                highlightColor: Colors.transparent,
+                              ),
+                              child: MouseRegion(
+                                onEnter: (_) {
+                                  if (_selectedProviderNames.isEmpty) {
+                                    setState(() {
+                                      _hoveredProviderName = provider.name;
+                                    });
+                                  }
+                                },
+                                onExit: (_) {
+                                  if (_selectedProviderNames.isEmpty) {
+                                    setState(() {
+                                      _hoveredProviderName = null;
+                                    });
+                                  }
+                                },
+                                child: Listener(
+                                  onPointerDown: (event) {
+                                    setState(() {
+                                      final isCtrlOrCmd =
+                                          event.kind == PointerDeviceKind.mouse &&
+                                              (HardwareKeyboard
+                                                      .instance.isMetaPressed ||
+                                                  HardwareKeyboard
+                                                      .instance.isControlPressed);
+
+                                      if (isCtrlOrCmd) {
+                                        // Multi-selection mode: toggle
+                                        if (isSelected) {
+                                          _selectedProviderNames
+                                              .remove(provider.name);
+                                          // If removed the active tab, update it
+                                          if (_activeTabProviderName ==
+                                              provider.name) {
+                                            _activeTabProviderName =
+                                                _selectedProviderNames.isNotEmpty
+                                                    ? _selectedProviderNames.first
+                                                    : null;
+                                          }
+                                        } else {
+                                          _selectedProviderNames.add(provider.name);
+                                          // If this is the first selection or active tab is not set, set it
+                                          if (_activeTabProviderName == null ||
+                                              !_selectedProviderNames.contains(
+                                                  _activeTabProviderName)) {
+                                            _activeTabProviderName = provider.name;
+                                          }
                                         }
                                       } else {
-                                        _selectedProviderNames.add(provider.name);
-                                        // If this is the first selection or active tab is not set, set it
-                                        if (_activeTabProviderName == null ||
-                                            !_selectedProviderNames.contains(
-                                                _activeTabProviderName)) {
+                                        // Single selection mode
+                                        if (isSelected &&
+                                            _selectedProviderNames.length == 1) {
+                                          // If clicking the only selected provider, deselect it
+                                          _selectedProviderNames.clear();
+                                          _activeTabProviderName = null;
+                                        } else {
+                                          // Otherwise, select only this one
+                                          _selectedProviderNames.clear();
+                                          _selectedProviderNames.add(provider.name);
                                           _activeTabProviderName = provider.name;
                                         }
                                       }
-                                    } else {
-                                      // Single selection mode
-                                      if (isSelected &&
-                                          _selectedProviderNames.length == 1) {
-                                        // If clicking the only selected provider, deselect it
-                                        _selectedProviderNames.clear();
-                                        _activeTabProviderName = null;
-                                      } else {
-                                        // Otherwise, select only this one
-                                        _selectedProviderNames.clear();
-                                        _selectedProviderNames.add(provider.name);
-                                        _activeTabProviderName = provider.name;
-                                      }
-                                    }
-                                  });
-                                },
-                                child: InkWell(
-                                  onTap: () {
-                                    // Handled by Listener above
+                                    });
                                   },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    color: isFlashing
-                                        ? theme.colorScheme.primary
-                                            .withValues(alpha: 0.3)
-                                        : isSelected
-                                            ? theme.colorScheme.primary
-                                                .withValues(alpha: 0.1)
-                                            : null,
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          provider.status == ProviderStatus.active
-                                              ? Icons.circle
-                                              : Icons.circle_outlined,
-                                          size: 8,
-                                          color: provider.status ==
-                                                  ProviderStatus.active
-                                              ? Colors.greenAccent
-                                              : theme
-                                                  .colorScheme.onSurfaceVariant,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            provider.name,
-                                            style: const TextStyle(fontSize: 10),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
+                                  child: InkWell(
+                                    onTap: () {
+                                      // Handled by Listener above
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      color: isFlashing
+                                          ? theme.colorScheme.primary
+                                              .withValues(alpha: 0.3)
+                                          : isSelected
+                                              ? theme.colorScheme.primary
+                                                  .withValues(alpha: 0.1)
+                                              : null,
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            provider.status == ProviderStatus.active
+                                                ? Icons.circle
+                                                : Icons.circle_outlined,
+                                            size: 8,
+                                            color: provider.status ==
+                                                    ProviderStatus.active
+                                                ? Colors.greenAccent
+                                                : theme
+                                                    .colorScheme.onSurfaceVariant,
                                           ),
-                                        ),
-                                        // Show hide icon when hovering and no providers are selected
-                                        if (_selectedProviderNames.isEmpty &&
-                                            _hoveredProviderName == provider.name)
-                                          SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: IconButton(
-                                              padding: EdgeInsets.zero,
-                                              iconSize: 14,
-                                              icon: Icon(
-                                                Icons.visibility_off_outlined,
-                                                color: theme.colorScheme.onSurfaceVariant,
-                                              ),
-                                              onPressed: () {
-                                                setState(() {
-                                                  _hiddenProviderNames.add(provider.name);
-                                                  _hoveredProviderName = null;
-                                                });
-                                              },
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              provider.name,
+                                              style: const TextStyle(fontSize: 10),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                      ],
+                                          // Show visibility icon in Figma style
+                                          if (showVisibilityIcon)
+                                            SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: IconButton(
+                                                padding: EdgeInsets.zero,
+                                                iconSize: 14,
+                                                icon: Icon(
+                                                  isHidden
+                                                      ? Icons.visibility_off_outlined
+                                                      : Icons.visibility_outlined,
+                                                  color: theme.colorScheme.onSurfaceVariant,
+                                                ),
+                                                onPressed: () {
+                                                  setState(() {
+                                                    if (isHidden) {
+                                                      _hiddenProviderNames.remove(provider.name);
+                                                    } else {
+                                                      _hiddenProviderNames.add(provider.name);
+                                                    }
+                                                    _hoveredProviderName = null;
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
