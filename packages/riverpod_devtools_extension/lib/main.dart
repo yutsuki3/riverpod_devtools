@@ -461,15 +461,17 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 TextButton(
                   onPressed: () => setState(() {
                     _hiddenProviderNames.clear();
+                    _selectedProviderNames.clear();
+                    _activeTabProviderName = null;
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     minimumSize: const Size(0, 24),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: Text(
-                    'Show All (${_hiddenProviderNames.length})',
-                    style: const TextStyle(fontSize: 10),
+                  child: const Text(
+                    'Show All',
+                    style: TextStyle(fontSize: 10),
                   ),
                 ),
             ],
@@ -634,6 +636,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                 child: Listener(
                                   onPointerDown: (event) {
                                     setState(() {
+                                      // If provider is hidden, unhide it first
+                                      if (isHidden) {
+                                        _hiddenProviderNames.remove(provider.name);
+                                      }
+
                                       final isCtrlOrCmd =
                                           event.kind == PointerDeviceKind.mouse &&
                                               (HardwareKeyboard
@@ -734,8 +741,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                                 onPressed: () {
                                                   setState(() {
                                                     if (isHidden) {
+                                                      // Unhide and select
                                                       _hiddenProviderNames.remove(provider.name);
+                                                      _selectedProviderNames.clear();
+                                                      _selectedProviderNames.add(provider.name);
+                                                      _activeTabProviderName = provider.name;
                                                     } else {
+                                                      // Hide
                                                       _hiddenProviderNames.add(provider.name);
                                                     }
                                                     _hoveredProviderName = null;
