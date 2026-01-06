@@ -1,3 +1,26 @@
+## 0.4.2
+
+- Fixed missing DevTools extension build files (index.html and other assets) that prevented the extension from loading properly
+
+## 0.4.1
+
+- Fixed devtools config.yaml version mismatch (was 0.3.0, now matches package version 0.4.1)
+
+## 0.4.0
+
+- Added Learning-based Dependency Tracking to support dependency visualization in Riverpod 3.x
+- Support for Light Mode UI with VS Code-inspired color themes
+- Improved Event Log UI with hierarchical grouping (e.g., `Recomputed` status for invalidation waves)
+- Added new event types: `invalidate`, `refresh`, `rebuild`, `dependencyChangeEvent`, and `asyncComplete`
+- Optimized data serialization and display:
+    - Added type labels (e.g., `String`, `int`) in Tree View
+    - Fixed Map/Set display to unwrap internal metadata for better readability
+    - Added "Show more" button for large collections
+    - Implemented caching for value string conversions
+- Enhanced Event Log filtering with multi-selection and "Show All" toggle
+- Expanded `flutter_riverpod` dependency range to `>=2.3.0 <4.0.0`
+- Updated example app with comprehensive demo pages for different provider types
+
 ## 0.3.0
 
 - Refresh provider list UI and add filtering feature

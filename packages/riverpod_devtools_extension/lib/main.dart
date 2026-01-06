@@ -31,8 +31,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Maximum number of events to keep in memory (ring buffer)
   static const int _maxEventCount = 1000;
 
+  /// Maximum number of disposed providers to keep in memory
+  static const int _maxDisposedProviders = 100;
+
   final List<ProviderEvent> _events = [];
   final Map<String, ProviderInfo> _providers = {};
+
+  /// Track when providers were disposed for cleanup
+  final Map<String, DateTime> _disposedProviderTimestamps = {};
 
   /// Index structure for fast filtering: provider name -> list of events
   final Map<String, List<ProviderEvent>> _eventsByProvider = {};
@@ -40,6 +46,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// The currently selected provider names for detail view.
   /// Empty set means no provider is selected.
   final Set<String> _selectedProviderNames = {};
+
+  /// The currently active tab (provider name) when multiple providers are selected
+  String? _activeTabProviderName;
+
   StreamSubscription? _extensionSubscription;
   final Set<String> _processedEventKeys = {};
 
@@ -58,6 +68,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   /// Represents the fraction of remaining width allocated to the detail panel
   double _rightSplitRatio = 0.375;
 
+  /// Provider name currently being flashed in the list
+  String? _flashingProviderName;
+
+  /// Timer for controlling flash animation
+  Timer? _flashTimer;
+
+  /// Scroll controller for provider list
+  final ScrollController _providerListScrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
@@ -67,7 +86,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   @override
   void dispose() {
     _extensionSubscription?.cancel();
+    _flashTimer?.cancel();
     _searchController.dispose();
+    _providerListScrollController.dispose();
     super.dispose();
   }
 
@@ -95,6 +116,77 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       }
     }
     return usedBy;
+  }
+
+  /// Flash a provider in the list to highlight it
+  /// [flashCount] determines how many times to flash (1 or 2)
+  void _flashProvider(String providerName, {int flashCount = 2}) {
+    _flashTimer?.cancel();
+
+    setState(() {
+      _flashingProviderName = providerName;
+    });
+
+    if (flashCount == 1) {
+      // Single flash: on(300ms) -> off
+      Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        setState(() => _flashingProviderName = null);
+      });
+    } else {
+      // Double flash: on(200ms) -> off(100ms) -> on(200ms) -> off
+      Timer(const Duration(milliseconds: 200), () {
+        if (!mounted) return;
+        setState(() => _flashingProviderName = null);
+
+        Timer(const Duration(milliseconds: 100), () {
+          if (!mounted) return;
+          setState(() => _flashingProviderName = providerName);
+
+          Timer(const Duration(milliseconds: 200), () {
+            if (!mounted) return;
+            setState(() => _flashingProviderName = null);
+          });
+        });
+      });
+    }
+  }
+
+  /// Scroll to a provider in the list
+  void _scrollToProvider(String providerName) {
+    final filteredProviders = _filteredProviders;
+    final index = filteredProviders.indexWhere((p) => p.name == providerName);
+
+    if (index < 0 || !_providerListScrollController.hasClients) return;
+
+    // Actual item height: vertical padding (8) + content height (~14) = ~22px per item
+    const double estimatedItemHeight = 22.0;
+    final targetOffset = index * estimatedItemHeight;
+
+    // Get viewport dimensions
+    final viewportHeight =
+        _providerListScrollController.position.viewportDimension;
+    final currentOffset = _providerListScrollController.offset;
+    final maxOffset = _providerListScrollController.position.maxScrollExtent;
+
+    // Check if item is already visible
+    final itemTop = targetOffset;
+    final itemBottom = targetOffset + estimatedItemHeight;
+    final isVisible = itemTop >= currentOffset &&
+        itemBottom <= currentOffset + viewportHeight;
+
+    if (!isVisible) {
+      // Center the item in the viewport
+      final centeredOffset =
+          (targetOffset - viewportHeight / 2 + estimatedItemHeight / 2)
+              .clamp(0.0, maxOffset);
+
+      _providerListScrollController.animateTo(
+        centeredOffset,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   Future<void> _subscribeToEvents() async {
@@ -204,6 +296,10 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             providerName: providerName,
             timestamp: eventTimestamp,
           ));
+
+          // Track disposal time for memory cleanup
+          _disposedProviderTimestamps[providerName] = eventTimestamp;
+          _cleanupDisposedProviders();
         }
       });
     });
@@ -220,9 +316,55 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     // Ring buffer: remove oldest events if exceeding max count
     if (_events.length > _maxEventCount) {
       final removed = _events.removeAt(_maxEventCount);
-      _eventsByProvider[removed.providerName]?.remove(removed);
+
+      // Remove event from provider index and clean up empty lists
+      final providerEvents = _eventsByProvider[removed.providerName];
+      if (providerEvents != null) {
+        providerEvents.remove(removed);
+        if (providerEvents.isEmpty) {
+          _eventsByProvider.remove(removed.providerName);
+        }
+      }
+
       // Clean up expansion state for removed event
       _expandedEventIds.remove(removed.id);
+    }
+  }
+
+  /// Clean up old disposed providers to prevent memory leaks
+  void _cleanupDisposedProviders() {
+    // If we haven't exceeded the limit, no cleanup needed
+    if (_disposedProviderTimestamps.length <= _maxDisposedProviders) {
+      return;
+    }
+
+    // Sort disposed providers by timestamp (oldest first)
+    final sortedDisposed = _disposedProviderTimestamps.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+
+    // Remove oldest disposed providers
+    final toRemove = sortedDisposed.length - _maxDisposedProviders;
+    for (var i = 0; i < toRemove; i++) {
+      final providerName = sortedDisposed[i].key;
+      _providers.remove(providerName);
+      _disposedProviderTimestamps.remove(providerName);
+
+      // Clean up events for this provider
+      final events = _eventsByProvider.remove(providerName);
+      if (events != null) {
+        for (final event in events) {
+          _events.remove(event);
+          _expandedEventIds.remove(event.id);
+        }
+      }
+
+      // Clean up selection if this provider was selected
+      _selectedProviderNames.remove(providerName);
+      if (_activeTabProviderName == providerName) {
+        _activeTabProviderName = _selectedProviderNames.isNotEmpty
+            ? _selectedProviderNames.first
+            : null;
+      }
     }
   }
 
@@ -368,6 +510,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 TextButton(
                   onPressed: () => setState(() {
                     _selectedProviderNames.clear();
+                    _activeTabProviderName = null;
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -492,14 +635,18 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         // Tapping empty area deselects all
                         setState(() {
                           _selectedProviderNames.clear();
+                          _activeTabProviderName = null;
                         });
                       },
                       child: ListView.builder(
+                        controller: _providerListScrollController,
                         itemCount: filteredProviders.length,
                         itemBuilder: (context, index) {
                           final provider = filteredProviders[index];
                           final isSelected =
                               _selectedProviderNames.contains(provider.name);
+                          final isFlashing =
+                              _flashingProviderName == provider.name;
                           return Theme(
                             data: Theme.of(context).copyWith(
                               splashFactory: NoSplash.splashFactory,
@@ -520,8 +667,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                     if (isSelected) {
                                       _selectedProviderNames
                                           .remove(provider.name);
+                                      // If removed the active tab, update it
+                                      if (_activeTabProviderName ==
+                                          provider.name) {
+                                        _activeTabProviderName =
+                                            _selectedProviderNames.isNotEmpty
+                                                ? _selectedProviderNames.first
+                                                : null;
+                                      }
                                     } else {
                                       _selectedProviderNames.add(provider.name);
+                                      // If this is the first selection or active tab is not set, set it
+                                      if (_activeTabProviderName == null ||
+                                          !_selectedProviderNames.contains(
+                                              _activeTabProviderName)) {
+                                        _activeTabProviderName = provider.name;
+                                      }
                                     }
                                   } else {
                                     // Single selection mode
@@ -529,10 +690,12 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                         _selectedProviderNames.length == 1) {
                                       // If clicking the only selected provider, deselect it
                                       _selectedProviderNames.clear();
+                                      _activeTabProviderName = null;
                                     } else {
                                       // Otherwise, select only this one
                                       _selectedProviderNames.clear();
                                       _selectedProviderNames.add(provider.name);
+                                      _activeTabProviderName = provider.name;
                                     }
                                   }
                                 });
@@ -546,10 +709,13 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                     horizontal: 8,
                                     vertical: 4,
                                   ),
-                                  color: isSelected
+                                  color: isFlashing
                                       ? theme.colorScheme.primary
-                                          .withValues(alpha: 0.1)
-                                      : null,
+                                          .withValues(alpha: 0.3)
+                                      : isSelected
+                                          ? theme.colorScheme.primary
+                                              .withValues(alpha: 0.1)
+                                          : null,
                                   child: Row(
                                     children: [
                                       Icon(
@@ -624,6 +790,87 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           ),
         ),
 
+        // Tabs (only show when multiple providers selected)
+        if (_selectedProviderNames.length > 1)
+          Container(
+            height: 28,
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: _selectedProviderNames.map((providerName) {
+                final isActive = _activeTabProviderName == providerName;
+                return InkWell(
+                  onTap: () {
+                    setState(() {
+                      _activeTabProviderName = providerName;
+                    });
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? theme.colorScheme.primary.withValues(alpha: 0.1)
+                          : null,
+                      border: isActive
+                          ? Border(
+                              bottom: BorderSide(
+                                color: theme.colorScheme.primary,
+                                width: 2,
+                              ),
+                            )
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          providerName.length > 20
+                              ? '${providerName.substring(0, 20)}...'
+                              : providerName,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight:
+                                isActive ? FontWeight.bold : FontWeight.normal,
+                            color: isActive
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedProviderNames.remove(providerName);
+                              if (_activeTabProviderName == providerName) {
+                                _activeTabProviderName =
+                                    _selectedProviderNames.isNotEmpty
+                                        ? _selectedProviderNames.first
+                                        : null;
+                              }
+                            });
+                          },
+                          child: Icon(
+                            Icons.close,
+                            size: 12,
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
         // Content
         Expanded(
           child: _selectedProviderNames.isEmpty
@@ -638,7 +885,23 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                 )
               : Builder(
                   builder: (context) {
-                    final provider = _providers[_selectedProviderNames.first];
+                    // Determine which provider to display
+                    String displayProviderName;
+                    if (_selectedProviderNames.length == 1) {
+                      displayProviderName = _selectedProviderNames.first;
+                    } else {
+                      // Multiple selection: use active tab or first selected
+                      if (_activeTabProviderName != null &&
+                          _selectedProviderNames
+                              .contains(_activeTabProviderName)) {
+                        displayProviderName = _activeTabProviderName!;
+                      } else {
+                        displayProviderName = _selectedProviderNames.first;
+                        _activeTabProviderName = displayProviderName;
+                      }
+                    }
+
+                    final provider = _providers[displayProviderName];
                     if (provider == null) {
                       return Center(
                         child: Text(
@@ -985,45 +1248,94 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           else
             Column(
               children: dependencies.map((name) {
-                return InkWell(
-                  onTap: () {
-                    setState(() {
-                      _selectedProviderNames.clear();
-                      _selectedProviderNames.add(name);
-                    });
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    margin: const EdgeInsets.only(bottom: 2),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                final isSelected = _selectedProviderNames.contains(name);
+                final isActive = _activeTabProviderName == name;
+
+                return Tooltip(
+                  message: isActive
+                      ? 'Currently viewing $name'
+                      : isSelected
+                          ? 'Jump to $name'
+                          : 'Add $name to selection',
+                  child: InkWell(
+                    onTap: () {
+                      final wasNotSelected = !isSelected;
+                      setState(() {
+                        if (!isSelected) {
+                          _selectedProviderNames.add(name);
+                        } else {
+                          _activeTabProviderName = name;
+                        }
+                      });
+                      // Flash and scroll only when adding a new provider (not when switching tabs)
+                      if (wasNotSelected) {
+                        _flashProvider(name);
+                        _scrollToProvider(name);
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      margin: const EdgeInsets.only(bottom: 2),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? theme.colorScheme.primary
+                            : isSelected
+                                ? theme.colorScheme.primary
+                                    .withValues(alpha: 0.08)
+                                : theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: isActive
+                              ? theme.colorScheme.primary
+                              : isSelected
+                                  ? theme.colorScheme.primary
+                                      .withValues(alpha: 0.5)
+                                  : theme.colorScheme.outline
+                                      .withValues(alpha: 0.1),
+                          width: 1,
+                          style: isSelected && !isActive
+                              ? BorderStyle.solid
+                              : BorderStyle.solid,
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 10,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: theme.colorScheme.primary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        children: [
+                          Icon(
+                            isActive
+                                ? Icons.visibility
+                                : isSelected
+                                    ? Icons.open_in_new
+                                    : Icons.add,
+                            size: 12,
+                            color: isActive
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.primary,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                                color: isActive
+                                    ? theme.colorScheme.onPrimary
+                                    : isSelected
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.onSurfaceVariant,
+                                fontWeight: isActive || isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -1065,6 +1377,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   _events.clear();
                   _eventsByProvider.clear();
                   _expandedEventIds.clear();
+                  _disposedProviderTimestamps.clear();
                 }),
                 tooltip: 'Clear All',
                 padding: EdgeInsets.zero,
@@ -1117,13 +1430,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    final color = switch (event.type) {
+    // Override with specific semantic colors if they fit better than theme colors
+    final semanticColor = switch (event.type) {
       EventType.added =>
-        isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32), // Green
+        isDark ? const Color(0xFF81C784) : const Color(0xFF4CAF50), // Green
       EventType.updated =>
-        isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0), // Blue
+        isDark ? const Color(0xFF64B5F6) : const Color(0xFF2196F3), // Blue
       EventType.disposed =>
-        isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00), // Orange
+        isDark ? const Color(0xFF9E9E9E) : const Color(0xFF757575), // Grey
     };
 
     final backgroundColor = diffBackgroundColor(event.type, isDark);
@@ -1137,16 +1451,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     final isExpanded = _expandedEventIds.contains(event.id);
 
     // Calculate relative time from previous event for the same provider
-    // The newest event shows the time difference from the previous (older) event
     String? relativeTime;
     final providerEvents = _eventsByProvider[event.providerName];
     if (providerEvents != null && providerEvents.length > 1) {
       final currentIndex = providerEvents.indexOf(event);
-      // Events are sorted newest first, so index 0 is the newest
-      // We want to show the time diff on newer events (smaller index)
-      // comparing with older events (larger index)
       if (currentIndex >= 0 && currentIndex < providerEvents.length - 1) {
-        // Get the next older event (at index currentIndex + 1)
         final olderEvent = providerEvents[currentIndex + 1];
         final timeDiff = event.timestamp.difference(olderEvent.timestamp);
         relativeTime = _formatRelativeTime(timeDiff);
@@ -1164,9 +1473,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       summarySubtitle = event.getValueString();
     }
 
-    // Check if we should treat this as "long text" for the expand/collapse arrow visibility
-    // For updated events, we almost always want to allow expansion to see the diff clearly if it's not trivial
-    // Disposed events should not be expandable
     final isLongText = event.type == EventType.disposed
         ? false
         : (summarySubtitle.length > 50 || event.type == EventType.updated);
@@ -1178,7 +1484,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         color: backgroundColor,
         borderRadius: BorderRadius.circular(4),
         border: Border(
-          left: BorderSide(color: color, width: 2),
+          left: BorderSide(color: semanticColor, width: 3),
         ),
       ),
       child: Column(
@@ -1199,22 +1505,22 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   }
                 : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+              padding: const EdgeInsets.fromLTRB(8, 4, 6, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header Row: Icon, ProviderName, Timestamp, Expand Arrow
                   Row(
                     children: [
-                      Icon(icon, color: color, size: 14),
-                      const SizedBox(width: 6),
+                      Icon(icon, color: semanticColor, size: 14),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           event.providerName,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            color: color,
+                            color: semanticColor,
                           ),
                         ),
                       ),
@@ -1226,7 +1532,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                             '${event.timestamp.minute.toString().padLeft(2, '0')}:'
                             '${event.timestamp.second.toString().padLeft(2, '0')}',
                             style: TextStyle(
-                                color: theme.colorScheme.onSurfaceVariant,
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.8),
                                 fontSize: 10),
                           ),
                           if (relativeTime != null) ...[
@@ -1235,7 +1542,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               relativeTime,
                               style: TextStyle(
                                 color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
+                                    .withValues(alpha: 0.6),
                                 fontSize: 9,
                                 fontStyle: FontStyle.italic,
                               ),
@@ -1248,7 +1555,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         Icon(
                           isExpanded ? Icons.expand_less : Icons.expand_more,
                           size: 16,
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.5),
                         ),
                       ],
                     ],
@@ -1258,7 +1566,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                   if (!isExpanded)
                     // Collapsed: Show summary (truncated)
                     Padding(
-                      padding: const EdgeInsets.only(left: 20, top: 2),
+                      padding: const EdgeInsets.only(left: 22, top: 4),
                       child: Text(
                         summarySubtitle,
                         maxLines: 1,
@@ -1266,7 +1574,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                         style: TextStyle(
                           fontSize: 10,
                           fontFamily: 'monospace',
-                          color: theme.colorScheme.onSurface,
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.8),
                         ),
                       ),
                     )
@@ -1274,7 +1583,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                     // Expanded: Show detailed view
                     Padding(
                       padding:
-                          const EdgeInsets.only(left: 20, top: 4, bottom: 4),
+                          const EdgeInsets.only(left: 22, top: 6, bottom: 4),
                       child: _buildExpandedContent(event),
                     ),
                 ],
@@ -1358,17 +1667,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
   Color diffBackgroundColor(EventType type, bool isDark) {
     if (isDark) {
-      return switch (type) {
-        EventType.added => const Color(0xFF1B5E20).withValues(alpha: 0.2),
-        EventType.updated => const Color(0xFF0D47A1).withValues(alpha: 0.2),
-        EventType.disposed => const Color(0xFFE65100).withValues(alpha: 0.2),
-      };
+      return Colors.white.withValues(alpha: 0.03);
     } else {
-      return switch (type) {
-        EventType.added => const Color(0xFFE8F5E9), // Light Green
-        EventType.updated => const Color(0xFFE3F2FD), // Light Blue
-        EventType.disposed => const Color(0xFFFFF3E0), // Light Orange
-      };
+      return Colors.black.withValues(alpha: 0.02);
     }
   }
 
@@ -1403,6 +1704,12 @@ class _JsonTreeView extends StatefulWidget {
 class _JsonTreeViewState extends State<_JsonTreeView> {
   final Set<String> _expandedKeys = {};
 
+  /// Number of items to show by default for large collections
+  static const int _loadLimit = 50;
+
+  /// Keys that are currently showing more items
+  final Set<String> _showingMoreKeys = {};
+
   @override
   void initState() {
     super.initState();
@@ -1419,193 +1726,350 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final entries = widget.data.entries.toList();
+    final allEntries = widget.data.entries.toList();
+    final bool isLarge = allEntries.length > _loadLimit;
+    final bool showingMore = _showingMoreKeys.contains('__root__');
+
+    final entries = (isLarge && !showingMore)
+        ? allEntries.take(_loadLimit).toList()
+        : allEntries;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: entries.map((entry) {
-        final key = entry.key;
-        final value = entry.value;
-        final isExpanded = _expandedKeys.contains(key);
+      children: [
+        ...entries.map((entry) {
+          final key = entry.key;
+          final dynamic rawValue = entry.value;
 
-        // Determine if the value is expandable (Map or List)
-        final isExpandable = value is Map || value is List;
+          // Check if the value is a "wrapped" metadata Map
+          final bool isWrapped = rawValue is Map<String, dynamic> &&
+              (rawValue.containsKey('type') ||
+                  rawValue.containsKey('value') ||
+                  rawValue.containsKey('items') ||
+                  rawValue.containsKey('entries') ||
+                  rawValue.containsKey('string'));
 
-        return Padding(
-          padding: EdgeInsets.only(left: widget.indent * 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: isExpandable
-                    ? () {
-                        setState(() {
-                          if (isExpanded) {
-                            _expandedKeys.remove(key);
-                          } else {
-                            _expandedKeys.add(key);
-                          }
-                        });
-                      }
-                    : null,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (isExpandable)
-                      SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: Icon(
-                          isExpanded
-                              ? Icons.arrow_drop_down
-                              : Icons.arrow_right,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 14),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'monospace',
-                            color: theme.colorScheme.onSurface,
-                            height: 1.4,
+          dynamic displayValue = rawValue;
+          String? displayType;
+          String? asyncState;
+
+          if (isWrapped) {
+            final map = rawValue;
+            displayType = map['type'] as String?;
+            asyncState = map['asyncState'] as String?;
+
+            if (map.containsKey('value')) {
+              displayValue = map['value'];
+            } else if (map.containsKey('items')) {
+              displayValue = map['items'];
+            } else if (map.containsKey('entries')) {
+              // Convert entries list back to a Map for tree view
+              final entries = map['entries'] as List;
+              final newMap = <String, dynamic>{};
+              for (final e in entries) {
+                if (e is Map) {
+                  newMap[e['key'].toString()] = e['value'];
+                }
+              }
+              displayValue = newMap;
+            } else if (map.containsKey('string')) {
+              displayValue = map['string'];
+            }
+          }
+
+          final isExpanded = _expandedKeys.contains(key);
+          final isExpandable = displayValue is Map || displayValue is List;
+
+          return Padding(
+            padding: EdgeInsets.only(left: widget.indent * 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: isExpandable
+                      ? () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedKeys.remove(key);
+                            } else {
+                              _expandedKeys.add(key);
+                            }
+                          });
+                        }
+                      : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (isExpandable)
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: Icon(
+                            isExpanded
+                                ? Icons.arrow_drop_down
+                                : Icons.arrow_right,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          children: [
-                            TextSpan(
-                              text: '$key: ',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
+                        )
+                      else
+                        const SizedBox(width: 14),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                              color: theme.colorScheme.onSurface,
+                              height: 1.4,
                             ),
-                            if (!isExpandable || !isExpanded)
+                            children: [
                               TextSpan(
-                                text: _formatValue(value),
+                                text: '$key: ',
                                 style: TextStyle(
-                                  color: _getValueColor(value, theme),
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.colorScheme.primary,
                                 ),
                               ),
-                          ],
+                              if (asyncState != null)
+                                TextSpan(
+                                  text: '[$asyncState] ',
+                                  style: TextStyle(
+                                    color: asyncState == 'data'
+                                        ? const Color(0xFF4CAF50)
+                                        : asyncState == 'loading'
+                                            ? Colors.grey
+                                            : const Color(0xFFE57373),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              if (!isExpandable || !isExpanded)
+                                TextSpan(
+                                  text: _formatValue(displayValue),
+                                  style: TextStyle(
+                                    color: _getValueColor(displayValue, theme),
+                                  ),
+                                ),
+                              if (displayType != null &&
+                                  displayType != 'null' &&
+                                  displayType != 'String' &&
+                                  displayType != 'int' &&
+                                  displayType != 'double' &&
+                                  displayType != 'bool')
+                                TextSpan(
+                                  text: ' ($displayType)',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.5),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (isExpandable && isExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0, top: 2),
+                    child: _buildExpandedValue(displayValue, key),
+                  ),
+              ],
+            ),
+          );
+        }),
+        if (isLarge && !showingMore)
+          Padding(
+            padding: EdgeInsets.only(left: (widget.indent * 8.0) + 16),
+            child: TextButton(
+              onPressed: () => setState(() => _showingMoreKeys.add('__root__')),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              if (isExpandable && isExpanded)
-                Padding(
-                  padding: const EdgeInsets.only(left: 16.0, top: 2),
-                  child: _buildExpandedValue(value),
-                ),
-            ],
+              child: Text(
+                'Show ${allEntries.length - _loadLimit} more items...',
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
           ),
-        );
-      }).toList(),
+      ],
     );
   }
 
-  Widget _buildExpandedValue(dynamic value) {
+  Widget _buildExpandedValue(dynamic value, String parentKey) {
     if (value is Map) {
       return _JsonTreeView(
         data: Map<String, dynamic>.from(value),
         indent: widget.indent + 1,
       );
     } else if (value is List) {
-      return _buildListView(value);
+      return _buildListView(value, parentKey);
     }
     return const SizedBox.shrink();
   }
 
-  Widget _buildListView(List list) {
+  Widget _buildListView(List list, String parentKey) {
     final theme = Theme.of(context);
+    final bool isLarge = list.length > _loadLimit;
+    final bool showingMore = _showingMoreKeys.contains(parentKey);
+
+    final displayList =
+        (isLarge && !showingMore) ? list.take(_loadLimit).toList() : list;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(list.length, (index) {
-        final item = list[index];
-        final isExpandable = item is Map || item is List;
-        final isExpanded = _expandedKeys.contains('[$index]');
+      children: [
+        ...List.generate(displayList.length, (index) {
+          final dynamic rawItem = displayList[index];
 
-        return Padding(
-          padding: EdgeInsets.only(left: (widget.indent + 1) * 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              InkWell(
-                onTap: isExpandable
-                    ? () {
-                        setState(() {
-                          final key = '[$index]';
-                          if (isExpanded) {
-                            _expandedKeys.remove(key);
-                          } else {
-                            _expandedKeys.add(key);
-                          }
-                        });
-                      }
-                    : null,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (isExpandable)
-                      SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: Icon(
-                          isExpanded
-                              ? Icons.arrow_drop_down
-                              : Icons.arrow_right,
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    else
-                      const SizedBox(width: 14),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontFamily: 'monospace',
-                            color: theme.colorScheme.onSurface,
-                            height: 1.4,
+          // Check if the item is a "wrapped" metadata Map
+          final bool isWrapped = rawItem is Map<String, dynamic> &&
+              (rawItem.containsKey('type') ||
+                  rawItem.containsKey('value') ||
+                  rawItem.containsKey('items') ||
+                  rawItem.containsKey('entries') ||
+                  rawItem.containsKey('string'));
+
+          dynamic displayItem = rawItem;
+          String? displayType;
+
+          if (isWrapped) {
+            final map = rawItem;
+            displayType = map['type'] as String?;
+            if (map.containsKey('value')) {
+              displayItem = map['value'];
+            } else if (map.containsKey('items')) {
+              displayItem = map['items'];
+            } else if (map.containsKey('entries')) {
+              // Convert entries list back to a Map for tree view
+              final entries = map['entries'] as List;
+              final newMap = <String, dynamic>{};
+              for (final e in entries) {
+                if (e is Map) {
+                  newMap[e['key'].toString()] = e['value'];
+                }
+              }
+              displayItem = newMap;
+            } else if (map.containsKey('string')) {
+              displayItem = map['string'];
+            }
+          }
+
+          final isExpandable = displayItem is Map || displayItem is List;
+          final itemKey = '$parentKey[$index]';
+          final isExpanded = _expandedKeys.contains(itemKey);
+
+          return Padding(
+            padding: EdgeInsets.only(left: (widget.indent + 1) * 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: isExpandable
+                      ? () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedKeys.remove(itemKey);
+                            } else {
+                              _expandedKeys.add(itemKey);
+                            }
+                          });
+                        }
+                      : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (isExpandable)
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: Icon(
+                            isExpanded
+                                ? Icons.arrow_drop_down
+                                : Icons.arrow_right,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                          children: [
-                            TextSpan(
-                              text: '[$index]: ',
-                              style: TextStyle(
-                                color: theme.colorScheme.primary
-                                    .withValues(alpha: 0.7),
-                              ),
+                        )
+                      else
+                        const SizedBox(width: 14),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: RichText(
+                          text: TextSpan(
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                              color: theme.colorScheme.onSurface,
+                              height: 1.4,
                             ),
-                            if (!isExpandable || !isExpanded)
+                            children: [
                               TextSpan(
-                                text: _formatValue(item),
+                                text: '[$index]: ',
                                 style: TextStyle(
-                                  color: _getValueColor(item, theme),
+                                  color: theme.colorScheme.primary
+                                      .withValues(alpha: 0.7),
                                 ),
                               ),
-                          ],
+                              if (!isExpandable || !isExpanded)
+                                TextSpan(
+                                  text: _formatValue(displayItem),
+                                  style: TextStyle(
+                                    color: _getValueColor(displayItem, theme),
+                                  ),
+                                ),
+                              if (displayType != null &&
+                                  displayType != 'null' &&
+                                  displayType != 'String' &&
+                                  displayType != 'int' &&
+                                  displayType != 'double' &&
+                                  displayType != 'bool')
+                                TextSpan(
+                                  text: ' ($displayType)',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.5),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                if (isExpandable && isExpanded)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _buildExpandedValue(displayItem, itemKey),
+                  ),
+              ],
+            ),
+          );
+        }),
+        if (isLarge && !showingMore)
+          Padding(
+            padding: EdgeInsets.only(left: ((widget.indent + 1) * 8.0) + 16),
+            child: TextButton(
+              onPressed: () => setState(() => _showingMoreKeys.add(parentKey)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              if (isExpandable && isExpanded)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: _buildExpandedValue(item),
-                ),
-            ],
+              child: Text(
+                'Show ${list.length - _loadLimit} more items...',
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
           ),
-        );
-      }),
+      ],
     );
   }
 
@@ -1620,9 +2084,23 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   Color _getValueColor(dynamic value, ThemeData theme) {
     if (value == null) return theme.colorScheme.onSurfaceVariant;
-    if (value is String) return const Color(0xFF4CAF50); // Green for strings
-    if (value is num) return const Color(0xFF2196F3); // Blue for numbers
-    if (value is bool) return const Color(0xFFFF9800); // Orange for booleans
+    final isDark = theme.brightness == Brightness.dark;
+
+    if (value is String) {
+      return isDark
+          ? const Color(0xFFCE9178) // VS Code String
+          : const Color(0xFFA31515); // VS Code Light String (Deep Red)
+    }
+    if (value is num) {
+      return isDark
+          ? const Color(0xFFB5CEA8) // VS Code Number
+          : const Color(0xFF098658); // VS Code Light Number (Deep Green)
+    }
+    if (value is bool) {
+      return isDark
+          ? const Color(0xFF569CD6) // VS Code Keyword/Constant
+          : const Color(0xFF0000FF); // VS Code Light Keyword (Blue)
+    }
     return theme.colorScheme.onSurface;
   }
 }
@@ -1646,15 +2124,63 @@ class ProviderInfo {
     this.dependencies = const [],
   });
 
+  String? _valueStringCache;
+
   /// Get string representation of value for display
   String getValueString() {
+    if (_valueStringCache != null) return _valueStringCache!;
+
     // If it has 'string', use that
-    if (value.containsKey('string')) {
-      return value['string'] as String;
+    return _valueStringCache = _formatValueForDisplay(value);
+  }
+
+  String _formatValueForDisplay(Map<String, dynamic> data) {
+    // Check if the value is a "wrapped" metadata Map
+    final bool isWrapped = data.containsKey('type') ||
+        data.containsKey('value') ||
+        data.containsKey('items') ||
+        data.containsKey('entries') ||
+        data.containsKey('string');
+
+    if (!isWrapped) {
+      return _safeToString(data);
     }
-    // Otherwise, try to convert value to string
-    if (value.containsKey('value')) {
-      return value['value']?.toString() ?? 'null';
+
+    if (data.containsKey('value')) {
+      return _safeToString(data['value']);
+    } else if (data.containsKey('items')) {
+      final items = data['items'] as List;
+      return '[${items.length} items]';
+    } else if (data.containsKey('entries')) {
+      final entries = data['entries'] as List;
+      return '{${entries.length} entries}';
+    } else if (data.containsKey('string')) {
+      return data['string'] as String;
+    }
+
+    return _safeToString(data);
+  }
+
+  String _safeToString(dynamic value) {
+    if (value == null) return 'null';
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+
+    if (value is List) {
+      if (value.length > 5) {
+        return '[${value.take(5).map((e) => _safeToString(e)).join(', ')}, ...]';
+      }
+      return value.toString();
+    }
+    if (value is Map) {
+      if (value.length > 3) {
+        final entries = value.entries
+            .take(3)
+            .map((e) => '${e.key}: ${_safeToString(e.value)}')
+            .join(', ');
+        return '{$entries, ...}';
+      }
+      return value.toString();
     }
     return value.toString();
   }
@@ -1683,26 +2209,68 @@ class ProviderEvent {
     id = '${timestamp.microsecondsSinceEpoch}_$providerId';
   }
 
+  String? _valueStringCache;
+  String? _previousValueStringCache;
+
   /// Get string representation for display
   String getValueString() {
     if (value == null) return 'null';
-    return _formatValueForDisplay(value!);
+    return _valueStringCache ??= _formatValueForDisplay(value!);
   }
 
   String getPreviousValueString() {
     if (previousValue == null) return 'null';
-    return _formatValueForDisplay(previousValue!);
+    return _previousValueStringCache ??= _formatValueForDisplay(previousValue!);
   }
 
   String _formatValueForDisplay(Map<String, dynamic> data) {
-    // If it has 'string', use that
-    if (data.containsKey('string')) {
+    // Check if the value is a "wrapped" metadata Map
+    final bool isWrapped = data.containsKey('type') ||
+        data.containsKey('value') ||
+        data.containsKey('items') ||
+        data.containsKey('entries') ||
+        data.containsKey('string');
+
+    if (!isWrapped) {
+      return _safeToString(data);
+    }
+
+    if (data.containsKey('value')) {
+      return _safeToString(data['value']);
+    } else if (data.containsKey('items')) {
+      final items = data['items'] as List;
+      return '[${items.length} items]';
+    } else if (data.containsKey('entries')) {
+      final entries = data['entries'] as List;
+      return '{${entries.length} entries}';
+    } else if (data.containsKey('string')) {
       return data['string'] as String;
     }
-    // Otherwise, try to convert value to string
-    if (data.containsKey('value')) {
-      return data['value']?.toString() ?? 'null';
+
+    return _safeToString(data);
+  }
+
+  String _safeToString(dynamic value) {
+    if (value == null) return 'null';
+    if (value is String) return value;
+    if (value is num || value is bool) return value.toString();
+
+    if (value is List) {
+      if (value.length > 5) {
+        return '[${value.take(5).map((e) => _safeToString(e)).join(', ')}, ...]';
+      }
+      return value.toString();
     }
-    return data.toString();
+    if (value is Map) {
+      if (value.length > 3) {
+        final entries = value.entries
+            .take(3)
+            .map((e) => '${e.key}: ${_safeToString(e.value)}')
+            .join(', ');
+        return '{$entries, ...}';
+      }
+      return value.toString();
+    }
+    return value.toString();
   }
 }

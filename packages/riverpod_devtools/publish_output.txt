@@ -1,0 +1,105 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 85.0.0 (92.0.0 available)
+  analyzer 7.7.1 (9.0.0 available)
+  async 2.12.0 (2.13.0 available)
+  characters 1.4.0 (1.4.1 available)
+  fake_async 1.3.2 (1.3.3 available)
+  flutter_lints 4.0.0 (6.0.0 available)
+  leak_tracker 10.0.8 (11.0.2 available)
+  leak_tracker_flutter_testing 3.0.9 (3.0.10 available)
+  leak_tracker_testing 3.0.1 (3.0.2 available)
+  lints 4.0.0 (6.0.0 available)
+  matcher 0.12.17 (0.12.18 available)
+  material_color_utilities 0.11.1 (0.13.0 available)
+  meta 1.16.0 (1.17.0 available)
+  test 1.25.15 (1.28.0 available)
+  test_api 0.7.4 (0.7.8 available)
+  test_core 0.6.8 (0.6.14 available)
+  vector_math 2.1.4 (2.2.0 available)
+  vm_service 14.3.1 (15.0.2 available)
+Got dependencies!
+18 packages have newer versions incompatible with dependency constraints.
+Try `dart pub outdated` for more information.
+Publishing riverpod_devtools 0.4.0 to https://pub.dev:
+├── CHANGELOG.md (1 KB)
+├── LICENSE (1 KB)
+├── README.md (2 KB)
+├── analysis_options.yaml (1 KB)
+├── example
+│   ├── README.md (<1 KB)
+│   ├── analysis_options.yaml (1 KB)
+│   ├── demo.gif (405 KB)
+│   ├── devtools_options.yaml (<1 KB)
+│   ├── lib
+│   │   └── main.dart (1 KB)
+│   └── pubspec.yaml (<1 KB)
+├── extension
+│   └── devtools
+│       ├── build
+│       │   ├── canvaskit.js (84 KB)
+│       │   ├── canvaskit.js.symbols (1 MB)
+│       │   ├── canvaskit.wasm (6 MB)
+│       │   ├── chromium
+│       │   │   ├── canvaskit.js (84 KB)
+│       │   │   ├── canvaskit.js.symbols (1 MB)
+│       │   │   └── canvaskit.wasm (5 MB)
+│       │   ├── skwasm.js (64 KB)
+│       │   ├── skwasm.js.symbols (1 MB)
+│       │   ├── skwasm.wasm (3 MB)
+│       │   ├── skwasm_st.js (56 KB)
+│       │   ├── skwasm_st.js.symbols (1 MB)
+│       │   └── skwasm_st.wasm (3 MB)
+│       └── config.yaml (<1 KB)
+├── lib
+│   └── riverpod_devtools.dart (12 KB)
+├── packages
+│   └── riverpod_devtools_extension
+│       └── lib
+│           └── models
+├── publish_output.txt (<1 KB)
+├── pubspec.yaml (<1 KB)
+└── test
+    └── riverpod_devtools_test.dart (1 KB)
+
+Total compressed archive size: 8 MB.
+Validating package...
+Package validation found the following 2 potential issues:
+* 45 checked-in files are ignored by a `.gitignore`.
+  Previous versions of Pub would include those in the published package.
+  
+  Consider adjusting your `.gitignore` files to not ignore those files, and if you do not wish to
+  publish these files use `.pubignore`. See also dart.dev/go/pubignore
+  
+  Files that are checked in while gitignored:
+  
+  extension/devtools/build/.last_build_id
+  extension/devtools/build/assets/AssetManifest.bin
+  extension/devtools/build/assets/AssetManifest.bin.json
+  extension/devtools/build/assets/AssetManifest.json
+  extension/devtools/build/assets/FontManifest.json
+  extension/devtools/build/assets/NOTICES
+  extension/devtools/build/assets/fonts/MaterialIcons-Regular.otf
+  extension/devtools/build/assets/packages/devtools_app_shared/fonts/Roboto/Roboto-Black.ttf
+  extension/devtools/build/assets/packages/devtools_app_shared/fonts/Roboto/Roboto-Bold.ttf
+  extension/devtools/build/assets/packages/devtools_app_shared/fonts/Roboto/Roboto-Light.ttf
+  ...
+  
+
+* 3 checked-in files are modified in git.
+  
+  Usually you want to publish from a clean git state.
+  
+  Consider committing these files or reverting the changes.
+  
+  Modified files:
+  
+  CHANGELOG.md
+  README.md
+  pubspec.yaml
+  
+  Run `git status` for more information.
+  
+The server may enforce additional checks.
+
+Package has 2 warnings.

@@ -6,6 +6,7 @@ import 'pages/async_page.dart';
 import 'pages/collections_page.dart';
 import 'pages/dependencies_page.dart';
 import 'pages/lifecycle_page.dart';
+import 'pages/performance_page.dart';
 import 'pages/todo_page.dart';
 
 void main() {
@@ -79,6 +80,17 @@ class HomePage extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const DependenciesPage()),
                   ),
               child: const Text('Dependencies Demo'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PerformancePage()),
+                  ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange.withValues(alpha: 0.2),
+              ),
+              child: const Text('Performance Demo (Large Data Test)'),
             ),
           ],
         ),
