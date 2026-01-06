@@ -1681,7 +1681,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     }
 
     // Always show as tree view - let users expand to see structure
-    return _JsonTreeView(data: data, initiallyExpanded: true);
+    return _JsonTreeView(data: data, initiallyExpanded: false);
   }
 }
 
