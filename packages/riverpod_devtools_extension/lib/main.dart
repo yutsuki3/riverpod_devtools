@@ -497,86 +497,89 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                       child: ListView.builder(
                         itemCount: filteredProviders.length,
                         itemBuilder: (context, index) {
-                        final provider = filteredProviders[index];
-                        final isSelected =
-                            _selectedProviderNames.contains(provider.name);
-                        return Theme(
-                          data: Theme.of(context).copyWith(
-                            splashFactory: NoSplash.splashFactory,
-                            highlightColor: Colors.transparent,
-                          ),
-                          child: Listener(
-                            onPointerDown: (event) {
-                              setState(() {
-                                final isCtrlOrCmd = event.kind ==
-                                        PointerDeviceKind.mouse &&
-                                    (HardwareKeyboard.instance.isMetaPressed ||
-                                        HardwareKeyboard
-                                            .instance.isControlPressed);
+                          final provider = filteredProviders[index];
+                          final isSelected =
+                              _selectedProviderNames.contains(provider.name);
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              splashFactory: NoSplash.splashFactory,
+                              highlightColor: Colors.transparent,
+                            ),
+                            child: Listener(
+                              onPointerDown: (event) {
+                                setState(() {
+                                  final isCtrlOrCmd =
+                                      event.kind == PointerDeviceKind.mouse &&
+                                          (HardwareKeyboard
+                                                  .instance.isMetaPressed ||
+                                              HardwareKeyboard
+                                                  .instance.isControlPressed);
 
-                                if (isCtrlOrCmd) {
-                                  // Multi-selection mode: toggle
-                                  if (isSelected) {
-                                    _selectedProviderNames
-                                        .remove(provider.name);
+                                  if (isCtrlOrCmd) {
+                                    // Multi-selection mode: toggle
+                                    if (isSelected) {
+                                      _selectedProviderNames
+                                          .remove(provider.name);
+                                    } else {
+                                      _selectedProviderNames.add(provider.name);
+                                    }
                                   } else {
-                                    _selectedProviderNames.add(provider.name);
+                                    // Single selection mode
+                                    if (isSelected &&
+                                        _selectedProviderNames.length == 1) {
+                                      // If clicking the only selected provider, deselect it
+                                      _selectedProviderNames.clear();
+                                    } else {
+                                      // Otherwise, select only this one
+                                      _selectedProviderNames.clear();
+                                      _selectedProviderNames.add(provider.name);
+                                    }
                                   }
-                                } else {
-                                  // Single selection mode
-                                  if (isSelected && _selectedProviderNames.length == 1) {
-                                    // If clicking the only selected provider, deselect it
-                                    _selectedProviderNames.clear();
-                                  } else {
-                                    // Otherwise, select only this one
-                                    _selectedProviderNames.clear();
-                                    _selectedProviderNames.add(provider.name);
-                                  }
-                                }
-                              });
-                            },
-                            child: InkWell(
-                              onTap: () {
-                                // Handled by Listener above
+                                });
                               },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                color: isSelected
-                                    ? theme.colorScheme.primary
-                                        .withValues(alpha: 0.1)
-                                    : null,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      provider.status == ProviderStatus.active
-                                          ? Icons.circle
-                                          : Icons.circle_outlined,
-                                      size: 8,
-                                      color: provider.status ==
-                                              ProviderStatus.active
-                                          ? Colors.greenAccent
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        provider.name,
-                                        style: const TextStyle(fontSize: 10),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                              child: InkWell(
+                                onTap: () {
+                                  // Handled by Listener above
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  color: isSelected
+                                      ? theme.colorScheme.primary
+                                          .withValues(alpha: 0.1)
+                                      : null,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        provider.status == ProviderStatus.active
+                                            ? Icons.circle
+                                            : Icons.circle_outlined,
+                                        size: 8,
+                                        color: provider.status ==
+                                                ProviderStatus.active
+                                            ? Colors.greenAccent
+                                            : theme
+                                                .colorScheme.onSurfaceVariant,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          provider.name,
+                                          style: const TextStyle(fontSize: 10),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -718,8 +721,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
                           const SizedBox(height: 16),
 
-                          // Last Change Section
-                          _buildLastChangeSection(provider),
+                          // Last Update Section
+                          _buildLastUpdateSection(provider),
 
                           const SizedBox(height: 16),
 
@@ -786,8 +789,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
-  Widget _buildLastChangeSection(ProviderInfo provider) {
+  Widget _buildLastUpdateSection(ProviderInfo provider) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     // Get the last event for this provider
     final providerEvents = _eventsByProvider[provider.name];
@@ -797,7 +801,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     if (lastEvent == null) {
       return _buildDetailSection(
-        title: 'Last Change',
+        title: 'Last Update',
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.all(8),
@@ -821,26 +825,38 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       );
     }
 
-    // Map event type to display string
+    final color = switch (lastEvent.type) {
+      EventType.added =>
+        isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32),
+      EventType.updated =>
+        isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0),
+      EventType.disposed =>
+        isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00),
+    };
+
+    final icon = switch (lastEvent.type) {
+      EventType.added => Icons.add_circle_outline,
+      EventType.updated => Icons.change_circle_outlined,
+      EventType.disposed => Icons.remove_circle_outline,
+    };
+
     final eventTypeString = switch (lastEvent.type) {
       EventType.added => 'Provider Added',
       EventType.updated => 'State Updated',
       EventType.disposed => 'Provider Disposed',
     };
 
-    // Format timestamp
     final timeString = '${lastEvent.timestamp.hour.toString().padLeft(2, '0')}:'
         '${lastEvent.timestamp.minute.toString().padLeft(2, '0')}:'
         '${lastEvent.timestamp.second.toString().padLeft(2, '0')}';
 
     return _buildDetailSection(
-      title: 'Last Change',
+      title: 'Last Update',
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest
-              .withValues(alpha: 0.3),
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
             color: theme.colorScheme.outline.withValues(alpha: 0.2),
@@ -849,25 +865,42 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Event type
-            _buildLastChangeRow(
-              label: 'Event',
-              value: eventTypeString,
-              theme: theme,
+            // Header Row
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(4)),
+              ),
+              child: Row(
+                children: [
+                  Icon(icon, size: 12, color: color),
+                  const SizedBox(width: 6),
+                  Text(
+                    eventTypeString,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    timeString,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            // Source (provider name)
-            _buildLastChangeRow(
-              label: 'Source',
-              value: provider.name,
-              theme: theme,
-            ),
-            const SizedBox(height: 6),
-            // Time
-            _buildLastChangeRow(
-              label: 'Time',
-              value: timeString,
-              theme: theme,
+
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: _buildLastUpdateContent(lastEvent, theme),
             ),
           ],
         ),
@@ -875,36 +908,86 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
-  Widget _buildLastChangeRow({
-    required String label,
+  Widget _buildLastUpdateContent(ProviderEvent event, ThemeData theme) {
+    if (event.type == EventType.disposed) {
+      return Text(
+        'The provider has been disposed and its state has been cleared.',
+        style: TextStyle(
+          fontSize: 10,
+          color: theme.colorScheme.onSurfaceVariant,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    if (event.type == EventType.updated) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildLastUpdateValueRow(
+            icon: Icons.remove,
+            value: event.getPreviousValueString(),
+            color: theme.brightness == Brightness.dark
+                ? const Color(0xFFFFB4AB)
+                : const Color(0xFFD32F2F),
+            theme: theme,
+          ),
+          const SizedBox(height: 4),
+          _buildLastUpdateValueRow(
+            icon: Icons.add,
+            value: event.getValueString(),
+            color: theme.brightness == Brightness.dark
+                ? const Color(0xFF86EFAC)
+                : const Color(0xFF2E7D32),
+            theme: theme,
+          ),
+        ],
+      );
+    }
+
+    // Added
+    return _buildLastUpdateValueRow(
+      icon: Icons.add,
+      value: event.getValueString(),
+      color: theme.brightness == Brightness.dark
+          ? const Color(0xFF86EFAC)
+          : const Color(0xFF2E7D32),
+      theme: theme,
+    );
+  }
+
+  Widget _buildLastUpdateValueRow({
+    required IconData icon,
     required String value,
+    required Color color,
     required ThemeData theme,
   }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 50,
-          child: Text(
-            '$label:',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 10, color: color),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 10,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
