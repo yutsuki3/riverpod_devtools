@@ -1,3 +1,15 @@
+## 0.4.4
+
+- **Improved Data Serialization**:
+    - Significantly improved serialization for custom classes by parsing structured `toString()` output.
+    - Fixed issues where collection string representations were misinterpreted as custom classes.
+    - Enhanced recursive item serialization for Lists, Maps, and Sets.
+- **Tree View & Event Log UI**:
+    - Added support for the `entity` metadata key in the JSON tree view, allowing for better representation of complex objects.
+    - Improved value formatting in the Event Log.
+- **Stability**:
+    - Refined internal parsing logic to avoid misidentification of data types.
+
 ## 0.4.3
 
 - **UI Improvements (Provider Details)**:
