@@ -1680,8 +1680,60 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
     }
 
+    // Check if this is a wrapped object
+    final isWrappedObject = data.containsKey('type') ||
+        data.containsKey('string') ||
+        data.containsKey('value') ||
+        data.containsKey('items') ||
+        data.containsKey('entries');
+
+    Map<String, dynamic> displayData;
+    String? typeHeader;
+
+    if (isWrappedObject) {
+      // Extract type header
+      typeHeader = data['type'] as String?;
+
+      // Unwrap the data - prioritize structured data over string representation
+      if (data.containsKey('value')) {
+        // For simple values
+        if (data['value'] is Map<String, dynamic>) {
+          displayData = data['value'] as Map<String, dynamic>;
+        } else {
+          // For primitive values, wrap in a map for display
+          displayData = {'value': data['value']};
+        }
+      } else if (data.containsKey('items')) {
+        // For list-like structures
+        displayData = {'items': data['items']};
+      } else if (data.containsKey('entries')) {
+        // Convert entries list to a Map for tree view
+        final entries = data['entries'] as List;
+        displayData = <String, dynamic>{};
+        for (final e in entries) {
+          if (e is Map) {
+            displayData[e['key'].toString()] = e['value'];
+          }
+        }
+      } else if (data.containsKey('string')) {
+        // Fallback to string representation only if no structured data available
+        displayData = {'value': data['string']};
+      } else {
+        // Remove only metadata keys, keep any other data
+        displayData = Map<String, dynamic>.from(data);
+        displayData.remove('type');
+        displayData.remove('asyncState');
+      }
+    } else {
+      displayData = data;
+    }
+
     // Always show as tree view - let users expand to see structure
-    return _JsonTreeView(data: data, initiallyExpanded: false);
+    return _JsonTreeView(
+      data: displayData,
+      initiallyExpanded: false,
+      typeHeader: typeHeader,
+    );
   }
 }
 
@@ -1690,11 +1742,13 @@ class _JsonTreeView extends StatefulWidget {
   final Map<String, dynamic> data;
   final int indent;
   final bool initiallyExpanded;
+  final String? typeHeader;
 
   const _JsonTreeView({
     required this.data,
     this.indent = 0,
     this.initiallyExpanded = false,
+    this.typeHeader,
   });
 
   @override
@@ -1709,6 +1763,15 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   /// Keys that are currently showing more items
   final Set<String> _showingMoreKeys = {};
+
+  /// Keys for strings that are currently expanded (for long strings)
+  final Set<String> _expandedStrings = {};
+
+  /// Maximum string length before truncation
+  static const int _stringTruncateLength = 150;
+
+  /// Minimum string length to enable truncation
+  static const int _stringMinLengthForTruncation = 200;
 
   @override
   void initState() {
@@ -1737,6 +1800,34 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Type header if provided
+        if (widget.typeHeader != null) ...[
+          Padding(
+            padding: EdgeInsets.only(
+              left: widget.indent * 8.0,
+              bottom: 4,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.data_object,
+                  size: 12,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.typeHeader!,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         ...entries.map((entry) {
           final key = entry.key;
           final dynamic rawValue = entry.value;
@@ -1816,57 +1907,14 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                         const SizedBox(width: 14),
                       const SizedBox(width: 2),
                       Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              color: theme.colorScheme.onSurface,
-                              height: 1.4,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: '$key: ',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                              if (asyncState != null)
-                                TextSpan(
-                                  text: '[$asyncState] ',
-                                  style: TextStyle(
-                                    color: asyncState == 'data'
-                                        ? const Color(0xFF4CAF50)
-                                        : asyncState == 'loading'
-                                            ? Colors.grey
-                                            : const Color(0xFFE57373),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              if (!isExpandable || !isExpanded)
-                                TextSpan(
-                                  text: _formatValue(displayValue),
-                                  style: TextStyle(
-                                    color: _getValueColor(displayValue, theme),
-                                  ),
-                                ),
-                              if (displayType != null &&
-                                  displayType != 'null' &&
-                                  displayType != 'String' &&
-                                  displayType != 'int' &&
-                                  displayType != 'double' &&
-                                  displayType != 'bool')
-                                TextSpan(
-                                  text: ' ($displayType)',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.5),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        child: _buildValueDisplay(
+                          key: key,
+                          displayValue: displayValue,
+                          displayType: displayType,
+                          asyncState: asyncState,
+                          isExpandable: isExpandable,
+                          isExpanded: isExpanded,
+                          theme: theme,
                         ),
                       ),
                     ],
@@ -1903,9 +1951,37 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   Widget _buildExpandedValue(dynamic value, String parentKey) {
     if (value is Map) {
+      // Filter out metadata keys if this is a wrapped object
+      final map = value as Map<String, dynamic>;
+      final isWrappedObject = map.containsKey('type') ||
+          map.containsKey('string') ||
+          map.containsKey('value') ||
+          map.containsKey('items') ||
+          map.containsKey('entries');
+
+      Map<String, dynamic> displayMap;
+      String? typeHeader;
+
+      if (isWrappedObject) {
+        // This is a wrapped object - extract type info and filter out metadata keys
+        typeHeader = map['type'] as String?;
+        displayMap = Map<String, dynamic>.from(map);
+        displayMap.remove('type');
+        displayMap.remove('string');
+        displayMap.remove('asyncState');
+
+        // If there's no actual data left, return empty
+        if (displayMap.isEmpty) {
+          return const SizedBox.shrink();
+        }
+      } else {
+        displayMap = Map<String, dynamic>.from(map);
+      }
+
       return _JsonTreeView(
-        data: Map<String, dynamic>.from(value),
+        data: displayMap,
         indent: widget.indent + 1,
+        typeHeader: typeHeader,
       );
     } else if (value is List) {
       return _buildListView(value, parentKey);
@@ -1913,7 +1989,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildListView(List list, String parentKey) {
+  Widget _buildListView(List list, String parentKey, {String? typeHeader}) {
     final theme = Theme.of(context);
     final bool isLarge = list.length > _loadLimit;
     final bool showingMore = _showingMoreKeys.contains(parentKey);
@@ -1924,6 +2000,34 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Type header if provided
+        if (typeHeader != null) ...[
+          Padding(
+            padding: EdgeInsets.only(
+              left: (widget.indent + 1) * 8.0,
+              bottom: 4,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.data_array,
+                  size: 12,
+                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  typeHeader,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         ...List.generate(displayList.length, (index) {
           final dynamic rawItem = displayList[index];
 
@@ -2000,45 +2104,14 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
                         const SizedBox(width: 14),
                       const SizedBox(width: 2),
                       Expanded(
-                        child: RichText(
-                          text: TextSpan(
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              color: theme.colorScheme.onSurface,
-                              height: 1.4,
-                            ),
-                            children: [
-                              TextSpan(
-                                text: '[$index]: ',
-                                style: TextStyle(
-                                  color: theme.colorScheme.primary
-                                      .withValues(alpha: 0.7),
-                                ),
-                              ),
-                              if (!isExpandable || !isExpanded)
-                                TextSpan(
-                                  text: _formatValue(displayItem),
-                                  style: TextStyle(
-                                    color: _getValueColor(displayItem, theme),
-                                  ),
-                                ),
-                              if (displayType != null &&
-                                  displayType != 'null' &&
-                                  displayType != 'String' &&
-                                  displayType != 'int' &&
-                                  displayType != 'double' &&
-                                  displayType != 'bool')
-                                TextSpan(
-                                  text: ' ($displayType)',
-                                  style: TextStyle(
-                                    fontSize: 8,
-                                    color: theme.colorScheme.onSurfaceVariant
-                                        .withValues(alpha: 0.5),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        child: _buildListItemDisplay(
+                          index: index,
+                          itemKey: itemKey,
+                          displayItem: displayItem,
+                          displayType: displayType,
+                          isExpandable: isExpandable,
+                          isExpanded: isExpanded,
+                          theme: theme,
                         ),
                       ),
                     ],
@@ -2070,6 +2143,296 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
             ),
           ),
       ],
+    );
+  }
+
+  /// Builds the list item display widget with support for long string truncation
+  Widget _buildListItemDisplay({
+    required int index,
+    required String itemKey,
+    required dynamic displayItem,
+    required String? displayType,
+    required bool isExpandable,
+    required bool isExpanded,
+    required ThemeData theme,
+  }) {
+    // Check if this is a long string that needs truncation
+    final isLongString = displayItem is String &&
+        displayItem.length >= _stringMinLengthForTruncation;
+    final stringKey = '${widget.indent}_$itemKey';
+    final isStringExpanded = _expandedStrings.contains(stringKey);
+
+    if (isLongString && !isExpandable) {
+      // Long string handling for list items
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurface,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(
+                  text: '[$index]: ',
+                  style: TextStyle(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                  ),
+                ),
+                TextSpan(
+                  text: isStringExpanded
+                      ? '"$displayItem"'
+                      : '"${displayItem.substring(0, _stringTruncateLength)}..."',
+                  style: TextStyle(
+                    color: _getValueColor(displayItem, theme),
+                  ),
+                ),
+                if (displayType != null &&
+                    displayType != 'null' &&
+                    displayType != 'String' &&
+                    displayType != 'int' &&
+                    displayType != 'double' &&
+                    displayType != 'bool')
+                  TextSpan(
+                    text: ' ($displayType)',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isStringExpanded) {
+                  _expandedStrings.remove(stringKey);
+                } else {
+                  _expandedStrings.add(stringKey);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                isStringExpanded
+                    ? 'Show less'
+                    : 'Show more (${displayItem.length} chars)',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Normal list item display
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 10,
+          fontFamily: 'monospace',
+          color: theme.colorScheme.onSurface,
+          height: 1.4,
+        ),
+        children: [
+          TextSpan(
+            text: '[$index]: ',
+            style: TextStyle(
+              color: theme.colorScheme.primary.withValues(alpha: 0.7),
+            ),
+          ),
+          if (!isExpandable || !isExpanded)
+            TextSpan(
+              text: _formatValue(displayItem),
+              style: TextStyle(
+                color: _getValueColor(displayItem, theme),
+              ),
+            ),
+          if (displayType != null &&
+              displayType != 'null' &&
+              displayType != 'String' &&
+              displayType != 'int' &&
+              displayType != 'double' &&
+              displayType != 'bool')
+            TextSpan(
+              text: ' ($displayType)',
+              style: TextStyle(
+                fontSize: 8,
+                color:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds the value display widget with support for long string truncation
+  Widget _buildValueDisplay({
+    required String key,
+    required dynamic displayValue,
+    required String? displayType,
+    required String? asyncState,
+    required bool isExpandable,
+    required bool isExpanded,
+    required ThemeData theme,
+  }) {
+    // Check if this is a long string that needs truncation
+    final isLongString = displayValue is String &&
+        displayValue.length >= _stringMinLengthForTruncation;
+    final stringKey = '${widget.indent}_$key';
+    final isStringExpanded = _expandedStrings.contains(stringKey);
+
+    if (isLongString && !isExpandable) {
+      // Long string handling
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                fontSize: 10,
+                fontFamily: 'monospace',
+                color: theme.colorScheme.onSurface,
+                height: 1.4,
+              ),
+              children: [
+                TextSpan(
+                  text: '$key: ',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                if (asyncState != null)
+                  TextSpan(
+                    text: '[$asyncState] ',
+                    style: TextStyle(
+                      color: asyncState == 'data'
+                          ? const Color(0xFF4CAF50)
+                          : asyncState == 'loading'
+                              ? Colors.grey
+                              : const Color(0xFFE57373),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                TextSpan(
+                  text: isStringExpanded
+                      ? '"$displayValue"'
+                      : '"${displayValue.substring(0, _stringTruncateLength)}..."',
+                  style: TextStyle(
+                    color: _getValueColor(displayValue, theme),
+                  ),
+                ),
+                if (displayType != null &&
+                    displayType != 'null' &&
+                    displayType != 'String' &&
+                    displayType != 'int' &&
+                    displayType != 'double' &&
+                    displayType != 'bool')
+                  TextSpan(
+                    text: ' ($displayType)',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          InkWell(
+            onTap: () {
+              setState(() {
+                if (isStringExpanded) {
+                  _expandedStrings.remove(stringKey);
+                } else {
+                  _expandedStrings.add(stringKey);
+                }
+              });
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                isStringExpanded
+                    ? 'Show less'
+                    : 'Show more (${displayValue.length} chars)',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Normal value display
+    return RichText(
+      text: TextSpan(
+        style: TextStyle(
+          fontSize: 10,
+          fontFamily: 'monospace',
+          color: theme.colorScheme.onSurface,
+          height: 1.4,
+        ),
+        children: [
+          TextSpan(
+            text: '$key: ',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.primary,
+            ),
+          ),
+          if (asyncState != null)
+            TextSpan(
+              text: '[$asyncState] ',
+              style: TextStyle(
+                color: asyncState == 'data'
+                    ? const Color(0xFF4CAF50)
+                    : asyncState == 'loading'
+                        ? Colors.grey
+                        : const Color(0xFFE57373),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          if (!isExpandable || !isExpanded)
+            TextSpan(
+              text: _formatValue(displayValue),
+              style: TextStyle(
+                color: _getValueColor(displayValue, theme),
+              ),
+            ),
+          if (displayType != null &&
+              displayType != 'null' &&
+              displayType != 'String' &&
+              displayType != 'int' &&
+              displayType != 'double' &&
+              displayType != 'bool')
+            TextSpan(
+              text: ' ($displayType)',
+              style: TextStyle(
+                fontSize: 8,
+                color:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
