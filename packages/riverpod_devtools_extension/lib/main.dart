@@ -1751,6 +1751,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
           final bool isWrapped = rawValue is Map<String, dynamic> &&
               (rawValue.containsKey('type') ||
                   rawValue.containsKey('value') ||
+                  rawValue.containsKey('entity') ||
                   rawValue.containsKey('items') ||
                   rawValue.containsKey('entries') ||
                   rawValue.containsKey('string'));
@@ -1766,6 +1767,8 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
             if (map.containsKey('value')) {
               displayValue = map['value'];
+            } else if (map.containsKey('entity')) {
+              displayValue = map['entity'];
             } else if (map.containsKey('items')) {
               displayValue = map['items'];
             } else if (map.containsKey('entries')) {
@@ -1869,6 +1872,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
       final map = value as Map<String, dynamic>;
       final bool isWrapped = map.containsKey('type') ||
           map.containsKey('value') ||
+          map.containsKey('entity') ||
           map.containsKey('items') ||
           map.containsKey('entries') ||
           map.containsKey('string');
@@ -1878,6 +1882,8 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
       if (isWrapped) {
         if (map.containsKey('value')) {
           unwrappedValue = map['value'];
+        } else if (map.containsKey('entity')) {
+          unwrappedValue = map['entity'];
         } else if (map.containsKey('items')) {
           unwrappedValue = map['items'];
         } else if (map.containsKey('entries')) {
@@ -1904,6 +1910,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
             unwrappedMap.containsKey('type') ||
                 unwrappedMap.containsKey('string') ||
                 unwrappedMap.containsKey('value') ||
+                unwrappedMap.containsKey('entity') ||
                 unwrappedMap.containsKey('items') ||
                 unwrappedMap.containsKey('entries');
 
@@ -1956,6 +1963,7 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
           final bool isWrapped = rawItem is Map<String, dynamic> &&
               (rawItem.containsKey('type') ||
                   rawItem.containsKey('value') ||
+                  rawItem.containsKey('entity') ||
                   rawItem.containsKey('items') ||
                   rawItem.containsKey('entries') ||
                   rawItem.containsKey('string'));
@@ -1968,6 +1976,8 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
             displayType = map['type'] as String?;
             if (map.containsKey('value')) {
               displayItem = map['value'];
+            } else if (map.containsKey('entity')) {
+              displayItem = map['entity'];
             } else if (map.containsKey('items')) {
               displayItem = map['items'];
             } else if (map.containsKey('entries')) {
@@ -2359,6 +2369,25 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   String _formatValue(dynamic value) {
     if (value == null) return 'null';
+
+    // If it's a wrapped metadata map, try to get the original string or a summary
+    if (value is Map<String, dynamic>) {
+      if (value.containsKey('string')) {
+        return value['string'] as String;
+      }
+      if (value.containsKey('value')) {
+        final val = value['value'];
+        if (val is Map) return '{${val.length} fields}';
+        return _formatValue(val);
+      }
+      if (value.containsKey('entity')) {
+        final val = value['entity'];
+        if (val is Map) return '{${val.length} fields}';
+        return _formatValue(val);
+      }
+      return '{${value.length} keys}';
+    }
+
     if (value is String) return '"$value"';
     if (value is num || value is bool) return value.toString();
     if (value is List) return '[${value.length} items]';

@@ -276,6 +276,9 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       };
     }
 
+    // Capture toString() early
+    final stringValue = value.toString();
+
     // Try JSON serialization first
     try {
       final encoded = jsonEncode(value);
@@ -300,8 +303,14 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
         // toJson() doesn't exist or failed, continue with manual extraction
       }
 
-      // For non-JSON-serializable objects, provide more details
-      final stringValue = value.toString();
+      // Try to parse the toString() representation for custom classes
+      final parsed = _parseToString(stringValue);
+      if (parsed != null) {
+        return {
+          'type': value.runtimeType.toString(),
+          'value': parsed,
+        };
+      }
 
       // Try to extract useful information based on type
       final Map<String, Object?> result = {
@@ -399,5 +408,104 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
       return result;
     }
+  }
+
+  /// Parses a string representation of an object (e.g., from toString())
+  /// into a structured Map if it follows the "ClassName(prop: val, ...)" pattern.
+  Map<String, Object?>? _parseToString(String s) {
+    s = s.trim();
+    if (s.isEmpty) return null;
+
+    final openParen = s.indexOf('(');
+    final closeParen = s.lastIndexOf(')');
+
+    if (openParen == -1 || closeParen == -1 || closeParen <= openParen) {
+      return null;
+    }
+
+    // Basic check for "ClassName(...)"
+    final content = s.substring(openParen + 1, closeParen).trim();
+    if (content.isEmpty) return {};
+
+    final result = <String, Object?>{};
+    final parts = _splitRecursive(content, ',');
+
+    for (final part in parts) {
+      final colonIndex = part.indexOf(':');
+      if (colonIndex != -1) {
+        final key = part.substring(0, colonIndex).trim();
+        final valStr = part.substring(colonIndex + 1).trim();
+        result[key] = _parseValue(valStr);
+      }
+    }
+
+    return result.isNotEmpty ? result : null;
+  }
+
+  /// Helper to split by separator while respecting parentheses/brackets
+  List<String> _splitRecursive(String s, String separator) {
+    final result = <String>[];
+    var current = StringBuffer();
+    var depth = 0;
+
+    for (var i = 0; i < s.length; i++) {
+      final char = s[i];
+      if (char == '(' || char == '[' || char == '{') {
+        depth++;
+      } else if (char == ')' || char == ']' || char == '}') {
+        depth--;
+      }
+
+      if (depth == 0 && char == separator) {
+        result.add(current.toString().trim());
+        current = StringBuffer();
+      } else {
+        current.write(char);
+      }
+    }
+    if (current.isNotEmpty) {
+      result.add(current.toString().trim());
+    }
+    return result;
+  }
+
+  /// Minimal value wrapper for parsed strings
+  Object? _parseValue(String s) {
+    s = s.trim();
+    if (s == 'null') return null;
+    if (s == 'true') return true;
+    if (s == 'false') return false;
+
+    // Try numeric
+    final numVal = num.tryParse(s);
+    if (numVal != null) return numVal;
+
+    // Try ClassName(...) recursive parse
+    final nestedObject = _parseToString(s);
+    if (nestedObject != null) {
+      return {
+        'type': s.substring(0, s.indexOf('(')).trim(),
+        'value': nestedObject,
+      };
+    }
+
+    // Try List [...] parse
+    if (s.startsWith('[') && s.endsWith(']')) {
+      final content = s.substring(1, s.length - 1).trim();
+      if (content.isEmpty) return [];
+
+      final parts = _splitRecursive(content, ',');
+      return parts.map(_parseValue).toList();
+    }
+
+    // Fallback to string (strip quotes if present)
+    if (s.startsWith('"') && s.endsWith('"') && s.length >= 2) {
+      return s.substring(1, s.length - 1);
+    }
+    if (s.startsWith("'") && s.endsWith("'") && s.length >= 2) {
+      return s.substring(1, s.length - 1);
+    }
+
+    return s;
   }
 }
