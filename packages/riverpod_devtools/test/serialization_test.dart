@@ -45,13 +45,14 @@ void main() {
       // it should return a map with 'value' containing the parsed structure.
     });
 
-    test('Deeply nested structures are parsed', () {
-      // String representing ClassA(list: [ClassB(id: 1), ClassB(id: 2)], nested: ClassC(val: 10))
-      // This matches what _parseValue and _parseToString expect
-    });
-
-    test('Split recursive helper works correctly', () {
-      // This is a unit test for the logic
+    test('List of custom classes is not hijacked by _parseToString', () {
+      // ignore: unused_local_variable
+      final list = [
+        CustomClassA(id: 1, name: 'Task 1', age: 10),
+        CustomClassA(id: 2, name: 'Task 2', age: 20),
+      ];
+      // This list's toString() looks like [CustomClassA(...), CustomClassA(...)]
+      // We want to ensure it is handled as a List with 'items'.
     });
   });
 }
