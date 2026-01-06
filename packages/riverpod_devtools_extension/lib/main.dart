@@ -1066,7 +1066,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         title: 'Last Update',
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.3),
@@ -1089,9 +1089,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     // Map event type to display string
     final eventTypeString = switch (lastEvent.type) {
-      EventType.added => 'Provider Added',
-      EventType.updated => 'State Updated',
-      EventType.disposed => 'Provider Disposed',
+      EventType.added => 'Added',
+      EventType.updated => 'Updated',
+      EventType.disposed => 'Disposed',
     };
 
     // Format timestamp
@@ -1102,59 +1102,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     return _buildDetailSection(
       title: 'Last Update',
       child: Padding(
-        padding: const EdgeInsets.only(left: 4, top: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Event type
-            _buildLastUpdateRow(
-              label: 'Event',
-              value: eventTypeString,
-              theme: theme,
-            ),
-            const SizedBox(height: 6),
-            // Time
-            _buildLastUpdateRow(
-              label: 'Time',
-              value: timeString,
-              theme: theme,
-            ),
-          ],
+        padding: const EdgeInsets.only(left: 4, top: 2),
+        child: Text(
+          '$eventTypeString ($timeString)',
+          style: TextStyle(
+            fontSize: 10,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildLastUpdateRow({
-    required String label,
-    required String value,
-    required ThemeData theme,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 50,
-          child: Text(
-            '$label:',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 10,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1222,31 +1178,34 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         children: [
           // Subsection title
           Padding(
-            padding: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.only(bottom: 4),
             child: Text(
               title,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w600,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          // Dependency list
+          // Dependency list (Chips)
           if (dependencies.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
               child: Text(
                 emptyMessage,
                 style: TextStyle(
                   fontSize: 10,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color:
+                      theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                   fontStyle: FontStyle.italic,
                 ),
               ),
             )
           else
-            Column(
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
               children: dependencies.map((name) {
                 final isSelected = _selectedProviderNames.contains(name);
                 final isActive = _activeTabProviderName == name;
@@ -1267,23 +1226,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           _activeTabProviderName = name;
                         }
                       });
-                      // Flash and scroll only when adding a new provider (not when switching tabs)
                       if (wasNotSelected) {
                         _flashProvider(name);
                         _scrollToProvider(name);
                       }
                     },
+                    borderRadius: BorderRadius.circular(4),
                     child: Container(
-                      width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 6),
-                      margin: const EdgeInsets.only(bottom: 2),
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: isActive
                             ? theme.colorScheme.primary
                             : isSelected
                                 ? theme.colorScheme.primary
-                                    .withValues(alpha: 0.08)
+                                    .withValues(alpha: 0.1)
                                 : theme.colorScheme.surfaceContainerHighest
                                     .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(4),
@@ -1292,16 +1249,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               ? theme.colorScheme.primary
                               : isSelected
                                   ? theme.colorScheme.primary
-                                      .withValues(alpha: 0.5)
+                                      .withValues(alpha: 0.4)
                                   : theme.colorScheme.outline
                                       .withValues(alpha: 0.1),
                           width: 1,
-                          style: isSelected && !isActive
-                              ? BorderStyle.solid
-                              : BorderStyle.solid,
                         ),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             isActive
@@ -1309,30 +1264,25 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                 : isSelected
                                     ? Icons.open_in_new
                                     : Icons.add,
-                            size: 12,
+                            size: 10,
                             color: isActive
                                 ? theme.colorScheme.onPrimary
                                 : theme.colorScheme.primary,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                                color: isActive
-                                    ? theme.colorScheme.onPrimary
-                                    : isSelected
-                                        ? theme.colorScheme.primary
-                                        : theme.colorScheme.onSurfaceVariant,
-                                fontWeight: isActive || isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 4),
+                          Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontFamily: 'monospace',
+                              color: isActive
+                                  ? theme.colorScheme.onPrimary
+                                  : isSelected
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -1688,12 +1638,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         data.containsKey('entries');
 
     Map<String, dynamic> displayData;
-    String? typeHeader;
 
     if (isWrappedObject) {
-      // Extract type header
-      typeHeader = data['type'] as String?;
-
       // Unwrap the data - prioritize structured data over string representation
       if (data.containsKey('value')) {
         // For simple values
@@ -1732,7 +1678,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     return _JsonTreeView(
       data: displayData,
       initiallyExpanded: false,
-      typeHeader: typeHeader,
     );
   }
 }
@@ -1742,13 +1687,11 @@ class _JsonTreeView extends StatefulWidget {
   final Map<String, dynamic> data;
   final int indent;
   final bool initiallyExpanded;
-  final String? typeHeader;
 
   const _JsonTreeView({
     required this.data,
     this.indent = 0,
     this.initiallyExpanded = false,
-    this.typeHeader,
   });
 
   @override
@@ -1800,34 +1743,6 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type header if provided
-        if (widget.typeHeader != null) ...[
-          Padding(
-            padding: EdgeInsets.only(
-              left: widget.indent * 8.0,
-              bottom: 4,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.data_object,
-                  size: 12,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.typeHeader!,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         ...entries.map((entry) {
           final key = entry.key;
           final dynamic rawValue = entry.value;
@@ -1951,45 +1866,79 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
 
   Widget _buildExpandedValue(dynamic value, String parentKey) {
     if (value is Map) {
-      // Filter out metadata keys if this is a wrapped object
       final map = value as Map<String, dynamic>;
-      final isWrappedObject = map.containsKey('type') ||
-          map.containsKey('string') ||
+      final bool isWrapped = map.containsKey('type') ||
           map.containsKey('value') ||
           map.containsKey('items') ||
-          map.containsKey('entries');
+          map.containsKey('entries') ||
+          map.containsKey('string');
 
-      Map<String, dynamic> displayMap;
-      String? typeHeader;
+      dynamic unwrappedValue = map; // Start with the original map
 
-      if (isWrappedObject) {
-        // This is a wrapped object - extract type info and filter out metadata keys
-        typeHeader = map['type'] as String?;
-        displayMap = Map<String, dynamic>.from(map);
-        displayMap.remove('type');
-        displayMap.remove('string');
-        displayMap.remove('asyncState');
-
-        // If there's no actual data left, return empty
-        if (displayMap.isEmpty) {
-          return const SizedBox.shrink();
+      if (isWrapped) {
+        if (map.containsKey('value')) {
+          unwrappedValue = map['value'];
+        } else if (map.containsKey('items')) {
+          unwrappedValue = map['items'];
+        } else if (map.containsKey('entries')) {
+          final entries = map['entries'] as List;
+          final newMap = <String, dynamic>{};
+          for (final e in entries) {
+            if (e is Map) {
+              newMap[e['key'].toString()] = e['value'];
+            }
+          }
+          unwrappedValue = newMap;
+        } else if (map.containsKey('string')) {
+          unwrappedValue = map['string'];
         }
-      } else {
-        displayMap = Map<String, dynamic>.from(map);
       }
 
-      return _JsonTreeView(
-        data: displayMap,
-        indent: widget.indent + 1,
-        typeHeader: typeHeader,
-      );
+      // If after unwrapping, it's still a Map, then display it as a tree.
+      // Otherwise, it's a primitive or list that should have been handled by the parent.
+      if (unwrappedValue is Map) {
+        // Filter out metadata keys if the unwrapped value is still a wrapped object
+        // (e.g., if the 'value' key itself contained a wrapped object)
+        final unwrappedMap = unwrappedValue as Map<String, dynamic>;
+        final bool isUnwrappedValueStillWrapped =
+            unwrappedMap.containsKey('type') ||
+                unwrappedMap.containsKey('string') ||
+                unwrappedMap.containsKey('value') ||
+                unwrappedMap.containsKey('items') ||
+                unwrappedMap.containsKey('entries');
+
+        Map<String, dynamic> displayMap;
+
+        if (isUnwrappedValueStillWrapped) {
+          displayMap = Map<String, dynamic>.from(unwrappedMap);
+          displayMap.remove('type');
+          displayMap.remove('string');
+          displayMap.remove('asyncState');
+          // If there's no actual data left, return empty
+          if (displayMap.isEmpty) {
+            return const SizedBox.shrink();
+          }
+        } else {
+          displayMap = Map<String, dynamic>.from(unwrappedMap);
+        }
+
+        return _JsonTreeView(
+          data: displayMap,
+          indent: widget.indent + 1,
+        );
+      } else if (unwrappedValue is List) {
+        // If unwrapped value is a list, display it as a list
+        return _buildListView(unwrappedValue, parentKey);
+      }
+      // If unwrappedValue is a primitive, it shouldn't be expanded further here.
+      return const SizedBox.shrink();
     } else if (value is List) {
       return _buildListView(value, parentKey);
     }
     return const SizedBox.shrink();
   }
 
-  Widget _buildListView(List list, String parentKey, {String? typeHeader}) {
+  Widget _buildListView(List list, String parentKey) {
     final theme = Theme.of(context);
     final bool isLarge = list.length > _loadLimit;
     final bool showingMore = _showingMoreKeys.contains(parentKey);
@@ -2000,34 +1949,6 @@ class _JsonTreeViewState extends State<_JsonTreeView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type header if provided
-        if (typeHeader != null) ...[
-          Padding(
-            padding: EdgeInsets.only(
-              left: (widget.indent + 1) * 8.0,
-              bottom: 4,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.data_array,
-                  size: 12,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.7),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  typeHeader,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
         ...List.generate(displayList.length, (index) {
           final dynamic rawItem = displayList[index];
 
