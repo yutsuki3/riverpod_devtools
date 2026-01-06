@@ -303,15 +303,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
         // toJson() doesn't exist or failed, continue with manual extraction
       }
 
-      // Try to parse the toString() representation for custom classes
-      final parsed = _parseToString(stringValue);
-      if (parsed != null) {
-        return {
-          'type': value.runtimeType.toString(),
-          'value': parsed,
-        };
-      }
-
       // Try to extract useful information based on type
       final Map<String, Object?> result = {
         'type': value.runtimeType.toString(),
@@ -319,82 +310,48 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       };
 
       // For collections, try to serialize elements
+      // We do this BEFORE _parseToString to avoid hijacking List.toString()
       if (value is List) {
-        // Try to serialize list elements
+        // Recursively serialize list elements
         try {
-          result['items'] = value.map((item) {
-            try {
-              // Try JSON encode for each item
-              final encoded = jsonEncode(item);
-              return {
-                'type': item.runtimeType.toString(),
-                'value': jsonDecode(encoded),
-              };
-            } catch (_) {
-              // If item is not JSON serializable, just store its string representation
-              return {
-                'type': item.runtimeType.toString(),
-                'string': item.toString(),
-              };
-            }
-          }).toList();
+          result['items'] = value.map(_serializeValue).toList();
+          return result;
         } catch (_) {
           // If we can't serialize items, just keep the string representation
         }
       } else if (value is Map) {
-        // Try to serialize map entries
+        // Recursively serialize map entries
         try {
           result['entries'] = value.entries.map((entry) {
-            final key = entry.key;
-            final val = entry.value;
-            try {
-              // Try JSON encode for the value
-              final encoded = jsonEncode(val);
-              return {
-                'key': key.toString(),
-                'value': {
-                  'type': val.runtimeType.toString(),
-                  'value': jsonDecode(encoded),
-                },
-              };
-            } catch (_) {
-              // If value is not JSON serializable, store its string representation
-              return {
-                'key': key.toString(),
-                'value': {
-                  'type': val.runtimeType.toString(),
-                  'string': val.toString(),
-                },
-              };
-            }
+            return {
+              'key': entry.key.toString(),
+              'value': _serializeValue(entry.value),
+            };
           }).toList();
+          return result;
         } catch (_) {
           // If we can't serialize entries, keep the string representation
           result['type'] = 'Map';
           result['string'] = value.toString();
+          return result;
         }
       } else if (value is Set) {
-        // Try to serialize set elements (convert to list for serialization)
+        // Recursively serialize set elements
         try {
-          result['items'] = value.map((item) {
-            try {
-              // Try JSON encode for each item
-              final encoded = jsonEncode(item);
-              return {
-                'type': item.runtimeType.toString(),
-                'value': jsonDecode(encoded),
-              };
-            } catch (_) {
-              // If item is not JSON serializable, just store its string representation
-              return {
-                'type': item.runtimeType.toString(),
-                'string': item.toString(),
-              };
-            }
-          }).toList();
+          result['items'] = value.map(_serializeValue).toList();
+          return result;
         } catch (_) {
           // If we can't serialize items, just keep the string representation
         }
+      }
+
+      // Try to parse the toString() representation for custom classes
+      final parsed = _parseToString(stringValue);
+      if (parsed != null) {
+        return {
+          'type': value.runtimeType.toString(),
+          'value': parsed,
+        };
       }
 
       // For AsyncValue from Riverpod
@@ -415,6 +372,9 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   Map<String, Object?>? _parseToString(String s) {
     s = s.trim();
     if (s.isEmpty) return null;
+
+    // Guard: actual lists or maps output by toString() should not be parsed as custom classes
+    if (s.startsWith('[') || s.startsWith('{')) return null;
 
     final openParen = s.indexOf('(');
     final closeParen = s.lastIndexOf(')');
