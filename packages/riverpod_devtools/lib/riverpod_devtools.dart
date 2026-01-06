@@ -110,6 +110,14 @@ class _DependencyTracker {
     return _confirmedDependencies[providerId]?.toList() ?? [];
   }
 
+  /// Remove a specific provider from dependency tracking
+  void removeProvider(String providerId) {
+    _confirmedDependencies.remove(providerId);
+    _candidateDependencies.remove(providerId);
+    // Also remove from current batch
+    _currentBatch.removeWhere((event) => event.providerId == providerId);
+  }
+
   /// Clear all dependency relationships
   void clear() {
     _confirmedDependencies.clear();
@@ -217,8 +225,13 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // - Riverpod 2.x: didDisposeProvider(ProviderBase provider, ProviderContainer container)
     // The optional arg2 allows accepting both 1 and 2 parameters
     final provider = _getProvider(context);
+    final providerId = identityHashCode(provider).toString();
+
+    // Clean up dependency tracking data to prevent memory leaks
+    _dependencyTracker.removeProvider(providerId);
+
     _postEvent('provider_disposed', {
-      'providerId': identityHashCode(provider).toString(),
+      'providerId': providerId,
       'provider': _getProviderName(provider),
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
