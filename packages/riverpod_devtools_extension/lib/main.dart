@@ -850,13 +850,6 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
               theme: theme,
             ),
             const SizedBox(height: 6),
-            // Source (provider name)
-            _buildLastUpdateRow(
-              label: 'Source',
-              value: provider.name,
-              theme: theme,
-            ),
-            const SizedBox(height: 6),
             // Time
             _buildLastUpdateRow(
               label: 'Time',
