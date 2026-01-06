@@ -8,6 +8,7 @@ import 'pages/dependencies_page.dart';
 import 'pages/lifecycle_page.dart';
 import 'pages/performance_page.dart';
 import 'pages/todo_page.dart';
+import 'pages/custom_class_page.dart';
 
 void main() {
   runApp(
@@ -72,6 +73,17 @@ class HomePage extends StatelessWidget {
                     MaterialPageRoute(builder: (_) => const CollectionsPage()),
                   ),
               child: const Text('Collections Demo (Set/Map/Nested)'),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed:
+                  () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const CustomClassPage()),
+                  ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.withValues(alpha: 0.2),
+              ),
+              child: const Text('Custom Class Demo (toString parse)'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
