@@ -1512,8 +1512,60 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
           style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
     }
 
+    // Check if this is a wrapped object
+    final isWrappedObject = data.containsKey('type') ||
+        data.containsKey('string') ||
+        data.containsKey('value') ||
+        data.containsKey('items') ||
+        data.containsKey('entries');
+
+    Map<String, dynamic> displayData;
+    String? typeHeader;
+
+    if (isWrappedObject) {
+      // Extract type header
+      typeHeader = data['type'] as String?;
+
+      // Unwrap the data - prioritize structured data over string representation
+      if (data.containsKey('value')) {
+        // For simple values
+        if (data['value'] is Map<String, dynamic>) {
+          displayData = data['value'] as Map<String, dynamic>;
+        } else {
+          // For primitive values, wrap in a map for display
+          displayData = {'value': data['value']};
+        }
+      } else if (data.containsKey('items')) {
+        // For list-like structures
+        displayData = {'items': data['items']};
+      } else if (data.containsKey('entries')) {
+        // Convert entries list to a Map for tree view
+        final entries = data['entries'] as List;
+        displayData = <String, dynamic>{};
+        for (final e in entries) {
+          if (e is Map) {
+            displayData[e['key'].toString()] = e['value'];
+          }
+        }
+      } else if (data.containsKey('string')) {
+        // Fallback to string representation only if no structured data available
+        displayData = {'value': data['string']};
+      } else {
+        // Remove only metadata keys, keep any other data
+        displayData = Map<String, dynamic>.from(data);
+        displayData.remove('type');
+        displayData.remove('asyncState');
+      }
+    } else {
+      displayData = data;
+    }
+
     // Always show as tree view - let users expand to see structure
-    return _JsonTreeView(data: data, initiallyExpanded: true);
+    return _JsonTreeView(
+      data: displayData,
+      initiallyExpanded: true,
+      typeHeader: typeHeader,
+    );
   }
 }
 
