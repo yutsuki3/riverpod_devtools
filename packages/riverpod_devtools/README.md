@@ -4,7 +4,7 @@
 
 A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time.
 
-<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_040.png" width="100%" alt="Riverpod DevTools Demo" />
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_044.png" width="100%" alt="Riverpod DevTools Demo" />
 
 ## Features
 
@@ -27,7 +27,7 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^0.4.3
+      riverpod_devtools: ^0.4.4
       flutter_riverpod: '>=2.3.0 <4.0.0'
     ```
 

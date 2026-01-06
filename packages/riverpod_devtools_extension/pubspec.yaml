@@ -2,7 +2,7 @@ name: riverpod_devtools_extension
 description: DevTools extension UI for riverpod_devtools
 publish_to: 'none'
 
-version: 0.4.3
+version: 0.4.4
 
 environment:
   sdk: ^3.5.0
