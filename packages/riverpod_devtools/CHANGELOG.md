@@ -1,3 +1,17 @@
+## 0.4.3
+
+- **UI Improvements (Provider Details)**:
+    - Improved dependency chip layout for better readability.
+- **Tree View Refinements**:
+    - JSON Tree View now collapses by default to reduce noise.
+    - Refined JSON object unwrapping to prioritize meaningful data (prioritize `entries` over `string` representation).
+    - Filtered out internal metadata keys from the tree view display.
+- **Event Log Enhancements**:
+    - Added support for collapsible long strings in the Event Log.
+    - Improved overall readability of event details.
+- **Stability & Performance**:
+    - Fixed memory leaks by ensuring disposed providers and empty event lists are properly cleaned up.
+
 ## 0.4.2
 
 - Fixed missing DevTools extension build files (index.html and other assets) that prevented the extension from loading properly
