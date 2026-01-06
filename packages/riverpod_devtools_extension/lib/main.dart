@@ -343,8 +343,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
       ..sort((a, b) => a.value.compareTo(b.value));
 
     // Remove oldest disposed providers
-    final toRemove =
-        sortedDisposed.length - _maxDisposedProviders;
+    final toRemove = sortedDisposed.length - _maxDisposedProviders;
     for (var i = 0; i < toRemove; i++) {
       final providerName = sortedDisposed[i].key;
       _providers.remove(providerName);
@@ -985,6 +984,11 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
                           const SizedBox(height: 16),
 
+                          // Last Update Section
+                          _buildLastUpdateSection(provider),
+
+                          const SizedBox(height: 16),
+
                           // Dependencies Section (with Beta badge)
                           _buildDetailSection(
                             title: 'Dependencies',
@@ -1048,6 +1052,112 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     );
   }
 
+  Widget _buildLastUpdateSection(ProviderInfo provider) {
+    final theme = Theme.of(context);
+
+    // Get the last event for this provider
+    final providerEvents = _eventsByProvider[provider.name];
+    final lastEvent = (providerEvents != null && providerEvents.isNotEmpty)
+        ? providerEvents.first
+        : null;
+
+    if (lastEvent == null) {
+      return _buildDetailSection(
+        title: 'Last Update',
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Text(
+            'No changes recorded',
+            style: TextStyle(
+              fontSize: 10,
+              color: theme.colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Map event type to display string
+    final eventTypeString = switch (lastEvent.type) {
+      EventType.added => 'Provider Added',
+      EventType.updated => 'State Updated',
+      EventType.disposed => 'Provider Disposed',
+    };
+
+    // Format timestamp
+    final timeString = '${lastEvent.timestamp.hour.toString().padLeft(2, '0')}:'
+        '${lastEvent.timestamp.minute.toString().padLeft(2, '0')}:'
+        '${lastEvent.timestamp.second.toString().padLeft(2, '0')}';
+
+    return _buildDetailSection(
+      title: 'Last Update',
+      child: Padding(
+        padding: const EdgeInsets.only(left: 4, top: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Event type
+            _buildLastUpdateRow(
+              label: 'Event',
+              value: eventTypeString,
+              theme: theme,
+            ),
+            const SizedBox(height: 6),
+            // Time
+            _buildLastUpdateRow(
+              label: 'Time',
+              value: timeString,
+              theme: theme,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLastUpdateRow({
+    required String label,
+    required String value,
+    required ThemeData theme,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 50,
+          child: Text(
+            '$label:',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              fontSize: 10,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildDetailSection({
     required String title,
     required Widget child,
@@ -1106,7 +1216,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     required ThemeData theme,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(left: 12),
+      padding: const EdgeInsets.only(left: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
