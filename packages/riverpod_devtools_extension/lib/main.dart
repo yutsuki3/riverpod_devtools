@@ -1066,7 +1066,7 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         title: 'Last Update',
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.3),
@@ -1089,9 +1089,9 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
 
     // Map event type to display string
     final eventTypeString = switch (lastEvent.type) {
-      EventType.added => 'Provider Added',
-      EventType.updated => 'State Updated',
-      EventType.disposed => 'Provider Disposed',
+      EventType.added => 'Added',
+      EventType.updated => 'Updated',
+      EventType.disposed => 'Disposed',
     };
 
     // Format timestamp
@@ -1102,59 +1102,15 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
     return _buildDetailSection(
       title: 'Last Update',
       child: Padding(
-        padding: const EdgeInsets.only(left: 4, top: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Event type
-            _buildLastUpdateRow(
-              label: 'Event',
-              value: eventTypeString,
-              theme: theme,
-            ),
-            const SizedBox(height: 6),
-            // Time
-            _buildLastUpdateRow(
-              label: 'Time',
-              value: timeString,
-              theme: theme,
-            ),
-          ],
+        padding: const EdgeInsets.only(left: 4, top: 2),
+        child: Text(
+          '$eventTypeString ($timeString)',
+          style: TextStyle(
+            fontSize: 10,
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildLastUpdateRow({
-    required String label,
-    required String value,
-    required ThemeData theme,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 50,
-          child: Text(
-            '$label:',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(
-              fontSize: 10,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1222,31 +1178,34 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         children: [
           // Subsection title
           Padding(
-            padding: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.only(bottom: 4),
             child: Text(
               title,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w600,
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          // Dependency list
+          // Dependency list (Chips)
           if (dependencies.isEmpty)
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
               child: Text(
                 emptyMessage,
                 style: TextStyle(
                   fontSize: 10,
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color:
+                      theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                   fontStyle: FontStyle.italic,
                 ),
               ),
             )
           else
-            Column(
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
               children: dependencies.map((name) {
                 final isSelected = _selectedProviderNames.contains(name);
                 final isActive = _activeTabProviderName == name;
@@ -1267,23 +1226,21 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                           _activeTabProviderName = name;
                         }
                       });
-                      // Flash and scroll only when adding a new provider (not when switching tabs)
                       if (wasNotSelected) {
                         _flashProvider(name);
                         _scrollToProvider(name);
                       }
                     },
+                    borderRadius: BorderRadius.circular(4),
                     child: Container(
-                      width: double.infinity,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 6),
-                      margin: const EdgeInsets.only(bottom: 2),
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: isActive
                             ? theme.colorScheme.primary
                             : isSelected
                                 ? theme.colorScheme.primary
-                                    .withValues(alpha: 0.08)
+                                    .withValues(alpha: 0.1)
                                 : theme.colorScheme.surfaceContainerHighest
                                     .withValues(alpha: 0.5),
                         borderRadius: BorderRadius.circular(4),
@@ -1292,16 +1249,14 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                               ? theme.colorScheme.primary
                               : isSelected
                                   ? theme.colorScheme.primary
-                                      .withValues(alpha: 0.5)
+                                      .withValues(alpha: 0.4)
                                   : theme.colorScheme.outline
                                       .withValues(alpha: 0.1),
                           width: 1,
-                          style: isSelected && !isActive
-                              ? BorderStyle.solid
-                              : BorderStyle.solid,
                         ),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
                             isActive
@@ -1309,30 +1264,25 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
                                 : isSelected
                                     ? Icons.open_in_new
                                     : Icons.add,
-                            size: 12,
+                            size: 10,
                             color: isActive
                                 ? theme.colorScheme.onPrimary
                                 : theme.colorScheme.primary,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              name,
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                                color: isActive
-                                    ? theme.colorScheme.onPrimary
-                                    : isSelected
-                                        ? theme.colorScheme.primary
-                                        : theme.colorScheme.onSurfaceVariant,
-                                fontWeight: isActive || isSelected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                          const SizedBox(width: 4),
+                          Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontFamily: 'monospace',
+                              color: isActive
+                                  ? theme.colorScheme.onPrimary
+                                  : isSelected
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
