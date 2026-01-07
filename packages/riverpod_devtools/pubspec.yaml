@@ -2,6 +2,8 @@ name: riverpod_devtools
 description: DevTools extension for Riverpod - inspect and monitor your providers in real-time.
 version: 0.4.4
 repository: https://github.com/yutsuki3/riverpod_devtools
+homepage: https://github.com/yutsuki3/riverpod_devtools
+issue_tracker: https://github.com/yutsuki3/riverpod_devtools/issues
 
 topics:
   - riverpod
@@ -9,6 +11,10 @@ topics:
   - state-management
   - debugging
   - developer-tools
+
+screenshots:
+  - description: 'Riverpod DevTools interface showing Provider Graph, State Inspector, and Event Log'
+    path: example/screenshot_044.png
 
 environment:
   sdk: ^3.5.0
