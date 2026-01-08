@@ -14,24 +14,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// How it works:
 /// - Updates within 100ms are treated as one "wave"
 /// - Providers updated later in a wave likely depend on those updated earlier
-/// - Initial loads (didAddProvider) are excluded; only actual updates (didUpdateProvider) are learned
+/// - Tracks all preceding providers in a wave, not just immediate predecessor
+/// - Uses confidence scoring based on observation frequency
+/// - Prunes false positives that stop appearing
+///
+/// Improvements:
+/// - Higher minimum occurrence threshold (2) to reduce false positives
+/// - Tracks observation and non-observation counts for confidence scoring
+/// - Decays confidence for dependencies not observed recently
+/// - Detects both direct and some indirect dependencies within waves
 ///
 /// Limitations:
-/// - Not perfect; false positives are possible
+/// - Not perfect; false positives are still possible
 /// - Cannot detect dependencies until providers update
-/// - Only detects direct dependencies (not indirect ones)
+/// - Cross-wave indirect dependencies may not be detected
 class _DependencyTracker {
-  // Provider ID -> Confirmed dependency provider names
-  final Map<String, Set<String>> _confirmedDependencies = {};
+  // Provider ID -> Confirmed dependency provider names with confidence scores
+  final Map<String, Map<String, double>> _confirmedDependencies = {};
 
-  // Provider ID -> Candidate dependencies with occurrence count
-  final Map<String, Map<String, int>> _candidateDependencies = {};
+  // Provider ID -> Candidate dependencies with positive/negative observation counts
+  final Map<String, Map<String, _DependencyStats>> _candidateDependencies = {};
 
   // Track the current update wave (batch)
   final List<_UpdateEvent> _currentBatch = [];
   DateTime? _lastUpdateTime;
   static const _batchWindowMs =
       100; // Updates within 100ms are considered the same wave
+
+  // Minimum number of observations to confirm a dependency
+  static const _minConfirmations = 2;
+
+  // Confidence threshold for confirmed dependencies
+  static const _confidenceThreshold = 0.6;
+
+  // Maximum number of waves to track for decay
+  static const _maxWavesForDecay = 50;
+  int _waveCount = 0;
 
   /// Called when a provider is updated
   void recordUpdate(String providerId, String providerName,
@@ -60,41 +78,102 @@ class _DependencyTracker {
 
     if (updateEvents.length < 2) return;
 
-    // In a wave, providers updated later likely depend on those updated immediately before
+    _waveCount++;
+
+    // Track which providers appeared in this wave
+    final providersInWave = updateEvents.map((e) => e.providerId).toSet();
+
+    // In a wave, providers updated later likely depend on those updated earlier
+    // Track ALL preceding providers, not just immediate predecessor
     for (var i = 1; i < updateEvents.length; i++) {
       final current = updateEvents[i];
+      final currentId = current.providerId;
 
-      // Record only the immediate predecessor (more accurate)
-      final previous = updateEvents[i - 1];
+      // Consider all providers that updated before this one
+      for (var j = 0; j < i; j++) {
+        final previous = updateEvents[j];
 
-      // Skip self-references
-      if (current.providerId == previous.providerId) continue;
+        // Skip self-references
+        if (currentId == previous.providerId) continue;
 
-      // Record as candidate
-      _candidateDependencies.putIfAbsent(current.providerId, () => {}).update(
-            previous.providerName,
-            (count) => count + 1,
-            ifAbsent: () => 1,
-          );
+        // Record positive observation (this provider depends on the previous one)
+        final stats = _candidateDependencies
+            .putIfAbsent(currentId, () => {})
+            .putIfAbsent(previous.providerName, () => _DependencyStats());
+
+        stats.positiveObservations++;
+        stats.lastObservedWave = _waveCount;
+      }
+
+      // Track negative observations: providers in wave that did NOT precede this one
+      // This helps identify false positives
+      for (final entry in _candidateDependencies[currentId]?.entries ?? <MapEntry<String, _DependencyStats>>[]) {
+        final candidateName = entry.key;
+        final stats = entry.value;
+
+        // Find if this candidate appeared in the current wave
+        final candidateInWave = updateEvents.any((e) => e.providerName == candidateName);
+
+        // If candidate was in wave but didn't precede current, it's a negative observation
+        if (candidateInWave) {
+          final candidatePreceded = updateEvents
+              .sublist(0, i)
+              .any((e) => e.providerName == candidateName);
+
+          if (!candidatePreceded) {
+            stats.negativeObservations++;
+          }
+        }
+      }
     }
+
+    // Apply decay to old dependencies
+    _applyDecay();
 
     // Confirm dependencies from candidates
     _confirmDependencies();
   }
 
-  /// Determine confirmed dependencies from candidates
+  /// Apply decay to dependencies not observed recently
+  void _applyDecay() {
+    for (final entry in _candidateDependencies.entries) {
+      final candidates = entry.value;
+
+      // Remove candidates that haven't been observed in recent waves
+      candidates.removeWhere((name, stats) {
+        final wavesSinceObservation = _waveCount - stats.lastObservedWave;
+        return wavesSinceObservation > _maxWavesForDecay;
+      });
+    }
+  }
+
+  /// Determine confirmed dependencies from candidates using confidence scoring
   void _confirmDependencies() {
-    const minOccurrences =
-        1; // Confirm after observing once (for faster detection)
+    _confirmedDependencies.clear();
 
     for (final entry in _candidateDependencies.entries) {
       final providerId = entry.key;
       final candidates = entry.value;
 
-      final confirmed = candidates.entries
-          .where((e) => e.value >= minOccurrences)
-          .map((e) => e.key)
-          .toSet();
+      final confirmed = <String, double>{};
+
+      for (final candidate in candidates.entries) {
+        final name = candidate.key;
+        final stats = candidate.value;
+
+        // Calculate confidence score
+        // Confidence = positive / (positive + negative)
+        final total = stats.positiveObservations + stats.negativeObservations;
+        if (total == 0) continue;
+
+        final confidence = stats.positiveObservations / total;
+
+        // Confirm if we have enough observations and high confidence
+        if (stats.positiveObservations >= _minConfirmations &&
+            confidence >= _confidenceThreshold) {
+          confirmed[name] = confidence;
+        }
+      }
 
       if (confirmed.isNotEmpty) {
         _confirmedDependencies[providerId] = confirmed;
@@ -107,7 +186,19 @@ class _DependencyTracker {
     // Process the current wave first
     _processBatch();
 
-    return _confirmedDependencies[providerId]?.toList() ?? [];
+    // Return dependency names sorted by confidence (highest first)
+    final deps = _confirmedDependencies[providerId];
+    if (deps == null) return [];
+
+    final sortedDeps = deps.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return sortedDeps.map((e) => e.key).toList();
+  }
+
+  /// Get confidence score for a specific dependency
+  double getConfidence(String providerId, String dependencyName) {
+    return _confirmedDependencies[providerId]?[dependencyName] ?? 0.0;
   }
 
   /// Remove a specific provider from dependency tracking
@@ -124,7 +215,15 @@ class _DependencyTracker {
     _candidateDependencies.clear();
     _currentBatch.clear();
     _lastUpdateTime = null;
+    _waveCount = 0;
   }
+}
+
+/// Statistics for tracking dependency observations
+class _DependencyStats {
+  int positiveObservations = 0; // Times this dependency was observed
+  int negativeObservations = 0; // Times it should have appeared but didn't
+  int lastObservedWave = 0; // Last wave number when this was observed
 }
 
 class _UpdateEvent {
