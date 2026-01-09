@@ -1,3 +1,24 @@
+## 0.5.0
+
+- **Stack Trace Tracking** (New Feature):
+    - Added optional stack trace tracking to show where provider updates originated
+    - Displays the exact file, line number, and function that triggered provider changes
+    - Shows full call chain for detailed debugging (up to configurable depth)
+    - Configurable filtering to show only user code (excludes framework code)
+    - Async provider support with stack trace caching
+    - Enable with `StackTraceConfig.forPackage('your_app')` in `RiverpodDevToolsObserver`
+    - Inspired by [riverpod_devtools_tracker](https://github.com/weitsai/riverpod_devtools_tracker) by [@weitsai](https://github.com/weitsai)
+- **DevTools UI Enhancements**:
+    - Event Log now displays stack trace information when available
+    - "Called from" section shows the trigger location with file path and line number
+    - "Call Chain" section shows the complete call stack (limited to first 5 entries for readability)
+    - Visual indicators for stack trace information with icons and color coding
+- **API Additions**:
+    - New `StackTraceConfig` class for configuring stack trace tracking
+    - New `StackTraceParser` class for parsing and filtering stack traces
+    - New `LocationInfo` class representing code locations
+    - `RiverpodDevToolsObserver` now accepts optional `stackTraceConfig` parameter
+
 ## 0.4.4
 
 - **Improved Data Serialization**:

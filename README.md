@@ -155,3 +155,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Thanks to the [Riverpod](https://github.com/rrousselGit/riverpod) team for creating an amazing state management solution
 - Inspired by the official [Flutter DevTools](https://flutter.dev/devtools)
+- Stack trace tracking feature inspired by [riverpod_devtools_tracker](https://github.com/weitsai/riverpod_devtools_tracker) by [@weitsai](https://github.com/weitsai). We've independently implemented and adapted this concept to integrate seamlessly with our dependency tracking system

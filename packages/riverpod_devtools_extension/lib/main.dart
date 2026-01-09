@@ -219,6 +219,25 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
         // Keep empty list on error
       }
 
+      // Extract stack trace information (optional)
+      Map<String, dynamic>? triggerLocation;
+      List<Map<String, dynamic>>? callChain;
+      try {
+        final rawTrigger = data['triggerLocation'];
+        if (rawTrigger is Map) {
+          triggerLocation = Map<String, dynamic>.from(rawTrigger);
+        }
+
+        final rawCallChain = data['callChain'];
+        if (rawCallChain is List) {
+          callChain = rawCallChain
+              .map((e) => e is Map ? Map<String, dynamic>.from(e) : <String, dynamic>{})
+              .toList();
+        }
+      } catch (e) {
+        // Stack trace info is optional, ignore errors
+      }
+
       // Convert values to Map<String, dynamic> if they're already Maps,
       // or wrap primitive types in a simple structure
       final value = _normalizeValue(rawValue);
@@ -264,6 +283,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             providerName: providerName,
             value: value,
             timestamp: eventTimestamp,
+            triggerLocation: triggerLocation,
+            callChain: callChain,
           ));
         } else if (kind == 'riverpod:provider_updated') {
           _providers[providerName] = ProviderInfo(
@@ -280,6 +301,8 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
             previousValue: previousValue,
             value: value,
             timestamp: eventTimestamp,
+            triggerLocation: triggerLocation,
+            callChain: callChain,
           ));
         } else if (kind == 'riverpod:provider_disposed') {
           _providers[providerName] = ProviderInfo(
@@ -1546,20 +1569,30 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   }
 
   Widget _buildExpandedContent(ProviderEvent event) {
-    if (event.type == EventType.updated) {
-      // For updated events, show both previous and current as tree views
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildValueSection('Previous', event.previousValue, isPrevious: true),
-          const SizedBox(height: 8),
-          _buildValueSection('Current', event.value, isPrevious: false),
-        ],
-      );
+    final children = <Widget>[];
+
+    // Show stack trace information if available
+    if (event.triggerLocation != null || event.callChain != null) {
+      children.add(_buildStackTraceSection(event));
+      children.add(const SizedBox(height: 8));
     }
 
-    // For Added / Disposed, show JSON tree view
-    return _buildJsonTreeView(event.value);
+    if (event.type == EventType.updated) {
+      // For updated events, show both previous and current as tree views
+      children.addAll([
+        _buildValueSection('Previous', event.previousValue, isPrevious: true),
+        const SizedBox(height: 8),
+        _buildValueSection('Current', event.value, isPrevious: false),
+      ]);
+    } else {
+      // For Added / Disposed, show JSON tree view
+      children.add(_buildJsonTreeView(event.value));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
   }
 
   Widget _buildValueSection(String label, Map<String, dynamic>? data,
@@ -1624,6 +1657,157 @@ class _RiverpodInspectorState extends State<RiverpodInspector> {
   }
 
   /// Build JSON tree view with expand/collapse functionality
+  Widget _buildStackTraceSection(ProviderEvent event) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Trigger location (main call site)
+        if (event.triggerLocation != null) ...[
+          Row(
+            children: [
+              Icon(
+                Icons.location_on_outlined,
+                size: 12,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Called from:',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.triggerLocation!['function'] ?? 'unknown',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'monospace',
+                    color: isDark ? const Color(0xFFDEBB6B) : const Color(0xFF795E26),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${event.triggerLocation!['file'] ?? 'unknown'}:${event.triggerLocation!['line'] ?? '?'}',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Call chain (if available)
+        if (event.callChain != null && event.callChain!.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                Icons.format_list_numbered,
+                size: 12,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Call Chain:',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.secondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < event.callChain!.length && i < 5; i++) ...[
+                  if (i > 0) const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '#$i ',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontFamily: 'monospace',
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              event.callChain![i]['function'] ?? 'unknown',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontFamily: 'monospace',
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+                              ),
+                            ),
+                            Text(
+                              '${event.callChain![i]['file'] ?? 'unknown'}:${event.callChain![i]['line'] ?? '?'}',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontFamily: 'monospace',
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (event.callChain!.length > 5) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '... and ${event.callChain!.length - 5} more',
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontStyle: FontStyle.italic,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _buildJsonTreeView(Map<String, dynamic>? data) {
     if (data == null) {
       return const Text('null',
@@ -2507,6 +2691,10 @@ class ProviderEvent {
   final Map<String, dynamic>? value;
   final DateTime timestamp;
 
+  /// Stack trace information (optional)
+  final Map<String, dynamic>? triggerLocation;
+  final List<Map<String, dynamic>>? callChain;
+
   /// Unique ID for this event (used for expansion state tracking)
   late final String id;
 
@@ -2517,6 +2705,8 @@ class ProviderEvent {
     this.previousValue,
     this.value,
     required this.timestamp,
+    this.triggerLocation,
+    this.callChain,
   }) {
     // Generate unique ID based on timestamp and provider ID
     id = '${timestamp.microsecondsSinceEpoch}_$providerId';

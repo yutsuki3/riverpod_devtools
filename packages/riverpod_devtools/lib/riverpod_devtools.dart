@@ -5,6 +5,12 @@ import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'src/stack_trace_config.dart';
+import 'src/stack_trace_parser.dart';
+
+export 'src/stack_trace_config.dart';
+export 'src/stack_trace_parser.dart';
+
 /// Dependency tracker for providers (Beta feature)
 ///
 /// This class learns dependencies by observing update patterns.
@@ -140,21 +146,48 @@ class _UpdateEvent {
 
 final _dependencyTracker = _DependencyTracker();
 
+/// Cache entry for storing stack traces with timestamps
+class _StackTraceCache {
+  final StackTrace stackTrace;
+  final DateTime timestamp;
+
+  _StackTraceCache(this.stackTrace, this.timestamp);
+}
+
 /// A [ProviderObserver] that sends Riverpod events to the Flutter DevTools extension.
 ///
 /// This observer monitors the lifecycle of all providers (add, update, dispose)
 /// and posts events to the developer log, which the Riverpod DevTools extension listens to.
 ///
+/// Optionally tracks stack traces to show where provider updates originated.
+///
 /// Usage:
 /// ```dart
 /// ProviderScope(
 ///   observers: [
-///     RiverpodDevToolsObserver(),
+///     RiverpodDevToolsObserver(
+///       stackTraceConfig: StackTraceConfig.forPackage('my_app'),
+///     ),
 ///   ],
 ///   child: MyApp(),
 /// );
 /// ```
 final class RiverpodDevToolsObserver extends ProviderObserver {
+  /// Configuration for stack trace tracking (optional)
+  final StackTraceConfig? stackTraceConfig;
+
+  /// Cache of stack traces for async provider support
+  /// Maps provider ID to cached stack trace
+  final Map<String, _StackTraceCache> _stackTraceCache = {};
+
+  /// Stack trace parser (lazy initialized)
+  StackTraceParser? _parser;
+
+  RiverpodDevToolsObserver({this.stackTraceConfig}) {
+    if (stackTraceConfig != null) {
+      _parser = StackTraceParser(stackTraceConfig!);
+    }
+  }
   @override
   void didAddProvider(
     covariant Object context,
@@ -175,13 +208,27 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // Get dependencies for this provider
     final dependencies = _dependencyTracker.getDependencies(providerId);
 
-    _postEvent('provider_added', {
+    // Capture stack trace if enabled
+    Map<String, dynamic>? stackTraceData;
+    if (_parser != null && stackTraceConfig!.enabled) {
+      final stackTrace = StackTrace.current;
+      stackTraceData = _captureStackTrace(providerId, stackTrace);
+    }
+
+    final eventData = <String, Object?>{
       'providerId': providerId,
       'provider': providerName,
       'value': _serializeValue(value),
       'dependencies': dependencies,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    };
+
+    // Add stack trace data if available
+    if (stackTraceData != null) {
+      eventData.addAll(stackTraceData);
+    }
+
+    _postEvent('provider_added', eventData);
   }
 
   @override
@@ -205,14 +252,36 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // Get dependencies for this provider
     final dependencies = _dependencyTracker.getDependencies(providerId);
 
-    _postEvent('provider_updated', {
+    // Capture stack trace if enabled
+    Map<String, dynamic>? stackTraceData;
+    if (_parser != null && stackTraceConfig!.enabled) {
+      final stackTrace = StackTrace.current;
+      stackTraceData = _captureStackTrace(providerId, stackTrace);
+
+      // If no valid user code found, try to use cached stack trace (for async providers)
+      if (stackTraceData?['triggerLocation'] == null) {
+        final cached = _stackTraceCache[providerId];
+        if (cached != null) {
+          stackTraceData = _captureStackTrace(providerId, cached.stackTrace);
+        }
+      }
+    }
+
+    final eventData = <String, Object?>{
       'providerId': providerId,
       'provider': providerName,
       'previousValue': _serializeValue(previousValue),
       'newValue': _serializeValue(newValue),
       'dependencies': dependencies,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    };
+
+    // Add stack trace data if available
+    if (stackTraceData != null) {
+      eventData.addAll(stackTraceData);
+    }
+
+    _postEvent('provider_updated', eventData);
   }
 
   @override
@@ -229,6 +298,9 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
     // Clean up dependency tracking data to prevent memory leaks
     _dependencyTracker.removeProvider(providerId);
+
+    // Clean up stack trace cache
+    _stackTraceCache.remove(providerId);
 
     _postEvent('provider_disposed', {
       'providerId': providerId,
@@ -467,5 +539,67 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     }
 
     return s;
+  }
+
+  /// Captures stack trace and returns formatted data for DevTools
+  Map<String, dynamic>? _captureStackTrace(
+      String providerId, StackTrace stackTrace) {
+    if (_parser == null) return null;
+
+    // Parse call chain
+    final callChain = _parser!.parseCallChain(stackTrace);
+    if (callChain.isEmpty) return null;
+
+    // Find trigger location (first non-provider file)
+    final triggerLocation = _parser!.findTriggerLocation(stackTrace);
+
+    // Cache the stack trace for async provider support
+    if (triggerLocation != null && _hasValidUserCode(callChain)) {
+      _stackTraceCache[providerId] =
+          _StackTraceCache(stackTrace, DateTime.now());
+
+      // Clean up expired entries
+      _cleanupExpiredStacks();
+
+      // Limit cache size
+      if (_stackTraceCache.length > stackTraceConfig!.maxStackCacheSize) {
+        // Remove oldest entry
+        final oldestKey = _stackTraceCache.entries
+            .reduce((a, b) =>
+                a.value.timestamp.isBefore(b.value.timestamp) ? a : b)
+            .key;
+        _stackTraceCache.remove(oldestKey);
+      }
+    }
+
+    return {
+      if (triggerLocation != null) 'triggerLocation': triggerLocation.toJson(),
+      'callChain': callChain.map((loc) => loc.toJson()).toList(),
+    };
+  }
+
+  /// Checks if the call chain contains valid user code (not just provider files)
+  bool _hasValidUserCode(List<LocationInfo> callChain) {
+    for (final location in callChain) {
+      if (!location.file.contains('_provider.dart') &&
+          !location.file.contains('/providers/') &&
+          !location.file.contains('.g.dart')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Cleans up expired stack trace cache entries
+  void _cleanupExpiredStacks() {
+    if (stackTraceConfig == null) return;
+
+    final now = DateTime.now();
+    final expirationDuration =
+        Duration(seconds: stackTraceConfig!.stackCacheExpirationSeconds);
+
+    _stackTraceCache.removeWhere((key, cache) {
+      return now.difference(cache.timestamp) > expirationDuration;
+    });
   }
 }
