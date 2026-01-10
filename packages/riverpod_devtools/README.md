@@ -11,7 +11,7 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 - **Provider Graph**: Visualize the relationships between your providers (Beta: Learning-based tracking).
 - **State Inspector**: View the current state of your providers with type labels and optimized display.
 - **Event Log**: Track provider lifecycle events with hierarchical grouping and sub-events.
-- **Stack Trace Tracking** (Optional): See exactly where provider updates originated with file paths, line numbers, and full call chains.
+- **Stack Trace Tracking** (Enabled by default): See exactly where provider updates originated with file paths, line numbers, and full call chains.
 - **Light Mode Support**: Seamlessly switch between light and dark themes.
 
 ## Getting started
@@ -46,6 +46,7 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
       runApp(
         ProviderScope(
           observers: [
+            // Stack trace tracking is enabled by default
             RiverpodDevToolsObserver(),
           ],
           child: MyApp(),
@@ -54,6 +55,8 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
     }
     ```
 
+    **Note:** Stack trace tracking is **enabled by default** with basic framework code filtering. See [Configuration](#configuration) to customize or disable it.
+
 ## Usage
 
 1.  Run your Flutter app.
@@ -61,9 +64,13 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 3.  Look for the "riverpod_devtools" tab in DevTools.
 4.  Interact with your app and watch the events and state updates in the DevTools tab.
 
-## Stack Trace Tracking (Optional)
+## Configuration
 
-Enable stack trace tracking to see exactly where provider updates are triggered in your code:
+### Stack Trace Tracking
+
+Stack trace tracking is **enabled by default** to help you debug where provider updates originated. No configuration needed!
+
+If you want to customize the filtering to show only your app's code, use `StackTraceConfig.forPackage()`:
 
 ```dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,6 +81,7 @@ void main() {
     ProviderScope(
       observers: [
         RiverpodDevToolsObserver(
+          // Optional: Filter to show only your app's code
           stackTraceConfig: StackTraceConfig.forPackage('my_app'),
         ),
       ],
@@ -90,11 +98,16 @@ void main() {
 - **Filter Framework Code**: Automatically excludes Flutter and Riverpod framework code
 - **Async Support**: Works with async providers through stack trace caching
 
-### Configuration Options
+### Advanced Configuration
 
 ```dart
-// Simple configuration (recommended)
-StackTraceConfig.forPackage('my_app')
+// Default (enabled with basic filtering)
+RiverpodDevToolsObserver()
+
+// Filter to show only your app's code (recommended)
+RiverpodDevToolsObserver(
+  stackTraceConfig: StackTraceConfig.forPackage('my_app'),
+)
 
 // Advanced configuration
 StackTraceConfig(
@@ -115,15 +128,24 @@ StackTraceConfig(
 
 ### Production Considerations
 
-Stack trace tracking adds a small performance overhead. Disable it in production:
+Stack trace tracking adds a small performance overhead. You can disable it in production:
 
 ```dart
 import 'package:flutter/foundation.dart';
 
 RiverpodDevToolsObserver(
   stackTraceConfig: kDebugMode
-      ? StackTraceConfig.forPackage('my_app')
-      : null,
+      ? const StackTraceConfig()  // Enabled in debug mode
+      : const StackTraceConfig(enabled: false),  // Disabled in production
+)
+```
+
+Or simply remove the observer in production builds:
+
+```dart
+ProviderScope(
+  observers: kDebugMode ? [RiverpodDevToolsObserver()] : [],
+  child: MyApp(),
 )
 ```
 

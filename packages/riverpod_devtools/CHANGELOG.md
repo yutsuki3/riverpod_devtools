@@ -1,12 +1,14 @@
 ## 0.5.0
 
-- **Stack Trace Tracking** (New Feature):
-    - Added optional stack trace tracking to show where provider updates originated
+- **Stack Trace Tracking** (New Feature - **Enabled by Default**):
+    - Stack trace tracking now **enabled by default** to help debug where provider updates originated
+    - No configuration needed! Just add `RiverpodDevToolsObserver()` and you're ready to go
     - Displays the exact file, line number, and function that triggered provider changes
     - Shows full call chain for detailed debugging (up to configurable depth)
-    - Configurable filtering to show only user code (excludes framework code)
+    - Automatic filtering excludes Flutter and Riverpod framework code
     - Async provider support with stack trace caching
-    - Enable with `StackTraceConfig.forPackage('your_app')` in `RiverpodDevToolsObserver`
+    - Optional: Use `StackTraceConfig.forPackage('your_app')` for more precise filtering
+    - Can be disabled with `StackTraceConfig(enabled: false)` if needed
     - Inspired by [riverpod_devtools_tracker](https://github.com/weitsai/riverpod_devtools_tracker) by [@weitsai](https://github.com/weitsai)
 - **DevTools UI Enhancements**:
     - Event Log now displays stack trace information when available

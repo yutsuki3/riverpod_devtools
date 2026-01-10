@@ -163,6 +163,13 @@ class _StackTraceCache {
 ///
 /// Usage:
 /// ```dart
+/// // Basic usage (stack trace tracking enabled by default)
+/// ProviderScope(
+///   observers: [RiverpodDevToolsObserver()],
+///   child: MyApp(),
+/// )
+///
+/// // With custom filtering
 /// ProviderScope(
 ///   observers: [
 ///     RiverpodDevToolsObserver(
@@ -170,23 +177,28 @@ class _StackTraceCache {
 ///     ),
 ///   ],
 ///   child: MyApp(),
-/// );
+/// )
 /// ```
 final class RiverpodDevToolsObserver extends ProviderObserver {
-  /// Configuration for stack trace tracking (optional)
-  final StackTraceConfig? stackTraceConfig;
+  /// Configuration for stack trace tracking
+  ///
+  /// Defaults to enabled with basic filtering (excludes framework code).
+  /// Set to `StackTraceConfig(enabled: false)` to disable.
+  final StackTraceConfig stackTraceConfig;
 
   /// Cache of stack traces for async provider support
   /// Maps provider ID to cached stack trace
   final Map<String, _StackTraceCache> _stackTraceCache = {};
 
   /// Stack trace parser (lazy initialized)
-  StackTraceParser? _parser;
+  late final StackTraceParser? _parser;
 
-  RiverpodDevToolsObserver({this.stackTraceConfig}) {
-    if (stackTraceConfig != null) {
-      _parser = StackTraceParser(stackTraceConfig!);
-    }
+  RiverpodDevToolsObserver({
+    StackTraceConfig? stackTraceConfig,
+  }) : stackTraceConfig = stackTraceConfig ?? const StackTraceConfig() {
+    _parser = this.stackTraceConfig.enabled
+        ? StackTraceParser(this.stackTraceConfig)
+        : null;
   }
   @override
   void didAddProvider(
@@ -210,7 +222,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
     // Capture stack trace if enabled
     Map<String, dynamic>? stackTraceData;
-    if (_parser != null && stackTraceConfig!.enabled) {
+    if (_parser != null) {
       final stackTrace = StackTrace.current;
       stackTraceData = _captureStackTrace(providerId, stackTrace);
     }
@@ -254,7 +266,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
     // Capture stack trace if enabled
     Map<String, dynamic>? stackTraceData;
-    if (_parser != null && stackTraceConfig!.enabled) {
+    if (_parser != null) {
       final stackTrace = StackTrace.current;
       stackTraceData = _captureStackTrace(providerId, stackTrace);
 
@@ -562,7 +574,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       _cleanupExpiredStacks();
 
       // Limit cache size
-      if (_stackTraceCache.length > stackTraceConfig!.maxStackCacheSize) {
+      if (_stackTraceCache.length > stackTraceConfig.maxStackCacheSize) {
         // Remove oldest entry
         final oldestKey = _stackTraceCache.entries
             .reduce((a, b) =>
@@ -592,11 +604,9 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   /// Cleans up expired stack trace cache entries
   void _cleanupExpiredStacks() {
-    if (stackTraceConfig == null) return;
-
     final now = DateTime.now();
     final expirationDuration =
-        Duration(seconds: stackTraceConfig!.stackCacheExpirationSeconds);
+        Duration(seconds: stackTraceConfig.stackCacheExpirationSeconds);
 
     _stackTraceCache.removeWhere((key, cache) {
       return now.difference(cache.timestamp) > expirationDuration;
