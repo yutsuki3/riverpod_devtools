@@ -240,10 +240,20 @@ class InspectorNotifier extends ChangeNotifier {
       final timestamp = data['timestamp'] as int?;
 
       List<String> dependencies = [];
+      DependencySource dependenciesSource = DependencySource.none;
       try {
         final rawDeps = data['dependencies'];
         if (rawDeps is List) {
           dependencies = rawDeps.map((e) => e.toString()).toList();
+        }
+
+        final rawSource = data['dependenciesSource'];
+        if (rawSource is String) {
+          if (rawSource == 'static') {
+            dependenciesSource = DependencySource.static;
+          } else if (rawSource == 'none') {
+            dependenciesSource = DependencySource.none;
+          }
         }
       } catch (e) {
         // Fallback or ignore if dependencies parsing fails
@@ -278,6 +288,7 @@ class InspectorNotifier extends ChangeNotifier {
           value: value,
           status: ProviderStatus.active,
           dependencies: dependencies,
+          dependenciesSource: dependenciesSource,
         );
         newEvent = ProviderEvent(
           type: EventType.added,
@@ -293,6 +304,7 @@ class InspectorNotifier extends ChangeNotifier {
           value: value,
           status: ProviderStatus.active,
           dependencies: dependencies,
+          dependenciesSource: dependenciesSource,
         );
         newEvent = ProviderEvent(
           type: EventType.updated,
@@ -310,6 +322,7 @@ class InspectorNotifier extends ChangeNotifier {
               {'type': 'null', 'value': null},
           status: ProviderStatus.disposed,
           dependencies: _state.providers[providerName]?.dependencies ?? [],
+          dependenciesSource: _state.providers[providerName]?.dependenciesSource ?? DependencySource.none,
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,
