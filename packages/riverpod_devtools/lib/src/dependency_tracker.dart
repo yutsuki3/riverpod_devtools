@@ -1,18 +1,18 @@
 import 'dart:async';
 
 ///
-/// This class learns dependencies by observing update patterns.
+/// This class learns dependencies by observing update and load patterns.
 /// Since Riverpod 3.x restricts access to internal APIs,
 /// we use a learning-based approach.
 ///
 /// How it works:
-/// - Updates within 100ms are treated as one "wave"
-/// - Providers updated later in a wave likely depend on those updated earlier
-/// - Initial loads (didAddProvider) are excluded; only actual updates (didUpdateProvider) are learned
+/// - Updates and loads within 100ms are treated as one "wave"
+/// - Providers updated/loaded later in a wave likely depend on those updated/loaded earlier
+/// - Both initial loads (didAddProvider) and updates (didUpdateProvider) are learned
 ///
 /// Limitations:
 /// - Not perfect; false positives are possible
-/// - Cannot detect dependencies until providers update
+/// - Accuracy depends on the timing of provider initialization and updates
 /// - Only detects direct dependencies (not indirect ones)
 class DependencyTracker {
   // Provider ID -> Confirmed dependency provider names
@@ -59,17 +59,18 @@ class DependencyTracker {
   void _processBatch() {
     if (_currentBatch.length < 2) return;
 
-    // Filter to only didUpdateProvider events (exclude didAddProvider initial loads)
-    final updateEvents = _currentBatch.where((e) => e.isUpdate).toList();
+    // Include both didAddProvider and didUpdateProvider events
+    // This allows us to detect dependencies during initial provider load as well
+    final allEvents = _currentBatch;
 
-    if (updateEvents.length < 2) return;
+    if (allEvents.length < 2) return;
 
-    // In a wave, providers updated later likely depend on those updated immediately before
-    for (var i = 1; i < updateEvents.length; i++) {
-      final current = updateEvents[i];
+    // In a wave, providers updated/loaded later likely depend on those updated/loaded immediately before
+    for (var i = 1; i < allEvents.length; i++) {
+      final current = allEvents[i];
 
       // Record only the immediate predecessor (more accurate)
-      final previous = updateEvents[i - 1];
+      final previous = allEvents[i - 1];
 
       // Skip self-references
       if (current.providerId == previous.providerId) continue;
