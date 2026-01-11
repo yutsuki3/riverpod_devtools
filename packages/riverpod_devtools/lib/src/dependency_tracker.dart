@@ -1,4 +1,5 @@
-/// Dependency tracker for providers (Beta feature)
+import 'dart:async';
+
 ///
 /// This class learns dependencies by observing update patterns.
 /// Since Riverpod 3.x restricts access to internal APIs,
@@ -26,15 +27,17 @@ class DependencyTracker {
   static const _batchWindowMs =
       100; // Updates within 100ms are considered the same wave
 
+  Timer? _flushTimer;
+
   /// Called when a provider is updated
   void recordUpdate(String providerId, String providerName,
       {required bool isUpdate}) {
     final now = DateTime.now();
 
-    // Check if a new wave has started
-    if (_lastUpdateTime == null ||
+    // Check if a new wave has started (time gap exceeded)
+    // Note: We also rely on the timer to process the trailing end of a wave.
+    if (_lastUpdateTime != null &&
         now.difference(_lastUpdateTime!).inMilliseconds > _batchWindowMs) {
-      // Process the previous wave
       _processBatch();
       _currentBatch.clear();
     }
@@ -42,6 +45,14 @@ class DependencyTracker {
     _currentBatch
         .add(_UpdateEvent(providerId, providerName, now, isUpdate: isUpdate));
     _lastUpdateTime = now;
+
+    // Schedule flush for the end of this wave
+    _flushTimer?.cancel();
+    _flushTimer = Timer(const Duration(milliseconds: _batchWindowMs), () {
+      _processBatch();
+      _currentBatch.clear();
+      _lastUpdateTime = null; // Reset ensures next event starts fresh check
+    });
   }
 
   /// Process the current wave to infer dependencies
@@ -77,8 +88,8 @@ class DependencyTracker {
 
   /// Determine confirmed dependencies from candidates
   void _confirmDependencies() {
-    // Increased threshold to reduce false positives
-    const minOccurrences = 2; // Require at least 2 occurrences
+    // Reverted to 1 for faster responsiveness, as strict 2 caused "not working" feeling
+    const minOccurrences = 1;
 
     for (final entry in _candidateDependencies.entries) {
       final providerId = entry.key;
@@ -113,10 +124,17 @@ class DependencyTracker {
 
   /// Clear all dependency relationships
   void clear() {
+    _flushTimer?.cancel();
     _confirmedDependencies.clear();
     _candidateDependencies.clear();
     _currentBatch.clear();
     _lastUpdateTime = null;
+  }
+
+  /// Dispose of resources (cancel timers)
+  void dispose() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
   }
 }
 

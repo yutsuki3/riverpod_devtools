@@ -36,6 +36,9 @@ void main() {
     container.read(counterProvider);
     container.read(counterProvider.notifier).increment();
 
+    // Wait for any pending timers (dependency tracker flush timer)
+    await tester.pump(const Duration(milliseconds: 150));
+
     // Should trigger didDisposeProvider
     container.dispose();
   });
