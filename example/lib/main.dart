@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_devtools/riverpod_devtools.dart';
 
@@ -10,7 +11,24 @@ import 'pages/performance_page.dart';
 import 'pages/todo_page.dart';
 import 'pages/custom_class_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Load static dependencies from JSON
+  try {
+    final jsonString = await rootBundle.loadString(
+      'lib/riverpod_dependencies.json',
+    );
+    RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
+    // ignore: avoid_print
+    print('✅ Loaded ${RiverpodDevToolsRegistry.instance.count} providers with static analysis');
+  } catch (e) {
+    // ignore: avoid_print
+    print('⚠️  Static analysis not available: $e');
+    // ignore: avoid_print
+    print('   Run: dart run riverpod_devtools:analyze');
+  }
+
   runApp(
     ProviderScope(
       observers: [RiverpodDevToolsObserver()],

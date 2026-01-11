@@ -1,23 +1,36 @@
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dependency_tracker.dart';
+import 'static_dependencies.dart';
 import 'utils/serialization.dart';
-
-final _dependencyTracker = DependencyTracker();
 
 /// A [ProviderObserver] that sends Riverpod events to the Flutter DevTools extension.
 ///
 /// This observer monitors the lifecycle of all providers (add, update, dispose)
 /// and posts events to the developer log, which the Riverpod DevTools extension listens to.
 ///
+/// **Important**: This observer requires static dependency analysis via the CLI tool.
+/// Run `dart run riverpod_devtools:analyze` to generate dependency metadata.
+///
 /// Usage:
 /// ```dart
-/// ProviderScope(
-///   observers: [
-///     RiverpodDevToolsObserver(),
-///   ],
-///   child: MyApp(),
-/// );
+/// void main() async {
+///   WidgetsFlutterBinding.ensureInitialized();
+///
+///   // Load static dependencies
+///   try {
+///     final jsonString = await rootBundle.loadString('lib/riverpod_dependencies.json');
+///     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
+///   } catch (e) {
+///     print('⚠️  Static analysis not available: $e');
+///   }
+///
+///   runApp(
+///     ProviderScope(
+///       observers: [RiverpodDevToolsObserver()],
+///       child: MyApp(),
+///     ),
+///   );
+/// }
 /// ```
 final class RiverpodDevToolsObserver extends ProviderObserver {
   @override
@@ -34,17 +47,16 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     final providerId = identityHashCode(provider).toString();
     final providerName = _getProviderName(provider);
 
-    // Record update (for dependency learning)
-    _dependencyTracker.recordUpdate(providerId, providerName, isUpdate: false);
-
-    // Get dependencies for this provider
-    final dependencies = _dependencyTracker.getDependencies(providerId);
+    // Get dependencies from static analysis
+    final dependencies = _getDependencies(providerName);
+    final dependenciesSource = _getDependencySource(providerName);
 
     _postEvent('provider_added', {
       'providerId': providerId,
       'provider': providerName,
       'value': serializeValue(value),
       'dependencies': dependencies,
+      'dependenciesSource': dependenciesSource,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -64,11 +76,9 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     final providerId = identityHashCode(provider).toString();
     final providerName = _getProviderName(provider);
 
-    // Record update (for dependency learning)
-    _dependencyTracker.recordUpdate(providerId, providerName, isUpdate: true);
-
-    // Get dependencies for this provider
-    final dependencies = _dependencyTracker.getDependencies(providerId);
+    // Get dependencies from static analysis
+    final dependencies = _getDependencies(providerName);
+    final dependenciesSource = _getDependencySource(providerName);
 
     _postEvent('provider_updated', {
       'providerId': providerId,
@@ -76,6 +86,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       'previousValue': serializeValue(previousValue),
       'newValue': serializeValue(newValue),
       'dependencies': dependencies,
+      'dependenciesSource': dependenciesSource,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -91,9 +102,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // The optional arg2 allows accepting both 1 and 2 parameters
     final provider = _getProvider(context);
     final providerId = identityHashCode(provider).toString();
-
-    // Clean up dependency tracking data to prevent memory leaks
-    _dependencyTracker.removeProvider(providerId);
 
     _postEvent('provider_disposed', {
       'providerId': providerId,
@@ -133,6 +141,18 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     }
 
     return provider.runtimeType.toString();
+  }
+
+  /// Get dependencies from static analysis only
+  List<String> _getDependencies(String providerName) {
+    return RiverpodDevToolsRegistry.instance.getDependencyNames(providerName);
+  }
+
+  /// Track which source provided the data
+  /// Returns 'static' if metadata exists, 'none' otherwise
+  String _getDependencySource(String providerName) {
+    final hasStatic = RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
+    return hasStatic ? 'static' : 'none';
   }
 
   void _postEvent(String kind, Map<String, Object?> data) {

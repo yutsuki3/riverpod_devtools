@@ -35,7 +35,7 @@ The extension UI provides:
 - **Provider List**: Real-time list of all active providers with search and filtering
 - **State Inspector**: JSON tree view of provider values with syntax highlighting
 - **Event Log**: Timeline of provider lifecycle events (add, update, dispose)
-- **Dependencies View**: Visualize provider dependencies (learning-based, beta)
+- **Dependencies View**: Visualize provider dependencies via static analysis
 - **Theme Support**: Automatic light/dark mode based on DevTools theme
 
 ## Architecture

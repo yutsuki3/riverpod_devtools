@@ -1,11 +1,20 @@
 enum ProviderStatus { active, disposed }
 
+enum DependencySource {
+  /// Dependencies detected from static analysis (CLI tool)
+  static,
+
+  /// No dependency metadata available - CLI tool not used
+  none,
+}
+
 class ProviderInfo {
   final String id;
   final String name;
   final Map<String, dynamic> value;
   final ProviderStatus status;
   final List<String> dependencies;
+  final DependencySource dependenciesSource;
 
   ProviderInfo({
     required this.id,
@@ -13,6 +22,7 @@ class ProviderInfo {
     required this.value,
     required this.status,
     this.dependencies = const [],
+    this.dependenciesSource = DependencySource.none,
   });
 
   String? _valueStringCache;

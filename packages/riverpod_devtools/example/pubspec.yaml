@@ -19,4 +19,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - lib/riverpod_dependencies.json
 

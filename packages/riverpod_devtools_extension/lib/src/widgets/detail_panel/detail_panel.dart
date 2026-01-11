@@ -232,60 +232,161 @@ class DetailPanel extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // Dependencies Section (with Beta badge)
+          // Dependencies Section
           _buildDetailSection(
             theme: theme,
             title: 'Dependencies',
-            betaBadge: true,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Note UI
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: Colors.blue.withValues(alpha: 0.3),
-                    ),
+            betaBadge: false, // No beta badge - static analysis is the only method
+            child: provider.dependenciesSource == DependencySource.static
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Subtle reminder for static analysis users
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 10,
+                              color: theme.colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.6),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Keep dependencies up-to-date by running the analyzer after code changes',
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  color: theme.colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.6),
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Depends On subsection
+                      _buildDependencySubsection(
+                        context: context,
+                        title: 'Depends On',
+                        dependencies: provider.dependencies,
+                        emptyMessage: 'No dependencies',
+                        theme: theme,
+                        state: state,
+                        dependencySource: provider.dependenciesSource,
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      // Used By subsection
+                      _buildDependencySubsection(
+                        context: context,
+                        title: 'Used By',
+                        dependencies: notifier.getUsedBy(provider.name),
+                        emptyMessage: 'Not used by any providers',
+                        theme: theme,
+                        state: state,
+                        dependencySource: null, // Used By doesn't have a source
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Detailed setup instructions when CLI tool not used
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: Colors.orange.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_outlined,
+                                  size: 14,
+                                  color: Colors.orange,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Static Analysis Required',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'To view provider dependencies, run the analyzer and configure your app:',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _buildSetupStep(
+                              theme: theme,
+                              number: '1',
+                              title: 'Run the analyzer to detect dependencies',
+                              description:
+                                  'Analyzes your code to find all ref.watch/read calls',
+                              code: 'dart run riverpod_devtools:analyze',
+                            ),
+                            const SizedBox(height: 6),
+                            _buildSetupStep(
+                              theme: theme,
+                              number: '2',
+                              title: 'Register the generated JSON as an asset',
+                              description:
+                                  'Makes the dependency data available to your app',
+                              code: 'flutter:\n  assets:\n    - lib/riverpod_dependencies.json',
+                            ),
+                            const SizedBox(height: 6),
+                            _buildSetupStep(
+                              theme: theme,
+                              number: '3',
+                              title: 'Load dependency data in main()',
+                              description:
+                                  'Add this code before runApp() to load the JSON file',
+                              code:
+                                  'void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n\n  // Load static dependencies\n  try {\n    final json = await rootBundle.loadString(\n      \'lib/riverpod_dependencies.json\',\n    );\n    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json);\n  } catch (e) {\n    print(\'⚠️  Static analysis not available\');\n  }\n\n  runApp(ProviderScope(\n    observers: [RiverpodDevToolsObserver()],\n    child: MyApp(),\n  ));\n}',
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Restart your app after completing these steps.',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: theme.colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7),
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    'Dependencies are detected by observing update patterns. May include false positives.',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-
-                // Depends On subsection
-                _buildDependencySubsection(
-                  context: context,
-                  title: 'Depends On',
-                  dependencies: provider.dependencies,
-                  emptyMessage: 'No dependencies detected yet',
-                  theme: theme,
-                  state: state,
-                ),
-
-                const SizedBox(height: 12),
-
-                // Used By subsection
-                _buildDependencySubsection(
-                  context: context,
-                  title: 'Used By',
-                  dependencies: notifier.getUsedBy(provider.name),
-                  emptyMessage: 'Not used by any providers',
-                  theme: theme,
-                  state: state,
-                ),
-              ],
-            ),
           ),
         ],
       ),
@@ -411,6 +512,7 @@ class DetailPanel extends StatelessWidget {
     required String emptyMessage,
     required ThemeData theme,
     required InspectorState state,
+    DependencySource? dependencySource,
   }) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
@@ -530,6 +632,91 @@ class DetailPanel extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSetupStep({
+    required ThemeData theme,
+    required String number,
+    required String title,
+    required String description,
+    required String code,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  number,
+                  style: const TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.7),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(6),
+          margin: const EdgeInsets.only(left: 20),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Text(
+            code,
+            style: TextStyle(
+              fontSize: 8,
+              fontFamily: 'monospace',
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
