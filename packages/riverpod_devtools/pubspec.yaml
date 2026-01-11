@@ -24,11 +24,14 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ">=2.3.0 <4.0.0"
+  analyzer: ^6.0.0
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  fake_async: ^1.3.1
 
 platforms:
   android:
@@ -37,6 +40,9 @@ platforms:
   macos:
   web:
   windows:
+
+executables:
+  analyze:
 
 extension:
   devtools:
