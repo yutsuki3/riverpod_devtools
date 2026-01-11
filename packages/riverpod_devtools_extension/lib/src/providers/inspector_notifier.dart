@@ -245,7 +245,9 @@ class InspectorNotifier extends ChangeNotifier {
         if (rawDeps is List) {
           dependencies = rawDeps.map((e) => e.toString()).toList();
         }
-      } catch (e) {}
+      } catch (e) {
+        // Fallback or ignore if dependencies parsing fails
+      }
 
       final value = _normalizeValue(rawValue);
       final previousValue = _normalizeValue(rawPreviousValue);
@@ -340,8 +342,9 @@ class InspectorNotifier extends ChangeNotifier {
       final providerEvents = _eventsByProvider[removed.providerName];
       if (providerEvents != null) {
         providerEvents.remove(removed);
-        if (providerEvents.isEmpty)
+        if (providerEvents.isEmpty) {
           _eventsByProvider.remove(removed.providerName);
+        }
       }
 
       final newExpanded = Set<String>.from(_state.expandedEventIds)

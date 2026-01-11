@@ -14,6 +14,9 @@ build/
 # macOS
 .DS_Store
 
+# Claude Code
+.claude/
+
 # Extension build output (generated)
 
 !packages/riverpod_devtools/extension/devtools/build/

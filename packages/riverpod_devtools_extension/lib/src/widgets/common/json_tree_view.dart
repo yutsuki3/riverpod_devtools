@@ -446,8 +446,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
                 ),
                 TextSpan(
                   text: isStringExpanded
-                      ? '\"$displayItem\"'
-                      : '\"${displayItem.substring(0, _stringTruncateLength)}...\"',
+                      ? '"$displayItem"'
+                      : '"${displayItem.substring(0, _stringTruncateLength)}..."',
                   style: TextStyle(
                     color: getValueColor(displayItem, theme),
                   ),
@@ -591,8 +591,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
                   ),
                 TextSpan(
                   text: isStringExpanded
-                      ? '\"$displayValue\"'
-                      : '\"${displayValue.substring(0, _stringTruncateLength)}...\"',
+                      ? '"$displayValue"'
+                      : '"${displayValue.substring(0, _stringTruncateLength)}..."',
                   style: TextStyle(
                     color: getValueColor(displayValue, theme),
                   ),
@@ -719,7 +719,7 @@ class _JsonTreeViewState extends State<JsonTreeView> {
       return '{${value.length} keys}';
     }
 
-    if (value is String) return '\"$value\"';
+    if (value is String) return '"$value"';
     if (value is num || value is bool) return value.toString();
     if (value is List) return '[${value.length} items]';
     if (value is Map) return '{${value.length} keys}';

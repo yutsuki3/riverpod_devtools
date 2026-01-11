@@ -1,58 +1,94 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:riverpod_devtools/src/utils/serialization.dart';
 
-class CustomClassA {
-  final int id;
-  final String name;
-  final int age;
+class TestObject {
+  final String id;
+  TestObject? child;
 
-  CustomClassA({required this.id, required this.name, required this.age});
-
-  @override
-  String toString() {
-    return 'CustomClassA(id: $id, name: $name, age: $age)';
-  }
-}
-
-class NestedClass {
-  final String title;
-  final CustomClassA child;
-
-  NestedClass({required this.title, required this.child});
+  TestObject(this.id);
 
   @override
-  String toString() {
-    return 'NestedClass(title: $title, child: $child)';
-  }
+  String toString() => 'TestObject(id: $id)';
 }
 
 void main() {
-  // Accessing private method for testing purpose
-  // In a real scenario, we might want to expose it for testing or test through public API
-  // For simplicity here, we'll test the effect through _serializeValue if it was accessible
-  // but since it's private, we'll focus on the concept of the test.
-
-  group('Serialization Tests', () {
-    test('CustomClassA serialization follows the structure', () {
-      // ignore: unused_local_variable
-      final obj = CustomClassA(id: 1, name: 'TARO', age: 20);
-
-      // We can use a trick to test private methods in Dart if needed,
-      // but let's assume we want to test the result of what would be posted.
-      // Since we can't easily capture postEvent, we verify the logic manually
-      // by reflecting on how _serializeValue behaves.
-
-      // Given the implementation of _serializeValue:
-      // it should return a map with 'value' containing the parsed structure.
+  group('serializeValue', () {
+    test('handles null', () {
+      final result = serializeValue(null);
+      expect(result['type'], 'null');
+      expect(result['value'], null);
     });
 
-    test('List of custom classes is not hijacked by _parseToString', () {
-      // ignore: unused_local_variable
-      final list = [
-        CustomClassA(id: 1, name: 'Task 1', age: 10),
-        CustomClassA(id: 2, name: 'Task 2', age: 20),
-      ];
-      // This list's toString() looks like [CustomClassA(...), CustomClassA(...)]
-      // We want to ensure it is handled as a List with 'items'.
+    test('handles primitives', () {
+      expect(serializeValue(123)['string'], '123');
+      expect(serializeValue(true)['string'], 'true');
+      expect(serializeValue('hello')['string'], 'hello');
+    });
+
+    test('handles lists', () {
+      final list = [1, 'two'];
+      final result = serializeValue(list);
+      expect(result['items'], isNotNull);
+      expect((result['items'] as List).length, 2);
+    });
+
+    test('handles maps', () {
+      final map = {'one': 1, 'two': 2};
+      final result = serializeValue(map);
+      expect(result['entries'], isNotNull);
+      expect((result['entries'] as List).length, 2);
+    });
+
+    test('handles recursion depth limit', () {
+      // Create a deeply nested list: [[[[[[...]]]]]]
+      dynamic deepList = [];
+      for (var i = 0; i < 15; i++) {
+        deepList = [deepList];
+      }
+
+      final result = serializeValue(deepList);
+
+      // We expect at some level to find <Max Depth Exceeded>
+      bool foundMaxDepthMsg = false;
+      dynamic current = result;
+      while (current is Map) {
+        if (current['value'] == '<Max Depth Exceeded>') {
+          foundMaxDepthMsg = true;
+          break;
+        }
+        if (current['items'] != null && (current['items'] as List).isNotEmpty) {
+          current = (current['items'] as List)[0];
+        } else {
+          break;
+        }
+      }
+      expect(foundMaxDepthMsg, isTrue, reason: 'Should hit max depth');
+    });
+
+    test('handles circular references', () {
+      final obj1 = TestObject('1');
+      final obj2 = TestObject('2');
+      obj1.child = obj2;
+      obj2.child = obj1; // Cycle
+
+      // Serialize circular structure (manual map construction simulation)
+      // Since our custom object is not a Map/List, serializeValue relies on toString/reflection fallback
+      // or we can test with Maps which are easier to cycle in Dart without mirrors if we use dynamic?
+      // Actually, serializeValue uses recursion for Maps/Lists.
+
+      final map1 = <String, dynamic>{'name': 'map1'};
+      final map2 = <String, dynamic>{'name': 'map2'};
+      map1['next'] = map2;
+      map2['prev'] = map1;
+
+      final result = serializeValue(map1);
+      final entries = result['entries'] as List;
+      final nextEntry = entries.firstWhere((e) => e['key'] == 'next')['value'];
+      final nextEntries = nextEntry['entries'] as List;
+      final prevEntry =
+          nextEntries.firstWhere((e) => e['key'] == 'prev')['value'];
+
+      expect(prevEntry['value'], '<Cyclic Reference>');
     });
   });
 }

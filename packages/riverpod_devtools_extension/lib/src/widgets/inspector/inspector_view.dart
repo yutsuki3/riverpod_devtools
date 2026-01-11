@@ -25,11 +25,6 @@ class _InspectorViewState extends State<InspectorView> {
     super.dispose();
   }
 
-  void _scrollToProvider(String providerName) {
-    // Logic to scroll to provider if needed.
-    // For now we'll keep it simple.
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

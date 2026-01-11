@@ -1,17 +1,18 @@
-/// Dependency tracker for providers (Beta feature)
+import 'dart:async';
+
 ///
-/// This class learns dependencies by observing update patterns.
+/// This class learns dependencies by observing update and load patterns.
 /// Since Riverpod 3.x restricts access to internal APIs,
 /// we use a learning-based approach.
 ///
 /// How it works:
-/// - Updates within 100ms are treated as one "wave"
-/// - Providers updated later in a wave likely depend on those updated earlier
-/// - Initial loads (didAddProvider) are excluded; only actual updates (didUpdateProvider) are learned
+/// - Updates and loads within 100ms are treated as one "wave"
+/// - Providers updated/loaded later in a wave likely depend on those updated/loaded earlier
+/// - Both initial loads (didAddProvider) and updates (didUpdateProvider) are learned
 ///
 /// Limitations:
 /// - Not perfect; false positives are possible
-/// - Cannot detect dependencies until providers update
+/// - Accuracy depends on the timing of provider initialization and updates
 /// - Only detects direct dependencies (not indirect ones)
 class DependencyTracker {
   // Provider ID -> Confirmed dependency provider names
@@ -26,15 +27,17 @@ class DependencyTracker {
   static const _batchWindowMs =
       100; // Updates within 100ms are considered the same wave
 
+  Timer? _flushTimer;
+
   /// Called when a provider is updated
   void recordUpdate(String providerId, String providerName,
       {required bool isUpdate}) {
     final now = DateTime.now();
 
-    // Check if a new wave has started
-    if (_lastUpdateTime == null ||
+    // Check if a new wave has started (time gap exceeded)
+    // Note: We also rely on the timer to process the trailing end of a wave.
+    if (_lastUpdateTime != null &&
         now.difference(_lastUpdateTime!).inMilliseconds > _batchWindowMs) {
-      // Process the previous wave
       _processBatch();
       _currentBatch.clear();
     }
@@ -42,23 +45,32 @@ class DependencyTracker {
     _currentBatch
         .add(_UpdateEvent(providerId, providerName, now, isUpdate: isUpdate));
     _lastUpdateTime = now;
+
+    // Schedule flush for the end of this wave
+    _flushTimer?.cancel();
+    _flushTimer = Timer(const Duration(milliseconds: _batchWindowMs), () {
+      _processBatch();
+      _currentBatch.clear();
+      _lastUpdateTime = null; // Reset ensures next event starts fresh check
+    });
   }
 
   /// Process the current wave to infer dependencies
   void _processBatch() {
     if (_currentBatch.length < 2) return;
 
-    // Filter to only didUpdateProvider events (exclude didAddProvider initial loads)
-    final updateEvents = _currentBatch.where((e) => e.isUpdate).toList();
+    // Include both didAddProvider and didUpdateProvider events
+    // This allows us to detect dependencies during initial provider load as well
+    final allEvents = _currentBatch;
 
-    if (updateEvents.length < 2) return;
+    if (allEvents.length < 2) return;
 
-    // In a wave, providers updated later likely depend on those updated immediately before
-    for (var i = 1; i < updateEvents.length; i++) {
-      final current = updateEvents[i];
+    // In a wave, providers updated/loaded later likely depend on those updated/loaded immediately before
+    for (var i = 1; i < allEvents.length; i++) {
+      final current = allEvents[i];
 
       // Record only the immediate predecessor (more accurate)
-      final previous = updateEvents[i - 1];
+      final previous = allEvents[i - 1];
 
       // Skip self-references
       if (current.providerId == previous.providerId) continue;
@@ -77,8 +89,8 @@ class DependencyTracker {
 
   /// Determine confirmed dependencies from candidates
   void _confirmDependencies() {
-    const minOccurrences =
-        1; // Confirm after observing once (for faster detection)
+    // Reverted to 1 for faster responsiveness, as strict 2 caused "not working" feeling
+    const minOccurrences = 1;
 
     for (final entry in _candidateDependencies.entries) {
       final providerId = entry.key;
@@ -96,10 +108,10 @@ class DependencyTracker {
   }
 
   /// Get confirmed dependencies for the specified provider
+  ///
+  /// This returns the currently known dependencies based on observed update patterns.
+  /// It does not trigger a new analysis batch.
   List<String> getDependencies(String providerId) {
-    // Process the current wave first
-    _processBatch();
-
     return _confirmedDependencies[providerId]?.toList() ?? [];
   }
 
@@ -113,10 +125,17 @@ class DependencyTracker {
 
   /// Clear all dependency relationships
   void clear() {
+    _flushTimer?.cancel();
     _confirmedDependencies.clear();
     _candidateDependencies.clear();
     _currentBatch.clear();
     _lastUpdateTime = null;
+  }
+
+  /// Dispose of resources (cancel timers)
+  void dispose() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
   }
 }
 

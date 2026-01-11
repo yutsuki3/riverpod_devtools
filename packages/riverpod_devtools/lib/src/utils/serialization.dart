@@ -1,7 +1,11 @@
-import 'dart:convert';
-
 /// Serializes a value to a structured JSON format for DevTools
-Map<String, Object?> serializeValue(Object? value) {
+Map<String, Object?> serializeValue(
+  Object? value, {
+  int depth = 0,
+  Set<Object>? visited,
+}) {
+  const maxDepth = 10;
+
   if (value == null) {
     return {
       'type': 'null',
@@ -9,31 +13,57 @@ Map<String, Object?> serializeValue(Object? value) {
     };
   }
 
+  // Cycle detection
+  visited ??= {};
+  // Primitives and strings are safe, no need to track
+  if (value is! num && value is! bool && value is! String) {
+    if (visited.contains(value)) {
+      return {
+        'type': value.runtimeType.toString(),
+        'value': '<Cyclic Reference>',
+      };
+    }
+    visited.add(value);
+  }
+
+  // Depth limit
+  if (depth > maxDepth) {
+    return {
+      'type': value.runtimeType.toString(),
+      'value': '<Max Depth Exceeded>',
+    };
+  }
+
   // Capture toString() early
   final stringValue = value.toString();
 
-  // Try JSON serialization first
+  // Helper to continue serialization
+  Map<String, Object?> recurse(Object? val) {
+    return serializeValue(val, depth: depth + 1, visited: visited);
+  }
+
   try {
-    final encoded = jsonEncode(value);
-    return {
-      'type': value.runtimeType.toString(),
-      'value': jsonDecode(encoded), // Store as decoded JSON for structure
-    };
-  } catch (e) {
-    // Check if the object has a toJson() method
+    // Check if the object has a toJson() method first (most specific)
     try {
       final dynamic obj = value;
       // ignore: avoid_dynamic_calls
       final json = obj.toJson();
-      if (json is Map<String, dynamic>) {
-        final encoded = jsonEncode(json);
+      // If toJson returns a primitive or simple Map/List, use it directly
+      // Avoid re-encoding unless we need to ensure it's pure JSON safe,
+      // but typically we can trust toJson or handle the result recursively.
+      if (json is Map || json is List) {
+        // We wrap the result in our structure, but we might want to recurse
+        // if the toJson result contains non-primitive objects.
+        // For simplicity and safety, let's treat the result as a value to serialize
+        // but reset depth since it's a new representation?
+        // Actually, let's just use it.
         return {
           'type': value.runtimeType.toString(),
-          'value': jsonDecode(encoded),
+          'value': json,
         };
       }
     } catch (_) {
-      // toJson() doesn't exist or failed, continue with manual extraction
+      // toJson() doesn't exist or failed
     }
 
     // Try to extract useful information based on type
@@ -42,40 +72,21 @@ Map<String, Object?> serializeValue(Object? value) {
       'string': stringValue,
     };
 
-    // For collections, try to serialize elements
-    // We do this BEFORE _parseToString to avoid hijacking List.toString()
+    // For collections
     if (value is List) {
-      // Recursively serialize list elements
-      try {
-        result['items'] = value.map(serializeValue).toList();
-        return result;
-      } catch (_) {
-        // If we can't serialize items, just keep the string representation
-      }
+      result['items'] = value.map(recurse).toList();
+      return result;
     } else if (value is Map) {
-      // Recursively serialize map entries
-      try {
-        result['entries'] = value.entries.map((entry) {
-          return {
-            'key': entry.key.toString(),
-            'value': serializeValue(entry.value),
-          };
-        }).toList();
-        return result;
-      } catch (_) {
-        // If we can't serialize entries, keep the string representation
-        result['type'] = 'Map';
-        result['string'] = value.toString();
-        return result;
-      }
+      result['entries'] = value.entries.map((entry) {
+        return {
+          'key': entry.key.toString(),
+          'value': recurse(entry.value),
+        };
+      }).toList();
+      return result;
     } else if (value is Set) {
-      // Recursively serialize set elements
-      try {
-        result['items'] = value.map(serializeValue).toList();
-        return result;
-      } catch (_) {
-        // If we can't serialize items, just keep the string representation
-      }
+      result['items'] = value.map(recurse).toList();
+      return result;
     }
 
     // Try to parse the toString() representation for custom classes
@@ -97,6 +108,10 @@ Map<String, Object?> serializeValue(Object? value) {
     }
 
     return result;
+  } finally {
+    if (value is! num && value is! bool && value is! String) {
+      visited.remove(value);
+    }
   }
 }
 

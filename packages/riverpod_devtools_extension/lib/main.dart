@@ -12,8 +12,8 @@ class RiverpodDevToolsExtension extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DevToolsExtension(
-      child: const RiverpodInspector(),
+    return const DevToolsExtension(
+      child: RiverpodInspector(),
     );
   }
 }
