@@ -104,28 +104,35 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   /// Extracts the provider from either ProviderObserverContext (3.0) or ProviderBase (2.x)
   dynamic _getProvider(Object arg) {
-    // In Riverpod 3.0, arg is ProviderObserverContext which has a 'provider' property
-    // In Riverpod 2.x, arg is directly ProviderBase
+    // In Riverpod 3.0, arg is ProviderObserverContext which has a 'provider' property.
+    // In Riverpod 2.x, arg is directly ProviderBase.
+    // We probe for the 'provider' property.
     try {
-      // Try to access the 'provider' property (3.0 API)
       final dynamic context = arg;
       // ignore: avoid_dynamic_calls
       return context.provider;
+    } on NoSuchMethodError {
+      // If 'provider' property doesn't exist, it's likely the 2.x API where arg is the provider itself.
+      return arg;
     } catch (_) {
-      // If that fails, it's the 2.x API where arg is already the provider
+      // Fallback for other errors
       return arg;
     }
   }
 
   /// Gets the provider name safely
   String _getProviderName(dynamic provider) {
+    if (provider == null) return 'Unknown';
+
     try {
       // ignore: avoid_dynamic_calls
       final name = provider.name;
-      return name?.toString() ?? provider.runtimeType.toString();
+      if (name != null) return name.toString();
     } catch (_) {
-      return provider.runtimeType.toString();
+      // Field might not exist on some provider types
     }
+
+    return provider.runtimeType.toString();
   }
 
   void _postEvent(String kind, Map<String, Object?> data) {

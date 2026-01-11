@@ -77,8 +77,8 @@ class DependencyTracker {
 
   /// Determine confirmed dependencies from candidates
   void _confirmDependencies() {
-    const minOccurrences =
-        1; // Confirm after observing once (for faster detection)
+    // Increased threshold to reduce false positives
+    const minOccurrences = 2; // Require at least 2 occurrences
 
     for (final entry in _candidateDependencies.entries) {
       final providerId = entry.key;
@@ -96,10 +96,10 @@ class DependencyTracker {
   }
 
   /// Get confirmed dependencies for the specified provider
+  ///
+  /// This returns the currently known dependencies based on observed update patterns.
+  /// It does not trigger a new analysis batch.
   List<String> getDependencies(String providerId) {
-    // Process the current wave first
-    _processBatch();
-
     return _confirmedDependencies[providerId]?.toList() ?? [];
   }
 
