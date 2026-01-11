@@ -20,3 +20,6 @@ build/
 # Extension build output (generated)
 
 !packages/riverpod_devtools/extension/devtools/build/
+
+# Generated dependency metadata files
+**/riverpod_dependencies.json
