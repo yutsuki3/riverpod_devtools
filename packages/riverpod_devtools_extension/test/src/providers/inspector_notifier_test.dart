@@ -26,7 +26,7 @@ void main() {
     });
 
     test('selectProvider updates selection and active tab', () {
-      final providerId = 'provider1';
+      const providerId = 'provider1';
       notifier.selectProvider(providerId);
 
       expect(notifier.state.selectedProviderNames, contains(providerId));
@@ -34,8 +34,8 @@ void main() {
     });
 
     test('removeSelectedProvider updates selection and active tab', () {
-      final p1 = 'provider1';
-      final p2 = 'provider2';
+      const p1 = 'provider1';
+      const p2 = 'provider2';
 
       notifier.selectProvider(p1);
       notifier.selectProvider(p2);
@@ -59,14 +59,14 @@ void main() {
     });
 
     test('setActiveTab updates active tab', () {
-      final p1 = 'provider1';
+      const p1 = 'provider1';
       notifier.selectProvider(p1);
       notifier.setActiveTab(p1);
       expect(notifier.state.activeTabProviderName, p1);
     });
 
     test('toggleEventExpansion updates expanded events', () {
-      final eventId = 'event1';
+      const eventId = 'event1';
 
       notifier.toggleEventExpansion(eventId);
       expect(notifier.state.expandedEventIds, contains(eventId));
@@ -92,7 +92,7 @@ void main() {
       // it cancels timer, sets flashingProviderName, notifies.
       // So we can check immediate state.
 
-      final p1 = 'provider1';
+      const p1 = 'provider1';
       notifier.flashProvider(p1);
 
       expect(notifier.state.flashingProviderName, p1);

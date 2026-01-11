@@ -36,7 +36,6 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final state = widget.notifier.state;
 
     return ListenableBuilder(
       listenable: widget.notifier,
