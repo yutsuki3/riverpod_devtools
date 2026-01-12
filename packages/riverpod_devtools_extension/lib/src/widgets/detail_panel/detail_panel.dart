@@ -3,6 +3,7 @@ import '../../models/event_type.dart';
 import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
 import '../common/json_tree_view.dart';
+import '../common/copy_button.dart';
 
 class DetailPanel extends StatelessWidget {
   final InspectorNotifier notifier;
@@ -170,7 +171,7 @@ class DetailPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                SelectableText(
                   provider.name,
                   style: TextStyle(
                     fontSize: 16,
@@ -252,23 +253,69 @@ class DetailPanel extends StatelessWidget {
                               .withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 10,
-                              color: theme.colorScheme.onSurfaceVariant
-                                  .withValues(alpha: 0.6),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'Keep dependencies up-to-date by running the analyzer after code changes',
-                                style: TextStyle(
-                                  fontSize: 8,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  size: 10,
                                   color: theme.colorScheme.onSurfaceVariant
                                       .withValues(alpha: 0.6),
-                                  fontStyle: FontStyle.italic,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Keep dependencies up-to-date by running the analyzer after code changes:',
+                                    style: TextStyle(
+                                      fontSize: 8,
+                                      color: theme.colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.6),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: theme.colorScheme.outline
+                                        .withValues(alpha: 0.15),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SelectableText(
+                                      'dart run riverpod_devtools:analyze',
+                                      style: TextStyle(
+                                        fontSize: 8,
+                                        fontFamily: 'monospace',
+                                        color: theme.colorScheme.onSurfaceVariant
+                                            .withValues(alpha: 0.7),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    CopyButton(
+                                      textToCopy:
+                                          'dart run riverpod_devtools:analyze',
+                                      size: 10,
+                                      color: theme.colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.5),
+                                      tooltipMessage: 'Copy command',
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -443,7 +490,7 @@ class DetailPanel extends StatelessWidget {
       title: 'Last Update',
       child: Padding(
         padding: const EdgeInsets.only(left: 4, top: 2),
-        child: Text(
+        child: SelectableText(
           '$eventTypeString ($timeString)',
           style: TextStyle(
             fontSize: 10,
@@ -707,13 +754,24 @@ class DetailPanel extends StatelessWidget {
               color: theme.colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
-          child: Text(
-            code,
-            style: TextStyle(
-              fontSize: 8,
-              fontFamily: 'monospace',
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  code,
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontFamily: 'monospace',
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              CopyButton(
+                textToCopy: code,
+                size: 12,
+                tooltipMessage: 'Copy code',
+              ),
+            ],
           ),
         ),
       ],
