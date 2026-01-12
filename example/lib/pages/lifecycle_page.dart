@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final lifecycleCounterProvider =
     NotifierProvider.autoDispose<LifecycleCounter, int>(
       LifecycleCounter.new,
-      name: 'CounterProvider',
+      name: 'lifecycleCounterProvider',
     );
 
 class LifecycleCounter extends Notifier<int> {

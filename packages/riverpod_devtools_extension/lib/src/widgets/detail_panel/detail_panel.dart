@@ -3,6 +3,7 @@ import '../../models/event_type.dart';
 import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
 import '../common/json_tree_view.dart';
+import '../common/copy_button.dart';
 
 class DetailPanel extends StatelessWidget {
   final InspectorNotifier notifier;
@@ -170,7 +171,7 @@ class DetailPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                SelectableText(
                   provider.name,
                   style: TextStyle(
                     fontSize: 16,
@@ -236,45 +237,22 @@ class DetailPanel extends StatelessWidget {
           _buildDetailSection(
             theme: theme,
             title: 'Dependencies',
-            betaBadge: false, // No beta badge - static analysis is the only method
+            betaBadge:
+                false, // No beta badge - static analysis is the only method
             child: provider.dependenciesSource == DependencySource.static
                 ? Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Subtle reminder for static analysis users
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest
-                              .withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(4),
+                      // Collapsible update info dropdown
+                      if (provider.dependenciesGeneratedAt != null) ...[
+                        const SizedBox(height: 2),
+                        _UpdateInfoDropdown(
+                          theme: theme,
+                          generatedAt: provider.dependenciesGeneratedAt!,
+                          formatDateTime: _formatDateTime,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.info_outline,
-                              size: 10,
-                              color: theme.colorScheme.onSurfaceVariant
-                                  .withValues(alpha: 0.6),
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'Keep dependencies up-to-date by running the analyzer after code changes',
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  color: theme.colorScheme.onSurfaceVariant
-                                      .withValues(alpha: 0.6),
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                        const SizedBox(height: 8),
+                      ],
 
                       // Depends On subsection
                       _buildDependencySubsection(
@@ -301,92 +279,216 @@ class DetailPanel extends StatelessWidget {
                       ),
                     ],
                   )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Detailed setup instructions when CLI tool not used
-                      Container(
+                : provider.dependenciesSource == DependencySource.nameMismatch
+                    ? // Provider name mismatch warning (no Depends On/Used By sections)
+                    Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.orange.withValues(alpha: 0.1),
+                          color: Colors.amber.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                            color: Colors.orange.withValues(alpha: 0.3),
+                            color: Colors.amber.withValues(alpha: 0.3),
                           ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
+                            Row(
                               children: [
                                 Icon(
-                                  Icons.warning_amber_outlined,
-                                  size: 14,
-                                  color: Colors.orange,
+                                  Icons.warning_amber_rounded,
+                                  size: 12,
+                                  color: Colors.amber.shade700,
                                 ),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Static Analysis Required',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.orange,
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Provider Name Mismatch',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.amber.shade700,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'To view provider dependencies, run the analyzer and configure your app:',
+                              'The static analysis JSON file was loaded, but this provider name doesn\'t exactly match any entry in the file. Provider names must match exactly (case-sensitive).',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 8,
                                 color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.4,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            _buildSetupStep(
-                              theme: theme,
-                              number: '1',
-                              title: 'Run the analyzer to detect dependencies',
-                              description:
-                                  'Analyzes your code to find all ref.watch/read calls',
-                              code: 'dart run riverpod_devtools:analyze',
-                            ),
-                            const SizedBox(height: 6),
-                            _buildSetupStep(
-                              theme: theme,
-                              number: '2',
-                              title: 'Register the generated JSON as an asset',
-                              description:
-                                  'Makes the dependency data available to your app',
-                              code: 'flutter:\n  assets:\n    - lib/riverpod_dependencies.json',
-                            ),
-                            const SizedBox(height: 6),
-                            _buildSetupStep(
-                              theme: theme,
-                              number: '3',
-                              title: 'Load dependency data in main()',
-                              description:
-                                  'Add this code before runApp() to load the JSON file',
-                              code:
-                                  'void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n\n  // Load static dependencies\n  try {\n    final json = await rootBundle.loadString(\n      \'lib/riverpod_dependencies.json\',\n    );\n    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json);\n  } catch (e) {\n    print(\'⚠️  Static analysis not available\');\n  }\n\n  runApp(ProviderScope(\n    observers: [RiverpodDevToolsObserver()],\n    child: MyApp(),\n  ));\n}',
-                            ),
-                            const SizedBox(height: 8),
                             Text(
-                              'Restart your app after completing these steps.',
+                              'To fix this issue:',
                               style: TextStyle(
                                 fontSize: 8,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
-                                fontStyle: FontStyle.italic,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            // Step 1
+                            Text(
+                              '1. Update provider name in your code to match the JSON file',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.3,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            // Step 2
+                            Text(
+                              '2. Re-run the analyzer to update the JSON file',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: theme.colorScheme.onSurfaceVariant,
+                                height: 1.3,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 12),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: theme
+                                      .colorScheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(3),
+                                  border: Border.all(
+                                    color: theme.colorScheme.outline
+                                        .withValues(alpha: 0.15),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: SelectableText(
+                                        'dart run riverpod_devtools:analyze',
+                                        style: TextStyle(
+                                          fontSize: 8,
+                                          fontFamily: 'monospace',
+                                          color: theme
+                                              .colorScheme.onSurfaceVariant
+                                              .withValues(alpha: 0.7),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    CopyButton(
+                                      textToCopy:
+                                          'dart run riverpod_devtools:analyze',
+                                      size: 10,
+                                      color: theme.colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.5),
+                                      tooltipMessage: 'Copy command',
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
                         ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Detailed setup instructions when CLI tool not used
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.warning_amber_outlined,
+                                      size: 14,
+                                      color: Colors.orange,
+                                    ),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Static Analysis Required',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'To view provider dependencies, run the analyzer and configure your app:',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                _buildSetupStep(
+                                  theme: theme,
+                                  number: '1',
+                                  title:
+                                      'Run the analyzer to detect dependencies',
+                                  description:
+                                      'Analyzes your code to find all ref.watch/read calls',
+                                  code: 'dart run riverpod_devtools:analyze',
+                                ),
+                                const SizedBox(height: 6),
+                                _buildSetupStep(
+                                  theme: theme,
+                                  number: '2',
+                                  title:
+                                      'Register the generated JSON as an asset',
+                                  description:
+                                      'Makes the dependency data available to your app',
+                                  code:
+                                      'flutter:\n  assets:\n    - lib/riverpod_dependencies.json',
+                                ),
+                                const SizedBox(height: 6),
+                                _buildSetupStep(
+                                  theme: theme,
+                                  number: '3',
+                                  title: 'Load dependency data in main()',
+                                  description:
+                                      'Add this code before runApp() to load the JSON file',
+                                  code:
+                                      'void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n\n  // Load static dependencies\n  try {\n    final json = await rootBundle.loadString(\n      \'lib/riverpod_dependencies.json\',\n    );\n    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json);\n  } catch (e) {\n    print(\'⚠️  Static analysis not available\');\n  }\n\n  runApp(ProviderScope(\n    observers: [RiverpodDevToolsObserver()],\n    child: MyApp(),\n  ));\n}',
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Restart your app after completing these steps.',
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.7),
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
           ),
         ],
       ),
@@ -443,7 +545,7 @@ class DetailPanel extends StatelessWidget {
       title: 'Last Update',
       child: Padding(
         padding: const EdgeInsets.only(left: 4, top: 2),
-        child: Text(
+        child: SelectableText(
           '$eventTypeString ($timeString)',
           style: TextStyle(
             fontSize: 10,
@@ -707,16 +809,191 @@ class DetailPanel extends StatelessWidget {
               color: theme.colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
-          child: Text(
-            code,
-            style: TextStyle(
-              fontSize: 8,
-              fontFamily: 'monospace',
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  code,
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontFamily: 'monospace',
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              CopyButton(
+                textToCopy: code,
+                size: 12,
+                tooltipMessage: 'Copy code',
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  /// Format DateTime to a readable string: "yyyy/MM/dd HH:mm:ss"
+  String _formatDateTime(DateTime dateTime) {
+    final year = dateTime.year;
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final second = dateTime.second.toString().padLeft(2, '0');
+    return '$year/$month/$day $hour:$minute:$second';
+  }
+}
+
+/// Collapsible dropdown widget for dependency update information
+class _UpdateInfoDropdown extends StatefulWidget {
+  final ThemeData theme;
+  final DateTime generatedAt;
+  final String Function(DateTime) formatDateTime;
+
+  const _UpdateInfoDropdown({
+    required this.theme,
+    required this.generatedAt,
+    required this.formatDateTime,
+  });
+
+  @override
+  State<_UpdateInfoDropdown> createState() => _UpdateInfoDropdownState();
+}
+
+class _UpdateInfoDropdownState extends State<_UpdateInfoDropdown> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _isExpanded
+            ? widget.theme.colorScheme.surfaceContainerHighest
+                .withValues(alpha: 0.2)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(4),
+        border: _isExpanded
+            ? Border.all(
+                color: widget.theme.colorScheme.outline.withValues(alpha: 0.15),
+              )
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with timestamp and dropdown icon
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isExpanded = !_isExpanded;
+              });
+            },
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.access_time,
+                    size: 9,
+                    color: widget.theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Last updated: ${widget.formatDateTime(widget.generatedAt)}',
+                      style: TextStyle(
+                        fontSize: 7.5,
+                        color: widget.theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.5),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _isExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 12,
+                    color: widget.theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Expanded content
+          if (_isExpanded) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: widget.theme.colorScheme.outline
+                        .withValues(alpha: 0.1),
+                  ),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Keep dependency information up-to-date by running the analyzer in your terminal after code changes:',
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: widget.theme.colorScheme.onSurfaceVariant
+                          .withValues(alpha: 0.7),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: widget.theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(3),
+                      border: Border.all(
+                        color: widget.theme.colorScheme.outline
+                            .withValues(alpha: 0.15),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SelectableText(
+                            'dart run riverpod_devtools:analyze',
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontFamily: 'monospace',
+                              color: widget.theme.colorScheme.onSurfaceVariant
+                                  .withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        CopyButton(
+                          textToCopy: 'dart run riverpod_devtools:analyze',
+                          size: 10,
+                          color: widget.theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.5),
+                          tooltipMessage: 'Copy command',
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

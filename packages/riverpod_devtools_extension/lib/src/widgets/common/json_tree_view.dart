@@ -429,8 +429,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          RichText(
-            text: TextSpan(
+          SelectableText.rich(
+            TextSpan(
               style: TextStyle(
                 fontSize: 10,
                 fontFamily: 'monospace',
@@ -499,8 +499,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
     }
 
     // Normal list item display
-    return RichText(
-      text: TextSpan(
+    return SelectableText.rich(
+      TextSpan(
         style: TextStyle(
           fontSize: 10,
           fontFamily: 'monospace',
@@ -561,8 +561,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          RichText(
-            text: TextSpan(
+          SelectableText.rich(
+            TextSpan(
               style: TextStyle(
                 fontSize: 10,
                 fontFamily: 'monospace',
@@ -644,8 +644,8 @@ class _JsonTreeViewState extends State<JsonTreeView> {
     }
 
     // Normal value display
-    return RichText(
-      text: TextSpan(
+    return SelectableText.rich(
+      TextSpan(
         style: TextStyle(
           fontSize: 10,
           fontFamily: 'monospace',

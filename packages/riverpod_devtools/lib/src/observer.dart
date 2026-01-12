@@ -57,6 +57,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       'value': serializeValue(value),
       'dependencies': dependencies,
       'dependenciesSource': dependenciesSource,
+      'dependenciesLoadedAt': RiverpodDevToolsRegistry.instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
+      'dependenciesGeneratedAt': RiverpodDevToolsRegistry.instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -87,6 +89,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       'newValue': serializeValue(newValue),
       'dependencies': dependencies,
       'dependenciesSource': dependenciesSource,
+      'dependenciesLoadedAt': RiverpodDevToolsRegistry.instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
+      'dependenciesGeneratedAt': RiverpodDevToolsRegistry.instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
@@ -149,10 +153,16 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   }
 
   /// Track which source provided the data
-  /// Returns 'static' if metadata exists, 'none' otherwise
+  /// Returns:
+  /// - 'static' if metadata exists for this provider
+  /// - 'name_mismatch' if JSON was loaded but this provider name doesn't match
+  /// - 'none' if no JSON data was loaded at all
   String _getDependencySource(String providerName) {
     final hasStatic = RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
-    return hasStatic ? 'static' : 'none';
+    if (hasStatic) return 'static';
+
+    final hasAnyData = RiverpodDevToolsRegistry.instance.hasAnyData;
+    return hasAnyData ? 'name_mismatch' : 'none';
   }
 
   void _postEvent(String kind, Map<String, Object?> data) {

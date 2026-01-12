@@ -4,6 +4,9 @@ enum DependencySource {
   /// Dependencies detected from static analysis (CLI tool)
   static,
 
+  /// JSON was loaded but provider name doesn't match
+  nameMismatch,
+
   /// No dependency metadata available - CLI tool not used
   none,
 }
@@ -15,6 +18,8 @@ class ProviderInfo {
   final ProviderStatus status;
   final List<String> dependencies;
   final DependencySource dependenciesSource;
+  final DateTime? dependenciesLoadedAt;
+  final DateTime? dependenciesGeneratedAt;
 
   ProviderInfo({
     required this.id,
@@ -23,6 +28,8 @@ class ProviderInfo {
     required this.status,
     this.dependencies = const [],
     this.dependenciesSource = DependencySource.none,
+    this.dependenciesLoadedAt,
+    this.dependenciesGeneratedAt,
   });
 
   String? _valueStringCache;
