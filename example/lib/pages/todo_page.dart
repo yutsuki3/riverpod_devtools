@@ -24,7 +24,7 @@ class Todo {
 
 final todoListProvider = NotifierProvider.autoDispose<TodoList, List<Todo>>(
   TodoList.new,
-  name: 'TodoListProvider',
+  name: 'todoListProvider',
 );
 
 class TodoList extends Notifier<List<Todo>> {

@@ -241,6 +241,8 @@ class InspectorNotifier extends ChangeNotifier {
 
       List<String> dependencies = [];
       DependencySource dependenciesSource = DependencySource.none;
+      DateTime? dependenciesLoadedAt;
+      DateTime? dependenciesGeneratedAt;
       try {
         final rawDeps = data['dependencies'];
         if (rawDeps is List) {
@@ -251,9 +253,21 @@ class InspectorNotifier extends ChangeNotifier {
         if (rawSource is String) {
           if (rawSource == 'static') {
             dependenciesSource = DependencySource.static;
+          } else if (rawSource == 'name_mismatch') {
+            dependenciesSource = DependencySource.nameMismatch;
           } else if (rawSource == 'none') {
             dependenciesSource = DependencySource.none;
           }
+        }
+
+        final rawLoadedAt = data['dependenciesLoadedAt'];
+        if (rawLoadedAt is int) {
+          dependenciesLoadedAt = DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
+        }
+
+        final rawGeneratedAt = data['dependenciesGeneratedAt'];
+        if (rawGeneratedAt is int) {
+          dependenciesGeneratedAt = DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
         }
       } catch (e) {
         // Fallback or ignore if dependencies parsing fails
@@ -289,6 +303,8 @@ class InspectorNotifier extends ChangeNotifier {
           status: ProviderStatus.active,
           dependencies: dependencies,
           dependenciesSource: dependenciesSource,
+          dependenciesLoadedAt: dependenciesLoadedAt,
+          dependenciesGeneratedAt: dependenciesGeneratedAt,
         );
         newEvent = ProviderEvent(
           type: EventType.added,
@@ -305,6 +321,8 @@ class InspectorNotifier extends ChangeNotifier {
           status: ProviderStatus.active,
           dependencies: dependencies,
           dependenciesSource: dependenciesSource,
+          dependenciesLoadedAt: dependenciesLoadedAt,
+          dependenciesGeneratedAt: dependenciesGeneratedAt,
         );
         newEvent = ProviderEvent(
           type: EventType.updated,
@@ -323,6 +341,8 @@ class InspectorNotifier extends ChangeNotifier {
           status: ProviderStatus.disposed,
           dependencies: _state.providers[providerName]?.dependencies ?? [],
           dependenciesSource: _state.providers[providerName]?.dependenciesSource ?? DependencySource.none,
+          dependenciesLoadedAt: _state.providers[providerName]?.dependenciesLoadedAt,
+          dependenciesGeneratedAt: _state.providers[providerName]?.dependenciesGeneratedAt,
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,

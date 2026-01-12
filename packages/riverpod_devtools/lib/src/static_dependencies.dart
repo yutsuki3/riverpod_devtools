@@ -123,6 +123,12 @@ class RiverpodDevToolsRegistry {
   /// Internal storage of provider metadata
   final Map<String, StaticProviderMetadata> _metadata = {};
 
+  /// Timestamp when the JSON was last loaded (app startup time)
+  DateTime? _lastLoadedTimestamp;
+
+  /// Timestamp when the JSON file was generated (from JSON metadata)
+  DateTime? _jsonGeneratedTimestamp;
+
   /// Register metadata for a provider
   ///
   /// This is typically called by generated code, not by user code.
@@ -169,6 +175,22 @@ class RiverpodDevToolsRegistry {
   /// Get the total number of registered providers
   int get count => _metadata.length;
 
+  /// Check if any JSON data has been loaded
+  ///
+  /// This is useful to distinguish between "no JSON file" vs "JSON exists but provider name mismatch"
+  bool get hasAnyData => _metadata.isNotEmpty;
+
+  /// Get the timestamp when the JSON was last loaded (app startup time)
+  ///
+  /// Returns null if no JSON has been loaded yet.
+  DateTime? get lastLoadedTimestamp => _lastLoadedTimestamp;
+
+  /// Get the timestamp when the JSON file was generated
+  ///
+  /// Returns null if the JSON doesn't contain generation timestamp.
+  /// Does NOT fall back to lastLoadedTimestamp.
+  DateTime? get jsonGeneratedTimestamp => _jsonGeneratedTimestamp;
+
   /// Load metadata from JSON string
   ///
   /// This is used by the CLI tool approach. The JSON format should match
@@ -188,6 +210,17 @@ class RiverpodDevToolsRegistry {
   void loadFromJson(String jsonString) {
     try {
       final Map<String, dynamic> json = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      // Try to read the generatedAt timestamp from JSON if available
+      final generatedAtStr = json['generatedAt'] as String?;
+      if (generatedAtStr != null) {
+        try {
+          _jsonGeneratedTimestamp = DateTime.parse(generatedAtStr);
+        } catch (e) {
+          // If parsing fails, ignore and fall back to load timestamp
+        }
+      }
+
       final providers = json['providers'] as List<dynamic>?;
 
       if (providers != null) {
@@ -204,6 +237,9 @@ class RiverpodDevToolsRegistry {
           ));
         }
       }
+
+      // Record the timestamp when the JSON was successfully loaded
+      _lastLoadedTimestamp = DateTime.now();
     } catch (e) {
       // Silently fail to not break app startup
       // In production, users can check the log for issues
