@@ -201,17 +201,24 @@ class _ProviderVisitor extends RecursiveAstVisitor<void> {
 
   String? _getProviderType(Expression expression) {
     final type = expression.toString();
-    // Extract provider type from expression - check for Provider anywhere
-    if (type.contains('StateProvider')) return 'StateProvider';
-    if (type.contains('FutureProvider')) return 'FutureProvider';
-    if (type.contains('StreamProvider')) return 'StreamProvider';
-    if (type.contains('NotifierProvider') && !type.contains('StateNotifierProvider')) {
-      return 'NotifierProvider';
+    
+    // Map of provider type patterns (order matters for specificity)
+    const providerPatterns = [
+      'StateNotifierProvider',
+      'AsyncNotifierProvider',
+      'ChangeNotifierProvider',
+      'StateProvider',
+      'FutureProvider',
+      'StreamProvider',
+      'NotifierProvider',
+      'Provider',
+    ];
+    
+    for (final pattern in providerPatterns) {
+      if (type.contains(pattern)) {
+        return pattern;
+      }
     }
-    if (type.contains('StateNotifierProvider')) return 'StateNotifierProvider';
-    if (type.contains('AsyncNotifierProvider')) return 'AsyncNotifierProvider';
-    if (type.contains('ChangeNotifierProvider')) return 'ChangeNotifierProvider';
-    if (type.contains('Provider')) return 'Provider';
     return null;
   }
 }

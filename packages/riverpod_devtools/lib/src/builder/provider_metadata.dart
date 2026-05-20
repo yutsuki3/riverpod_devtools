@@ -1,4 +1,5 @@
 import '../static_dependencies.dart';
+import '../utils/list_utils.dart';
 
 /// Source location information for code elements
 class SourceLocation {
@@ -166,7 +167,7 @@ class ProviderMetadata {
           runtimeType == other.runtimeType &&
           name == other.name &&
           providerType == other.providerType &&
-          _listEquals(dependencies, other.dependencies) &&
+          ListUtils.equals(dependencies, other.dependencies) &&
           location == other.location;
 
   @override
@@ -175,12 +176,4 @@ class ProviderMetadata {
       providerType.hashCode ^
       dependencies.hashCode ^
       location.hashCode;
-
-  bool _listEquals<T>(List<T> a, List<T> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
 }
