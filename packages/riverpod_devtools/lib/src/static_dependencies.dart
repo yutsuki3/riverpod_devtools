@@ -1,5 +1,7 @@
 import 'dart:convert' show jsonDecode;
 
+import 'utils/list_utils.dart';
+
 /// Dependency type detected from static analysis
 enum DependencyType {
   /// ref.watch() - Creates a reactive dependency
@@ -89,21 +91,13 @@ class StaticProviderMetadata {
       other is StaticProviderMetadata &&
           runtimeType == other.runtimeType &&
           name == other.name &&
-          _listEquals(dependencies, other.dependencies);
+          ListUtils.equals(dependencies, other.dependencies);
 
   @override
   int get hashCode => name.hashCode ^ dependencies.hashCode;
 
   @override
   String toString() => 'StaticProviderMetadata($name, ${dependencies.length} dependencies)';
-
-  bool _listEquals<T>(List<T> a, List<T> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
 }
 
 /// Global registry for statically-analyzed provider dependencies

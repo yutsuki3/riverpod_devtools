@@ -1,3 +1,26 @@
+## 0.5.0
+
+- **Static Dependency Analysis (CLI)**:
+    - Added `dart run riverpod_devtools:analyze` to generate `lib/riverpod_dependencies.json`.
+    - Added AST-based provider dependency extraction (watch/read/listen) with source locations.
+    - Added `RiverpodDevToolsRegistry` for loading static metadata in your app.
+    - **Breaking**: Removed runtime-based dependency detection; dependencies now come from static analysis only.
+- **DevTools UI**:
+    - Updated Provider Details for the static-analysis workflow (setup instructions, provider name mismatch handling).
+    - Redesigned caution messages as collapsible dropdowns.
+    - Added selectable text and copy buttons in the extension UI.
+    - Refactored the extension codebase into modular files for maintainability.
+- **Stability**:
+    - Improved serialization error handling and recursion safety.
+    - Fixed provider type detection order in the CLI analyzer.
+    - Internal refactor: `ListUtils`, deduplicated observer event payload building.
+- **Documentation & pub.dev**:
+    - Added TROUBLESHOOTING guide and updated README for CLI setup.
+    - Added pubspec metadata (platforms, topics, homepage, screenshots).
+- **Example**:
+    - Updated example apps for CLI-based static analysis.
+    - Removed debug print statements on JSON load failure.
+
 ## 0.4.4
 
 - **Improved Data Serialization**:

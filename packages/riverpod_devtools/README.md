@@ -28,47 +28,67 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^0.4.4
+      riverpod_devtools: ^0.5.0
       flutter_riverpod: '>=2.3.0 <4.0.0'
     ```
 
     **Note:** This package supports both Riverpod 2.x and 3.x.
 
-2.  Add `RiverpodDevToolsObserver` to your `ProviderScope`:
+2.  Add `RiverpodDevToolsObserver` to your `ProviderScope` and load static dependencies:
 
     While the DevTools extension is automatically detected, you **must** add the observer to enable communication between your app and the DevTools.
 
     ```dart
+    import 'package:flutter/material.dart';
+    import 'package:flutter/services.dart' show rootBundle;
     import 'package:flutter_riverpod/flutter_riverpod.dart';
     import 'package:riverpod_devtools/riverpod_devtools.dart';
 
-    void main() {
+    void main() async {
+      WidgetsFlutterBinding.ensureInitialized();
+
+      // Load static dependencies (required for dependency graph)
+      try {
+        final jsonString = await rootBundle.loadString(
+          'lib/riverpod_dependencies.json',
+        );
+        RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
+      } catch (_) {
+        // DevTools will show setup instructions if JSON is not available
+      }
+
       runApp(
         ProviderScope(
-          observers: [
-            RiverpodDevToolsObserver(),
-          ],
-          child: MyApp(),
+          observers: [RiverpodDevToolsObserver()],
+          child: const MyApp(),
         ),
       );
     }
     ```
 
+3.  Declare the generated JSON in `pubspec.yaml`:
+
+    ```yaml
+    flutter:
+      assets:
+        - lib/riverpod_dependencies.json
+    ```
+
 ## Usage
 
 1.  Run your Flutter app.
-2.  Open semantic DevTools (open the debugger).
-3.  Look for the "riverpod_devtools" tab in DevTools.
+2.  Open Flutter DevTools (use the link printed in the terminal).
+3.  Look for the **"riverpod_devtools"** tab in DevTools.
 4.  Interact with your app and watch the events and state updates in the DevTools tab.
 
 ## Static Dependency Analysis (Required for Dependency Graph)
 
 **Important**: To enable the dependency graph feature, you must run the CLI tool to analyze your providers. This provides:
 
-- **100% accurate dependency detection** from source code
+- **Accurate dependency detection** from source code (AST-based)
 - **Dependency type identification** (watch/read/listen)
 - **Source code location tracking** (file, line, column)
-- **No false positives** from heuristic-based detection
+- **No heuristic false positives** from timing-based detection
 
 ### Setup
 
@@ -84,42 +104,39 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
    This will create a `lib/riverpod_dependencies.json` file with all your provider dependencies.
 
-2. Load the generated JSON in your `main()`:
+2. Load the generated JSON in your `main()` (see Getting started above).
 
-   ```dart
-   import 'package:flutter/services.dart' show rootBundle;
-   import 'package:riverpod_devtools/riverpod_devtools.dart';
+3. Add the JSON file to your app assets in `pubspec.yaml`.
 
-   void main() async {
-     WidgetsFlutterBinding.ensureInitialized();
+### DevTools UI states
 
-     // Load static dependencies
-     final jsonString = await rootBundle.loadString(
-       'lib/riverpod_dependencies.json',
-     );
-     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
+The Provider Details panel shows one of the following for dependencies:
 
-     runApp(
-       ProviderScope(
-         observers: [RiverpodDevToolsObserver()],
-         child: MyApp(),
-       ),
-     );
-   }
-   ```
+- **Depends On / Used By**: Static analysis loaded and the provider name matches the JSON entry.
+- **Provider Name Mismatch**: JSON is loaded, but the runtime provider name does not exactly match any entry (case-sensitive).
+- **Static Analysis Required**: JSON was not loaded — run the analyzer and configure `main()` as shown above.
 
 ### Benefits
 
 - **Static analysis**: Dependencies detected from AST at build time
-- **Hybrid approach**: Falls back to runtime detection for dynamic providers
-- **Backward compatible**: Works without running the analyzer (runtime detection only)
-- **Visual indicators**: DevTools UI shows whether dependencies are from static or runtime analysis
-- **Minimal code changes**: Only need to modify `main.dart` - no `part` directives needed
+- **Minimal code changes**: Only need to modify `main.dart` and `pubspec.yaml` assets — no `part` directives needed
+- **Clear setup guidance**: DevTools UI shows collapsible instructions when setup is incomplete
+
+## Migration from 0.4.x
+
+Version 0.5.0 removes runtime-based dependency detection. If you relied on dependencies appearing without running the analyzer:
+
+1. Run `dart run riverpod_devtools:analyze`
+2. Load `lib/riverpod_dependencies.json` via `RiverpodDevToolsRegistry.instance.loadFromJson()`
+3. Add the JSON file to your `pubspec.yaml` assets
+
+Event log and state inspection continue to work with only `RiverpodDevToolsObserver()` — the dependency graph requires static analysis.
 
 ## Additional information
 
 -   **Repository**: [https://github.com/yutsuki3/riverpod_devtools](https://github.com/yutsuki3/riverpod_devtools)
 -   **Issues**: [https://github.com/yutsuki3/riverpod_devtools/issues](https://github.com/yutsuki3/riverpod_devtools/issues)
+-   **Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 Contributions are welcome!
 

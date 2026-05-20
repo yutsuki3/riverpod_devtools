@@ -16,13 +16,8 @@ void main() async {
       'lib/riverpod_dependencies.json',
     );
     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
-    // ignore: avoid_print
-    print('✅ Loaded ${RiverpodDevToolsRegistry.instance.count} providers with static analysis');
   } catch (e) {
-    // ignore: avoid_print
-    print('⚠️  Static analysis not available: $e');
-    // ignore: avoid_print
-    print('   Run: dart run riverpod_devtools:analyze');
+    // Silently fail - DevTools extension will show setup instructions
   }
 
   runApp(

@@ -20,8 +20,8 @@ import 'utils/serialization.dart';
 ///   try {
 ///     final jsonString = await rootBundle.loadString('lib/riverpod_dependencies.json');
 ///     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
-///   } catch (e) {
-///     print('⚠️  Static analysis not available: $e');
+///   } catch (_) {
+///     // DevTools will show setup instructions if JSON is not available
 ///   }
 ///
 ///   runApp(
@@ -39,27 +39,12 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     Object? value, [
     covariant Object? arg3, // Container in Riverpod 2.x, unused in 3.0
   ]) {
-    // Support both Riverpod 2.x and 3.0:
-    // - Riverpod 3.0: didAddProvider(ProviderObserverContext context, Object? value)
-    // - Riverpod 2.x: didAddProvider(ProviderBase provider, Object? value, ProviderContainer container)
-    // The optional arg3 allows accepting both 2 and 3 parameters
     final provider = _getProvider(context);
-    final providerId = identityHashCode(provider).toString();
     final providerName = _getProviderName(provider);
 
-    // Get dependencies from static analysis
-    final dependencies = _getDependencies(providerName);
-    final dependenciesSource = _getDependencySource(providerName);
-
     _postEvent('provider_added', {
-      'providerId': providerId,
-      'provider': providerName,
+      ..._buildProviderEventData(provider, providerName),
       'value': serializeValue(value),
-      'dependencies': dependencies,
-      'dependenciesSource': dependenciesSource,
-      'dependenciesLoadedAt': RiverpodDevToolsRegistry.instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
-      'dependenciesGeneratedAt': RiverpodDevToolsRegistry.instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
@@ -70,28 +55,13 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     Object? newValue, [
     covariant Object? arg4, // Container in Riverpod 2.x, unused in 3.0
   ]) {
-    // Support both Riverpod 2.x and 3.0:
-    // - Riverpod 3.0: didUpdateProvider(ProviderObserverContext context, Object? previousValue, Object? newValue)
-    // - Riverpod 2.x: didUpdateProvider(ProviderBase provider, Object? previousValue, Object? newValue, ProviderContainer container)
-    // The optional arg4 allows accepting both 3 and 4 parameters
     final provider = _getProvider(context);
-    final providerId = identityHashCode(provider).toString();
     final providerName = _getProviderName(provider);
 
-    // Get dependencies from static analysis
-    final dependencies = _getDependencies(providerName);
-    final dependenciesSource = _getDependencySource(providerName);
-
     _postEvent('provider_updated', {
-      'providerId': providerId,
-      'provider': providerName,
+      ..._buildProviderEventData(provider, providerName),
       'previousValue': serializeValue(previousValue),
       'newValue': serializeValue(newValue),
-      'dependencies': dependencies,
-      'dependenciesSource': dependenciesSource,
-      'dependenciesLoadedAt': RiverpodDevToolsRegistry.instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
-      'dependenciesGeneratedAt': RiverpodDevToolsRegistry.instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
     });
   }
 
@@ -100,17 +70,11 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     covariant Object context, [
     covariant Object? arg2, // Container in Riverpod 2.x, unused in 3.0
   ]) {
-    // Support both Riverpod 2.x and 3.0:
-    // - Riverpod 3.0: didDisposeProvider(ProviderObserverContext context)
-    // - Riverpod 2.x: didDisposeProvider(ProviderBase provider, ProviderContainer container)
-    // The optional arg2 allows accepting both 1 and 2 parameters
     final provider = _getProvider(context);
-    final providerId = identityHashCode(provider).toString();
+    final providerName = _getProviderName(provider);
 
     _postEvent('provider_disposed', {
-      'providerId': providerId,
-      'provider': _getProviderName(provider),
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
+      ..._buildProviderEventData(provider, providerName),
     });
   }
 
@@ -158,11 +122,27 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   /// - 'name_mismatch' if JSON was loaded but this provider name doesn't match
   /// - 'none' if no JSON data was loaded at all
   String _getDependencySource(String providerName) {
-    final hasStatic = RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
+    final hasStatic =
+        RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
     if (hasStatic) return 'static';
 
     final hasAnyData = RiverpodDevToolsRegistry.instance.hasAnyData;
     return hasAnyData ? 'name_mismatch' : 'none';
+  }
+
+  Map<String, Object?> _buildProviderEventData(
+      dynamic provider, String providerName) {
+    return {
+      'providerId': identityHashCode(provider).toString(),
+      'provider': providerName,
+      'dependencies': _getDependencies(providerName),
+      'dependenciesSource': _getDependencySource(providerName),
+      'dependenciesLoadedAt': RiverpodDevToolsRegistry
+          .instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
+      'dependenciesGeneratedAt': RiverpodDevToolsRegistry
+          .instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
   }
 
   void _postEvent(String kind, Map<String, Object?> data) {
