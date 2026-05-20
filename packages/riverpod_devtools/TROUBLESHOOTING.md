@@ -62,41 +62,23 @@
    - Notifier classes: `class MyNotifier extends Notifier { ... }`
    - All standard provider types (Provider, StateProvider, FutureProvider, etc.)
 
-### Static dependencies not used (always shows "Runtime Detection")
+### Dependencies not showing in DevTools ("Static Analysis Required")
 
-**Symptoms**: `dependenciesSource` is always `'runtime'` in DevTools UI.
+**Symptoms**: Provider Details shows **Static Analysis Required** instead of Depends On / Used By.
 
 **Possible Causes**:
-- JSON file not loaded
-- JSON file not included in app bundle
-- Provider name mismatch between JSON and runtime
+- Analyzer has not been run
+- JSON file not loaded in `main()`
+- JSON file not declared in `pubspec.yaml` assets
 
 **Solutions**:
 
-1. Verify JSON loading in `main()`:
-   ```dart
-   void main() async {
-     WidgetsFlutterBinding.ensureInitialized();
-
-     // This MUST be called before runApp()
-     final jsonString = await rootBundle.loadString(
-       'lib/riverpod_dependencies.json',
-     );
-     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
-
-     runApp(...);
-   }
+1. Run the analyzer:
+   ```bash
+   dart run riverpod_devtools:analyze
    ```
 
-2. Ensure JSON file is in your app bundle (check `lib/riverpod_dependencies.json` exists)
-
-3. Check provider name consistency:
-   ```dart
-   // Provider variable name = Registry key = provider.name
-   final myProvider = Provider(...);  // Name: "myProvider"
-   ```
-
-4. Debug registry contents:
+2. Verify JSON loading in `main()` (must run before `runApp()`):
    ```dart
    void main() async {
      WidgetsFlutterBinding.ensureInitialized();
@@ -106,11 +88,42 @@
      );
      RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
 
-     // Debug: Print registered providers
-     print('Registered providers: ${RiverpodDevToolsRegistry.instance.allProviderNames}');
-
      runApp(...);
    }
+   ```
+
+3. Add the JSON file to `pubspec.yaml`:
+   ```yaml
+   flutter:
+     assets:
+       - lib/riverpod_dependencies.json
+   ```
+
+4. Hot **restart** the app (not hot reload) after regenerating JSON
+
+### Provider Name Mismatch warning
+
+**Symptoms**: Provider Details shows **Provider Name Mismatch** instead of dependency lists.
+
+**Possible Causes**:
+- JSON was loaded, but the runtime provider name does not exactly match any entry in the JSON file (case-sensitive)
+- Analyzer was run against a different codebase than the running app
+
+**Solutions**:
+
+1. Check the provider variable name in your code matches the JSON entry:
+   ```dart
+   final myProvider = Provider(...);  // Name must be "myProvider"
+   ```
+
+2. Re-run the analyzer after renaming providers:
+   ```bash
+   dart run riverpod_devtools:analyze
+   ```
+
+3. Debug registered provider names:
+   ```dart
+   print(RiverpodDevToolsRegistry.instance.allProviderNames);
    ```
 
 ## General DevTools Issues
@@ -151,18 +164,6 @@
 3. Check console for errors
 4. Ensure app is in debug mode (not release)
 
-### Dependencies show false positives (Runtime Detection)
-
-**Symptoms**: Runtime detection shows incorrect dependencies.
-
-**Explanation**: Runtime detection uses timing-based heuristics (100ms window) which can produce false positives.
-
-**Solutions**:
-
-1. Enable static analysis (see README setup)
-2. Accept runtime detection limitations for dynamic providers
-3. Use static analysis as primary source, runtime as fallback
-
 ## JSON File Issues
 
 ### JSON file not found at runtime
@@ -181,7 +182,12 @@
    ls lib/riverpod_dependencies.json
    ```
 
-3. The JSON file is automatically included in your app bundle (any file in `lib/` is included)
+3. Declare the file in `pubspec.yaml` assets:
+   ```yaml
+   flutter:
+     assets:
+       - lib/riverpod_dependencies.json
+   ```
 
 ### JSON file outdated
 
@@ -239,11 +245,10 @@ If you encounter issues not covered here:
    - Riverpod version
    - `riverpod_devtools` version
    - Minimal reproduction code
-   - Generated `.g.dart` file (if relevant)
+   - Generated `lib/riverpod_dependencies.json` (if relevant)
    - Console error messages
 
 ## Additional Resources
 
 - [Riverpod Documentation](https://riverpod.dev)
-- [build_runner Documentation](https://pub.dev/packages/build_runner)
 - [DevTools Documentation](https://flutter.dev/devtools)

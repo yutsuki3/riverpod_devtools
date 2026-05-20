@@ -95,33 +95,21 @@ flutter run
 1. Click the DevTools link in the console
 2. Navigate to the "riverpod_devtools" tab
 3. Select a provider to view its details
-4. Check the **Dependencies** section - it should show:
-   - **Static Analysis** (green) for all analyzed providers
-   - **Warning** (orange) if CLI tool hasn't been run
+4. Check the **Dependencies** section in Provider Details:
+   - **Depends On / Used By** when static analysis is loaded and names match
+   - **Provider Name Mismatch** when JSON is loaded but names do not match
+   - **Static Analysis Required** when the CLI tool has not been run or JSON is not loaded
 
 ## What to Look For in DevTools UI
 
-**For providers with static analysis:**
-```
-Dependencies
-┌────────────────────────────────────────┐
-│ ✅ Static Analysis: Dependencies      │
-│    detected from source code          │
-└────────────────────────────────────────┘
-Depends On:
-  [counterProvider] [nameProvider]
-```
+**When static analysis is configured correctly:**
+- **Depends On**: Providers this provider watches/reads/listens to
+- **Used By**: Providers that depend on this provider
+- Optional collapsible panel showing when the JSON was last generated
 
-**If CLI tool hasn't been run:**
-```
-Dependencies
-┌────────────────────────────────────────┐
-│ ⚠️  No dependency data available.     │
-│    Run: dart run riverpod_devtools:analyze
-└────────────────────────────────────────┘
-Depends On:
-  Run CLI tool to analyze dependencies
-```
+**When setup is incomplete:**
+- Expand **Static Analysis Required** for step-by-step setup instructions
+- Run `dart run riverpod_devtools:analyze` and configure `main()` as shown in the panel
 
 ## Testing the Dependencies
 
@@ -135,8 +123,7 @@ Depends On:
 
 3. **In DevTools**, observe:
    - Event log showing provider updates
-   - Dependency graph showing relationships
-   - Green indicators for static analysis
+   - Depends On / Used By lists for providers with matching static metadata
 
 ## Troubleshooting
 
@@ -172,4 +159,3 @@ dart run riverpod_devtools:analyze
 - [DevTools Documentation](https://flutter.dev/devtools)
 - [Project README](../README.md)
 - [Troubleshooting Guide](../TROUBLESHOOTING.md)
-- [CLI Tool Migration Guide](../../../CLI_TOOL_MIGRATION.md)

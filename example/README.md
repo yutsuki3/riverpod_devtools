@@ -52,7 +52,7 @@ flutter run
 3. Navigate to the **"riverpod_devtools"** tab
 4. Select any provider to view:
    - **Current state** with JSON tree view
-   - **Dependencies** detected via static analysis (with green indicator)
+   - **Dependencies** (Depends On / Used By) when static analysis is configured
    - **Event history** (add, update, dispose)
 5. Interact with the app to see provider events in real-time
 
@@ -64,9 +64,9 @@ The **Dependencies Demo** page demonstrates:
 - Transitive dependencies (`tripleCounterProvider` → `doubleCounterProvider` → `counterProvider`)
 
 In DevTools, you'll see:
-- ✅ **Green indicator**: Dependencies detected from static analysis
-- **Dependency list**: All providers this provider depends on
-- **Source locations**: File path and line number for each dependency
+- **Depends On / Used By**: When static analysis is loaded and provider names match
+- **Provider Name Mismatch**: When JSON is loaded but the provider name does not match
+- **Static Analysis Required**: When the analyzer has not been run or JSON is not loaded
 
 ## Project Structure
 
@@ -88,12 +88,13 @@ lib/
 
 ### Dependencies not showing in DevTools
 
-If you see an orange warning "No dependency data available":
+If you see **Static Analysis Required** in Provider Details:
 
 1. Ensure you ran the analyzer: `dart run riverpod_devtools:analyze`
 2. Check that `lib/riverpod_dependencies.json` exists
 3. Verify the JSON file is listed in `pubspec.yaml` assets
-4. Restart the app to reload the JSON
+4. Verify JSON loading is called in `main()` before `runApp()`
+5. Hot restart the app to reload the JSON
 
 ### Analysis fails
 

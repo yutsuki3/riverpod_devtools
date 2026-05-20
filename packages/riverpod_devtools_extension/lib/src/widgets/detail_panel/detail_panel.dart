@@ -565,8 +565,8 @@ class DetailPanel extends StatelessWidget {
               style: TextStyle(
                 fontSize: 8,
                 fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurfaceVariant
-                    .withValues(alpha: 0.7),
+                color:
+                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
               ),
             ),
             Expanded(
@@ -729,8 +729,8 @@ class _NameMismatchDropdownState extends State<_NameMismatchDropdown> {
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: widget.theme.colorScheme.outline
-                        .withValues(alpha: 0.1),
+                    color:
+                        widget.theme.colorScheme.outline.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -918,8 +918,8 @@ class _StaticAnalysisRequiredDropdownState
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: widget.theme.colorScheme.outline
-                        .withValues(alpha: 0.1),
+                    color:
+                        widget.theme.colorScheme.outline.withValues(alpha: 0.1),
                   ),
                 ),
               ),
@@ -980,7 +980,8 @@ class _StaticAnalysisRequiredDropdownState
                                   style: TextStyle(
                                     fontSize: 8,
                                     fontWeight: FontWeight.w600,
-                                    color: widget.theme.colorScheme.onSurfaceVariant
+                                    color: widget
+                                        .theme.colorScheme.onSurfaceVariant
                                         .withValues(alpha: 0.7),
                                   ),
                                 ),
@@ -989,7 +990,8 @@ class _StaticAnalysisRequiredDropdownState
                                   'Add this code before runApp() to load the JSON file',
                                   style: TextStyle(
                                     fontSize: 8,
-                                    color: widget.theme.colorScheme.onSurfaceVariant
+                                    color: widget
+                                        .theme.colorScheme.onSurfaceVariant
                                         .withValues(alpha: 0.7),
                                     fontStyle: FontStyle.italic,
                                   ),
@@ -1005,7 +1007,8 @@ class _StaticAnalysisRequiredDropdownState
                         padding: const EdgeInsets.all(6),
                         margin: const EdgeInsets.only(left: 14),
                         decoration: BoxDecoration(
-                          color: widget.theme.colorScheme.surfaceContainerHighest
+                          color: widget
+                              .theme.colorScheme.surfaceContainerHighest
                               .withValues(alpha: 0.5),
                           borderRadius: BorderRadius.circular(3),
                           border: Border.all(
@@ -1021,63 +1024,80 @@ class _StaticAnalysisRequiredDropdownState
                                   style: TextStyle(
                                     fontSize: 8,
                                     fontFamily: 'monospace',
-                                    color: widget.theme.colorScheme.onSurfaceVariant
+                                    color: widget
+                                        .theme.colorScheme.onSurfaceVariant
                                         .withValues(alpha: 0.7),
                                     height: 1.4,
                                   ),
                                   children: [
-                                    const TextSpan(text: 'void main() async {\n'),
-                                    const TextSpan(text: '  WidgetsFlutterBinding.ensureInitialized();\n\n'),
-                                    const TextSpan(text: '  // Load static dependencies\n'),
+                                    const TextSpan(
+                                        text: 'void main() async {\n'),
+                                    const TextSpan(
+                                        text:
+                                            '  WidgetsFlutterBinding.ensureInitialized();\n\n'),
+                                    const TextSpan(
+                                        text:
+                                            '  // Load static dependencies\n'),
                                     const TextSpan(text: '  try {\n'),
                                     const TextSpan(text: '    final json = '),
                                     TextSpan(
                                       text: 'await rootBundle.loadString',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: widget.theme.colorScheme.onSurfaceVariant,
+                                        color: widget
+                                            .theme.colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                     const TextSpan(text: '(\n'),
                                     TextSpan(
-                                      text: '      \'lib/riverpod_dependencies.json\'',
+                                      text:
+                                          '      \'lib/riverpod_dependencies.json\'',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: widget.theme.colorScheme.onSurfaceVariant,
+                                        color: widget
+                                            .theme.colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                     const TextSpan(text: ',\n'),
                                     const TextSpan(text: '    );\n'),
                                     TextSpan(
-                                      text: '    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json)',
+                                      text:
+                                          '    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json)',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: widget.theme.colorScheme.onSurfaceVariant,
+                                        color: widget
+                                            .theme.colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                     const TextSpan(text: ';\n'),
-                                    const TextSpan(text: '  } catch (e) {\n'),
-                                    const TextSpan(text: '    print(\'⚠️  Static analysis not available\');\n'),
+                                    const TextSpan(text: '  } catch (_) {\n'),
+                                    const TextSpan(
+                                        text:
+                                            '    // DevTools shows setup instructions\n'),
                                     const TextSpan(text: '  }\n\n'),
-                                    const TextSpan(text: '  runApp(ProviderScope(\n'),
+                                    const TextSpan(
+                                        text: '  runApp(ProviderScope(\n'),
                                     TextSpan(
-                                      text: '    observers: [RiverpodDevToolsObserver()]',
+                                      text:
+                                          '    observers: [RiverpodDevToolsObserver()]',
                                       style: TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        color: widget.theme.colorScheme.onSurfaceVariant,
+                                        color: widget
+                                            .theme.colorScheme.onSurfaceVariant,
                                       ),
                                     ),
                                     const TextSpan(text: ',\n'),
-                                    const TextSpan(text: '    child: MyApp(),\n'),
+                                    const TextSpan(
+                                        text: '    child: MyApp(),\n'),
                                     const TextSpan(text: '  ));\n'),
                                     const TextSpan(text: '}'),
                                   ],
                                 ),
                               ),
                             ),
-                            CopyButton(
+                            const CopyButton(
                               textToCopy:
-                                  'void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n\n  // Load static dependencies\n  try {\n    final json = await rootBundle.loadString(\n      \'lib/riverpod_dependencies.json\',\n    );\n    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json);\n  } catch (e) {\n    print(\'⚠️  Static analysis not available\');\n  }\n\n  runApp(ProviderScope(\n    observers: [RiverpodDevToolsObserver()],\n    child: MyApp(),\n  ));\n}',
+                                  'void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n\n  // Load static dependencies\n  try {\n    final json = await rootBundle.loadString(\n      \'lib/riverpod_dependencies.json\',\n    );\n    RiverpodDevToolsRegistry.instance\n        .loadFromJson(json);\n  } catch (_) {\n    // DevTools shows setup instructions\n  }\n\n  runApp(ProviderScope(\n    observers: [RiverpodDevToolsObserver()],\n    child: MyApp(),\n  ));\n}',
                               size: 12,
                               tooltipMessage: 'Copy code',
                             ),
@@ -1245,8 +1265,8 @@ class _UpdateInfoDropdownState extends State<_UpdateInfoDropdown> {
               decoration: BoxDecoration(
                 border: Border(
                   top: BorderSide(
-                    color: widget.theme.colorScheme.outline
-                        .withValues(alpha: 0.1),
+                    color:
+                        widget.theme.colorScheme.outline.withValues(alpha: 0.1),
                   ),
                 ),
               ),

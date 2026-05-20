@@ -40,9 +40,12 @@ The extension UI provides:
 
 ## Architecture
 
-- **main.dart**: Main extension app with all UI components
+- **lib/main.dart**: Extension entry point
+- **lib/src/**: Modular UI (`inspector_notifier`, `detail_panel`, `provider_list`, etc.)
 - Communication with the app happens via DevTools extension API and VM service events
 - Events are posted from the app using `RiverpodDevToolsObserver` in the main package
+
+After changing extension source, rebuild and copy output to `../riverpod_devtools/extension/devtools/build/` before publishing.
 
 ## Related Packages
 

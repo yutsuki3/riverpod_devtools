@@ -20,8 +20,8 @@ import 'utils/serialization.dart';
 ///   try {
 ///     final jsonString = await rootBundle.loadString('lib/riverpod_dependencies.json');
 ///     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
-///   } catch (e) {
-///     print('⚠️  Static analysis not available: $e');
+///   } catch (_) {
+///     // DevTools will show setup instructions if JSON is not available
 ///   }
 ///
 ///   runApp(
@@ -122,21 +122,25 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   /// - 'name_mismatch' if JSON was loaded but this provider name doesn't match
   /// - 'none' if no JSON data was loaded at all
   String _getDependencySource(String providerName) {
-    final hasStatic = RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
+    final hasStatic =
+        RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
     if (hasStatic) return 'static';
 
     final hasAnyData = RiverpodDevToolsRegistry.instance.hasAnyData;
     return hasAnyData ? 'name_mismatch' : 'none';
   }
 
-  Map<String, Object?> _buildProviderEventData(dynamic provider, String providerName) {
+  Map<String, Object?> _buildProviderEventData(
+      dynamic provider, String providerName) {
     return {
       'providerId': identityHashCode(provider).toString(),
       'provider': providerName,
       'dependencies': _getDependencies(providerName),
       'dependenciesSource': _getDependencySource(providerName),
-      'dependenciesLoadedAt': RiverpodDevToolsRegistry.instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
-      'dependenciesGeneratedAt': RiverpodDevToolsRegistry.instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
+      'dependenciesLoadedAt': RiverpodDevToolsRegistry
+          .instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
+      'dependenciesGeneratedAt': RiverpodDevToolsRegistry
+          .instance.jsonGeneratedTimestamp?.millisecondsSinceEpoch,
       'timestamp': DateTime.now().millisecondsSinceEpoch,
     };
   }
