@@ -1,0 +1,13 @@
+name: riverpod_devtools_mcp
+description: MCP server for riverpod_devtools - expose Riverpod provider logs to AI tools like Claude Code.
+version: 0.1.0
+repository: https://github.com/yutsuki3/riverpod_devtools
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  dart_mcp: ^0.5.1
+
+executables:
+  riverpod_devtools_mcp:

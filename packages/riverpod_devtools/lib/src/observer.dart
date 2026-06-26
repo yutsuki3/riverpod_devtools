@@ -1,5 +1,8 @@
+import 'dart:async' show unawaited;
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'http_server_support.dart';
 import 'static_dependencies.dart';
 import 'utils/serialization.dart';
 
@@ -7,6 +10,8 @@ import 'utils/serialization.dart';
 ///
 /// This observer monitors the lifecycle of all providers (add, update, dispose)
 /// and posts events to the developer log, which the Riverpod DevTools extension listens to.
+/// In debug mode on native platforms, it also starts a local HTTP server on port 8788
+/// so that MCP tools can read the event log.
 ///
 /// **Important**: This observer requires static dependency analysis via the CLI tool.
 /// Run `dart run riverpod_devtools:analyze` to generate dependency metadata.
@@ -33,6 +38,15 @@ import 'utils/serialization.dart';
 /// }
 /// ```
 final class RiverpodDevToolsObserver extends ProviderObserver {
+  RiverpodDevToolsObserver({int maxBufferSize = 1000})
+      : _httpServer = RiverpodDevToolsHttpServer(maxBufferSize: maxBufferSize) {
+    if (kDebugMode) {
+      unawaited(_httpServer.start());
+    }
+  }
+
+  final RiverpodDevToolsHttpServer _httpServer;
+
   @override
   void didAddProvider(
     covariant Object context,
@@ -147,5 +161,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   void _postEvent(String kind, Map<String, Object?> data) {
     developer.postEvent('riverpod:$kind', data);
+    if (kDebugMode) {
+      _httpServer.addEvent({'type': kind, ...data});
+    }
   }
 }

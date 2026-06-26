@@ -13,6 +13,7 @@ This repository contains the following packages:
 | Package | Version | Description |
 |---------|---------|-------------|
 | [riverpod_devtools](./packages/riverpod_devtools) | [![pub](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools) | DevTools extension for Riverpod |
+| [riverpod_devtools_mcp](./packages/riverpod_devtools_mcp) | — | MCP server to expose provider logs to AI tools |
 
 ## 🚀 Quick Start
 
@@ -21,6 +22,12 @@ For end-users who want to use this package in their Flutter app, please see the 
 ```bash
 flutter pub add riverpod_devtools
 ```
+
+## 🤖 Optional: AI Tool Integration via MCP
+
+[`riverpod_devtools_mcp`](./packages/riverpod_devtools_mcp) is an optional add-on that lets AI tools like Claude Code read live Riverpod provider event logs from your running Flutter app — so you can ask things like "look at the current provider logs and fix any behavior that differs from the spec."
+
+See the [riverpod_devtools_mcp README](./packages/riverpod_devtools_mcp) for setup instructions.
 
 ## 🛠️ Development
 
@@ -41,9 +48,12 @@ riverpod_devtools/
 │   │   ├── test/                    # Unit tests
 │   │   ├── extension/devtools/      # Built DevTools extension UI
 │   │   └── example/                 # Example app
-│   └── riverpod_devtools_extension/ # DevTools extension source (Flutter web app)
-│       ├── lib/                     # Extension UI source code
-│       └── web/                     # Web assets
+│   ├── riverpod_devtools_extension/ # DevTools extension source (Flutter web app)
+│   │   ├── lib/                     # Extension UI source code
+│   │   └── web/                     # Web assets
+│   └── riverpod_devtools_mcp/       # MCP server for AI tool integration
+│       ├── bin/                     # Entry point (dart run riverpod_devtools_mcp)
+│       └── lib/                     # MCP server implementation
 ├── example/                         # Standalone example app
 └── README.md                        # This file
 ```
