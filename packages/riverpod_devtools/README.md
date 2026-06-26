@@ -132,6 +132,10 @@ Version 0.5.0 removes runtime-based dependency detection. If you relied on depen
 
 Event log and state inspection continue to work with only `RiverpodDevToolsObserver()` — the dependency graph requires static analysis.
 
+## Optional: AI Tool Integration (MCP)
+
+This package also bundles an optional [MCP](https://modelcontextprotocol.io/) server so AI tools like Claude Code can read live provider event logs from your running app. See [MCP.md](MCP.md) for setup.
+
 ## Additional information
 
 -   **Repository**: [https://github.com/yutsuki3/riverpod_devtools](https://github.com/yutsuki3/riverpod_devtools)

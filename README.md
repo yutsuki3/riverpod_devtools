@@ -12,7 +12,7 @@ This repository contains the following packages:
 
 | Package | Version | Description |
 |---------|---------|-------------|
-| [riverpod_devtools](./packages/riverpod_devtools) | [![pub](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools) | DevTools extension for Riverpod |
+| [riverpod_devtools](./packages/riverpod_devtools) | [![pub](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools) | DevTools extension for Riverpod (bundles an optional MCP server) |
 
 ## 🚀 Quick Start
 
@@ -22,14 +22,22 @@ For end-users who want to use this package in their Flutter app, please see the 
 flutter pub add riverpod_devtools
 ```
 
+## 🤖 Optional: AI Tool Integration via MCP
+
+`riverpod_devtools` bundles an optional MCP server that lets AI tools like Claude Code read live Riverpod provider event logs from your running Flutter app — so you can ask things like "look at the current provider logs and fix any behavior that differs from the spec."
+
+See [packages/riverpod_devtools/MCP.md](./packages/riverpod_devtools/MCP.md) for setup instructions.
+
 ## 🛠️ Development
 
 This section is for contributors who want to develop or modify this package.
 
 ### Prerequisites
 
-- Flutter SDK (>=3.0.0)
-- Dart SDK (>=3.5.0)
+- Flutter SDK (>=3.32.0)
+- Dart SDK (>=3.7.0)
+
+> **Note:** As of 0.6.0, these minimums were raised to accommodate the bundled MCP server's `dart_mcp` dependency. See [Version Compatibility](#-version-compatibility).
 
 ### Repository Structure
 
@@ -37,10 +45,12 @@ This section is for contributors who want to develop or modify this package.
 riverpod_devtools/
 ├── packages/
 │   ├── riverpod_devtools/           # Main package (published to pub.dev)
-│   │   ├── lib/                     # Package source code
+│   │   ├── lib/                     # Package source code (includes lib/src/mcp/)
+│   │   ├── bin/                     # Executables: analyze, riverpod_devtools_mcp
 │   │   ├── test/                    # Unit tests
 │   │   ├── extension/devtools/      # Built DevTools extension UI
-│   │   └── example/                 # Example app
+│   │   ├── example/                 # Example app
+│   │   └── MCP.md                   # Optional MCP server setup guide
 │   └── riverpod_devtools_extension/ # DevTools extension source (Flutter web app)
 │       ├── lib/                     # Extension UI source code
 │       └── web/                     # Web assets
@@ -133,13 +143,16 @@ Please use the [GitHub issue tracker](https://github.com/yutsuki3/riverpod_devto
 
 ## 📝 Version Compatibility
 
-| riverpod_devtools | flutter_riverpod | Flutter |
-|-------------------|------------------|---------|
-| 0.5.x             | >=2.3.0 <4.0.0   | >=3.0.0 |
-| 0.4.x             | >=2.3.0 <4.0.0   | >=3.0.0 |
-| 0.3.x             | >=2.6.1 <4.0.0   | >=3.0.0 |
-| 0.2.x             | >=2.6.1 <4.0.0   | >=3.0.0 |
-| 0.1.x             | ^2.6.1           | >=3.0.0 |
+| riverpod_devtools | flutter_riverpod | Flutter  |
+|-------------------|------------------|----------|
+| 0.6.x             | >=2.3.0 <4.0.0   | >=3.32.0 |
+| 0.5.x             | >=2.3.0 <4.0.0   | >=3.0.0  |
+| 0.4.x             | >=2.3.0 <4.0.0   | >=3.0.0  |
+| 0.3.x             | >=2.6.1 <4.0.0   | >=3.0.0  |
+| 0.2.x             | >=2.6.1 <4.0.0   | >=3.0.0  |
+| 0.1.x             | ^2.6.1           | >=3.0.0  |
+
+> **0.6.0** raised the minimum Flutter/Dart SDK to support the bundled MCP server (`dart_mcp` requires a newer `async` than older Flutter SDKs ship). If you can't upgrade yet, pin `riverpod_devtools: ^0.5.0`.
 
 ## 📄 License
 

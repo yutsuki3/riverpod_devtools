@@ -1,3 +1,12 @@
+## 0.6.0
+
+- **MCP Integration**:
+    - Added a bundled MCP server (`dart run riverpod_devtools:riverpod_devtools_mcp`) so AI tools like Claude Code can read live Riverpod provider event logs from a running app. See [MCP.md](MCP.md).
+    - `RiverpodDevToolsObserver` now starts a local, debug-only HTTP server (`localhost:8788`) that the MCP server reads from.
+    - HTTP server start failures are now logged via `dart:developer` instead of being silently swallowed.
+- **Breaking**:
+    - Raised minimum SDKs to Dart `^3.7.0` and Flutter `>=3.32.0` to accommodate the MCP server's `dart_mcp` dependency. Stay on `riverpod_devtools: ^0.5.0` if you can't upgrade yet.
+
 ## 0.5.0
 
 - **Static Dependency Analysis (CLI)**:

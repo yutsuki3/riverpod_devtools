@@ -1,5 +1,5 @@
-name: test_app
-description: "A new Flutter project."
+name: riverpod_devtools_example
+description: "Example app demonstrating riverpod_devtools with static dependency analysis."
 publish_to: 'none'
 version: 1.0.0+1
 environment:
