@@ -1,33 +1,22 @@
-# riverpod_devtools_mcp
+# MCP Integration
 
-A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI tools like Claude Code read live Riverpod provider event logs from your running Flutter app.
+`riverpod_devtools` ships an optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI tools like Claude Code read live Riverpod provider event logs from your running Flutter app.
 
-This is an optional companion to [riverpod_devtools](../riverpod_devtools). With this set up, you can ask Claude Code things like:
+With this set up, you can ask Claude Code things like:
 
 > "Look at the current provider logs and fix any behavior that differs from the spec."
 
 ## How it works
 
-1. `RiverpodDevToolsObserver` (from `riverpod_devtools`) starts a local HTTP server on `localhost:8788` whenever your Flutter app runs in debug mode.
-2. This MCP server runs as a separate process (started by your AI tool over stdio) and relays requests to that HTTP server.
+1. `RiverpodDevToolsObserver` (already required for the DevTools extension — see [README](README.md#getting-started)) starts a local HTTP server on `localhost:8788` whenever your Flutter app runs in debug mode.
+2. The bundled `riverpod_devtools_mcp` executable runs as a separate process (started by your AI tool over stdio) and relays requests to that HTTP server.
 3. It exposes two tools: `get_riverpod_logs` and `clear_riverpod_logs`.
 
 ## Setup
 
-**1. Set up `riverpod_devtools` in your Flutter app**
+This requires `riverpod_devtools` to already be set up per the main [README](README.md#getting-started) (dependency added, `RiverpodDevToolsObserver` registered).
 
-This server is only useful if your app already has the observer registered. See the [riverpod_devtools README](../riverpod_devtools#getting-started) if you haven't done this yet:
-
-```dart
-runApp(
-  ProviderScope(
-    observers: [RiverpodDevToolsObserver()],
-    child: const MyApp(),
-  ),
-);
-```
-
-**2. Add the MCP server to Claude Code**
+**1. Add the MCP server to Claude Code**
 
 Create a `.mcp.json` in your project root (commit it so your whole team gets it):
 
@@ -37,10 +26,7 @@ Create a `.mcp.json` in your project root (commit it so your whole team gets it)
     "riverpod_devtools_mcp": {
       "type": "stdio",
       "command": "dart",
-      "args": [
-        "run",
-        "${CLAUDE_PROJECT_DIR}/packages/riverpod_devtools_mcp/bin/riverpod_devtools_mcp.dart"
-      ]
+      "args": ["run", "riverpod_devtools:riverpod_devtools_mcp"]
     }
   }
 }
@@ -49,19 +35,18 @@ Create a `.mcp.json` in your project root (commit it so your whole team gets it)
 Or register it with the CLI instead of editing the file by hand:
 
 ```bash
-claude mcp add --scope project riverpod_devtools_mcp -- \
-  dart run '${CLAUDE_PROJECT_DIR}/packages/riverpod_devtools_mcp/bin/riverpod_devtools_mcp.dart'
+claude mcp add --scope project riverpod_devtools_mcp -- dart run riverpod_devtools:riverpod_devtools_mcp
 ```
 
-Adjust the path to wherever `riverpod_devtools_mcp` actually lives relative to your project root.
+This works the same way as `dart run riverpod_devtools:analyze` — no path needed, since `riverpod_devtools` is already a dependency of your Flutter app.
 
-**3. Run your Flutter app in debug mode**
+**2. Run your Flutter app in debug mode**
 
 ```bash
 flutter run
 ```
 
-**4. Ask Claude Code to inspect the logs**
+**3. Ask Claude Code to inspect the logs**
 
 The `get_riverpod_logs` tool is now available and Claude Code will call it automatically when you ask about provider state or runtime behavior. Ask it to clear the buffer (`clear_riverpod_logs`) before reproducing a specific flow so only the relevant events show up.
 
@@ -81,7 +66,3 @@ The `get_riverpod_logs` tool is now available and Claude Code will call it autom
 - It does **not** work out of the box for:
   - Real devices (iOS/Android) — the device has its own network namespace; you'd need manual port forwarding (e.g. `iproxy` for iOS, `adb forward tcp:8788 tcp:8788` for Android)
   - Android Emulator — same reason, needs `adb forward tcp:8788 tcp:8788`
-
-## License
-
-See the [repository LICENSE](../../LICENSE).

@@ -2,23 +2,34 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'mcp_constants.dart';
+
 class RiverpodDevToolsHttpServer {
   RiverpodDevToolsHttpServer({int maxBufferSize = 1000})
-      : _maxBufferSize = maxBufferSize;
+    : _maxBufferSize = maxBufferSize;
 
   final int _maxBufferSize;
   final List<Map<String, Object?>> _buffer = [];
   HttpServer? _server;
 
   Future<void> start() async {
+    // Avoid binding a real socket during `flutter test` runs — consumers
+    // commonly construct RiverpodDevToolsObserver() in their own widget
+    // tests, and a lingering HttpServer trips flutter_test's pending-timer
+    // check on tear-down.
+    if (Platform.environment['FLUTTER_TEST'] == 'true') return;
+
     try {
-      _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 8788);
+      _server = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        riverpodDevToolsMcpPort,
+      );
       _server!.listen(_handleRequest, onError: (_) {});
     } catch (error, stackTrace) {
       developer.log(
         'riverpod_devtools: failed to start the local HTTP server on port '
-        '8788. The get_riverpod_logs MCP tool will not be able to connect '
-        'until this app is restarted with the port free.',
+        '$riverpodDevToolsMcpPort. The get_riverpod_logs MCP tool will not '
+        'be able to connect until this app is restarted with the port free.',
         name: 'riverpod_devtools',
         error: error,
         stackTrace: stackTrace,
@@ -45,8 +56,7 @@ class RiverpodDevToolsHttpServer {
   Future<void> _handleRequest(HttpRequest request) async {
     try {
       if (request.method == 'GET' && request.uri.path == '/logs') {
-        final json =
-            jsonEncode(_buffer, toEncodable: (obj) => obj.toString());
+        final json = jsonEncode(_buffer, toEncodable: (obj) => obj.toString());
         request.response
           ..statusCode = 200
           ..headers.contentType = ContentType.json
