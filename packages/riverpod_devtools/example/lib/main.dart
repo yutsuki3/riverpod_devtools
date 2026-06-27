@@ -4,8 +4,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_devtools/riverpod_devtools.dart';
 import 'providers.dart';
 
-final counterProvider = StateProvider<int>((ref) => 0);
-final nameProvider = StateProvider<String>((ref) => 'Flutter');
+class Counter extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void increment() => state++;
+}
+
+final counterProvider = NotifierProvider<Counter, int>(Counter.new);
+
+class Name extends Notifier<String> {
+  @override
+  String build() => 'Flutter';
+
+  void set(String value) => state = value;
+}
+
+final nameProvider = NotifierProvider<Name, String>(Name.new);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,7 +97,7 @@ class HomePage extends ConsumerWidget {
 
               // Action buttons
               ElevatedButton(
-                onPressed: () => ref.read(nameProvider.notifier).state = 'Riverpod',
+                onPressed: () => ref.read(nameProvider.notifier).set('Riverpod'),
                 child: const Text('Change Name'),
               ),
             ],
@@ -90,7 +105,7 @@ class HomePage extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => ref.read(counterProvider.notifier).state++,
+        onPressed: () => ref.read(counterProvider.notifier).increment(),
         child: const Icon(Icons.add),
       ),
     );
