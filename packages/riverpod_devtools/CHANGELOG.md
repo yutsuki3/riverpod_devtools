@@ -2,6 +2,8 @@
 
 - **Dependencies**:
     - Widened the `analyzer` constraint from `^6.0.0` to `>=6.0.0 <15.0.0` to cover the current latest `analyzer` release and improve the pub.dev "supports latest dependencies" score.
+- **Example**:
+    - Replaced `StateProvider` with `NotifierProvider`/`Notifier` in the bundled example so it keeps compiling across the full supported `flutter_riverpod` range (`2.3.0`–`4.0.0`), including when resolved to Riverpod 3.x.
 
 ## 0.6.0
 
