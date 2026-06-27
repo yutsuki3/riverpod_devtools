@@ -1,6 +1,6 @@
 name: riverpod_devtools
 description: DevTools extension for Riverpod - inspect and monitor your providers in real-time.
-version: 0.6.0
+version: 0.6.1
 repository: https://github.com/yutsuki3/riverpod_devtools
 homepage: https://github.com/yutsuki3/riverpod_devtools
 issue_tracker: https://github.com/yutsuki3/riverpod_devtools/issues
@@ -24,7 +24,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ">=2.3.0 <4.0.0"
-  analyzer: ^6.0.0
+  analyzer: ">=6.0.0 <15.0.0"
   path: ^1.9.0
   dart_mcp: ^0.5.1
 
