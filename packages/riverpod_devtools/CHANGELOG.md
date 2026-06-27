@@ -1,3 +1,8 @@
+## 0.6.1
+
+- **Dependencies**:
+    - Widened the `analyzer` constraint from `^6.0.0` to `>=6.0.0 <15.0.0` to cover the current latest `analyzer` release and improve the pub.dev "supports latest dependencies" score.
+
 ## 0.6.0
 
 - **MCP Integration**:
