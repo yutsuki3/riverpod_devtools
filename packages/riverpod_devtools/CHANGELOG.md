@@ -1,3 +1,8 @@
+## 0.6.2
+
+- **Docs**:
+    - Highlighted MCP support in the README (badge, tagline, Features list, dedicated section) and pub.dev metadata (`description`, `topics`) — no code changes.
+
 ## 0.6.1
 
 - **Dependencies**:
