@@ -1,5 +1,5 @@
 name: riverpod_devtools
-description: DevTools extension for Riverpod - inspect and monitor your providers in real-time.
+description: DevTools extension for Riverpod - inspect providers in real-time, now with MCP support for AI coding tools.
 version: 0.6.1
 repository: https://github.com/yutsuki3/riverpod_devtools
 homepage: https://github.com/yutsuki3/riverpod_devtools
@@ -10,7 +10,7 @@ topics:
   - devtools
   - state-management
   - debugging
-  - developer-tools
+  - mcp
 
 screenshots:
   - description: 'Riverpod DevTools interface showing Provider Graph, State Inspector, and Event Log'
