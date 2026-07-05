@@ -1,18 +1,28 @@
 # riverpod_devtools
 
 [![pub package](https://img.shields.io/pub/v/riverpod_devtools.svg)](https://pub.dev/packages/riverpod_devtools)
+[![MCP](https://img.shields.io/badge/MCP-supported-blue)](https://modelcontextprotocol.io/)
 
-A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time.
+A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time. **Now meets [MCP](https://modelcontextprotocol.io/)**, so AI coding tools can read that same live provider state too.
 
 <img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_044.png" width="100%" alt="Riverpod DevTools Demo" />
 
 ## Features
 
+- **AI Tool Integration (MCP)**: Let AI coding tools like Claude Code read live provider event logs via an optional bundled MCP server.
 - **Static Dependency Analysis**: Accurate provider dependency detection using CLI-based code analysis.
 - **Provider Graph**: Visualize the relationships between your providers with precise dependency data.
 - **State Inspector**: View the current state of your providers with type labels and optimized display.
 - **Event Log**: Track provider lifecycle events with hierarchical grouping and sub-events.
 - **Light Mode Support**: Seamlessly switch between light and dark themes.
+
+## 🤖 riverpod_devtools meets MCP
+
+Your AI coding tool normally only sees your source code — not what's actually happening while your app runs. This package bundles an optional [MCP](https://modelcontextprotocol.io/) server so tools like Claude Code can read **live** Riverpod provider event logs straight from your running app, and act on them:
+
+> "Look at the current provider logs and fix any behavior that differs from the spec."
+
+See [MCP.md](MCP.md) for setup — it takes one `.mcp.json` entry.
 
 ## Getting started
 
@@ -131,10 +141,6 @@ Version 0.5.0 removes runtime-based dependency detection. If you relied on depen
 3. Add the JSON file to your `pubspec.yaml` assets
 
 Event log and state inspection continue to work with only `RiverpodDevToolsObserver()` — the dependency graph requires static analysis.
-
-## Optional: AI Tool Integration (MCP)
-
-This package also bundles an optional [MCP](https://modelcontextprotocol.io/) server so AI tools like Claude Code can read live provider event logs from your running app. See [MCP.md](MCP.md) for setup.
 
 ## Additional information
 
