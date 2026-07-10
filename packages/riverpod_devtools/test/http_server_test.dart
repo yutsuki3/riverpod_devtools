@@ -76,6 +76,32 @@ void main() {
       expect(server.eventsFor(limit: 100).length, 1);
     });
 
+    test('eventsFor filters by event type', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(event('a', 0));
+      server.addEvent({'type': 'provider_failed', 'provider': 'a'});
+      server.addEvent(event('b', 1));
+
+      final failed = server.eventsFor(type: 'provider_failed');
+      expect(failed, hasLength(1));
+      expect(failed.single['type'], 'provider_failed');
+    });
+
+    test('eventsFor combines provider and type filters with a limit', () {
+      final server = RiverpodDevToolsHttpServer();
+      for (var i = 0; i < 6; i++) {
+        server.addEvent({
+          'type': i.isEven ? 'provider_failed' : 'provider_updated',
+          'provider': i < 4 ? 'a' : 'b',
+          'newValue': i,
+        });
+      }
+
+      final events =
+          server.eventsFor(provider: 'a', type: 'provider_failed', limit: 1);
+      expect(events.map((e) => e['newValue']), [2]);
+    });
+
     test('clearEvents empties the buffer', () {
       final server = RiverpodDevToolsHttpServer();
       server.addEvent(event('a', 0));

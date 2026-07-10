@@ -7,6 +7,8 @@ Color getEventColor(EventType type, bool isDark) {
       return isDark ? const Color(0xFF81C784) : const Color(0xFF4CAF50);
     case EventType.updated:
       return isDark ? const Color(0xFF64B5F6) : const Color(0xFF2196F3);
+    case EventType.failed:
+      return isDark ? const Color(0xFFE57373) : const Color(0xFFD32F2F);
     case EventType.disposed:
       return isDark ? const Color(0xFF9E9E9E) : const Color(0xFF757575);
   }

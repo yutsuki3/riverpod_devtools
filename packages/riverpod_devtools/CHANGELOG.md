@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **First-class error capture** ([#52](https://github.com/yutsuki3/riverpod_devtools/issues/52)):
+    - The observer now implements `providerDidFail` (Riverpod 2.x and 3.x signatures) and emits a `provider_failed` event carrying the error's runtime type, message (capped at 2000 chars), and a trimmed stack trace (Riverpod-internal frames dropped, max 20 frames).
+    - DevTools extension: failed events appear in the Event Log with a red FAILED badge and expandable error details; providers currently in a failed state show an error badge in the provider list and a dedicated "Error" section (message + collapsible stack trace + copy button) in Provider Details. The error clears when the provider next updates successfully.
+    - MCP / HTTP endpoint: `get_riverpod_logs` and `GET /logs` accept a new `type` filter (e.g. `provider_failed` to fetch only errors).
 - **Causality chain (why did this provider rebuild?)** ([#51](https://github.com/yutsuki3/riverpod_devtools/issues/51)):
     - Every observer event now carries a monotonic `seq` number for unambiguous ordering (timestamps collide within a millisecond).
     - `provider_updated` events now carry `triggeredBy` — the dependency update(s) that likely caused the recomputation, inferred from the static dependency graph plus temporal proximity and marked `triggerConfidence: "inferred"`.

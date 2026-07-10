@@ -6,6 +6,7 @@ import 'http_server_support.dart';
 import 'static_dependencies.dart';
 import 'trigger_tracker.dart';
 import 'utils/serialization.dart';
+import 'utils/stack_trace_utils.dart';
 
 /// A [ProviderObserver] that sends Riverpod events to the Flutter DevTools extension.
 ///
@@ -115,6 +116,27 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       ...data,
       'previousValue': serializeValue(previousValue),
       'newValue': serializeValue(newValue),
+    });
+  }
+
+  @override
+  void providerDidFail(
+    covariant Object context,
+    Object error,
+    StackTrace stackTrace, [
+    covariant Object? arg4, // Container in Riverpod 2.x, unused in 3.0
+  ]) {
+    if (!_hasConsumer) return;
+    final provider = _getProvider(context);
+    final providerName = _getProviderName(provider);
+
+    _postEvent('provider_failed', {
+      ..._buildProviderEventData(provider, providerName),
+      'error': {
+        'type': error.runtimeType.toString(),
+        'message': truncateErrorMessage(error.toString()),
+        'stackTrace': formatStackTrace(stackTrace),
+      },
     });
   }
 

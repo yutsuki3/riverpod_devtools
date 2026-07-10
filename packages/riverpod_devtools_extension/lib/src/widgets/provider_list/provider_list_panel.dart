@@ -318,6 +318,21 @@ class _ProviderListTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (provider.lastError != null) ...[
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: provider.lastError!['message']?.toString() ??
+                      'Provider failed',
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: Icon(
+                    Icons.error,
+                    size: 12,
+                    color: theme.brightness == Brightness.dark
+                        ? const Color(0xFFE57373)
+                        : const Color(0xFFD32F2F),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
