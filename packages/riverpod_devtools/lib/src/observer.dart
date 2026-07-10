@@ -47,12 +47,22 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   final RiverpodDevToolsHttpServer _httpServer;
 
+  /// Whether any consumer can observe events right now.
+  ///
+  /// In debug mode the local HTTP buffer (MCP) always needs events. Outside
+  /// debug mode, events only matter when a DevTools client is listening on
+  /// the Extension stream — otherwise `developer.postEvent` drops them, so
+  /// serializing values would be pure overhead on every provider change.
+  bool get _hasConsumer =>
+      kDebugMode || developer.extensionStreamHasListener;
+
   @override
   void didAddProvider(
     covariant Object context,
     Object? value, [
     covariant Object? arg3, // Container in Riverpod 2.x, unused in 3.0
   ]) {
+    if (!_hasConsumer) return;
     final provider = _getProvider(context);
     final providerName = _getProviderName(provider);
 
@@ -69,6 +79,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     Object? newValue, [
     covariant Object? arg4, // Container in Riverpod 2.x, unused in 3.0
   ]) {
+    if (!_hasConsumer) return;
     final provider = _getProvider(context);
     final providerName = _getProviderName(provider);
 
@@ -84,6 +95,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     covariant Object context, [
     covariant Object? arg2, // Container in Riverpod 2.x, unused in 3.0
   ]) {
+    if (!_hasConsumer) return;
     final provider = _getProvider(context);
     final providerName = _getProviderName(provider);
 
@@ -92,17 +104,26 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     });
   }
 
+  /// Caches the API probe result: true once `context.provider` has succeeded
+  /// (Riverpod 3.0), false once it has thrown (Riverpod 2.x). The Riverpod
+  /// version cannot change at runtime, so probing (and throwing/catching
+  /// NoSuchMethodError) on every single event is wasted work.
+  bool? _contextHasProviderProperty;
+
   /// Extracts the provider from either ProviderObserverContext (3.0) or ProviderBase (2.x)
   dynamic _getProvider(Object arg) {
     // In Riverpod 3.0, arg is ProviderObserverContext which has a 'provider' property.
     // In Riverpod 2.x, arg is directly ProviderBase.
-    // We probe for the 'provider' property.
+    if (_contextHasProviderProperty == false) return arg;
     try {
       final dynamic context = arg;
       // ignore: avoid_dynamic_calls
-      return context.provider;
+      final provider = context.provider;
+      _contextHasProviderProperty = true;
+      return provider;
     } on NoSuchMethodError {
       // If 'provider' property doesn't exist, it's likely the 2.x API where arg is the provider itself.
+      _contextHasProviderProperty = false;
       return arg;
     } catch (_) {
       // Fallback for other errors

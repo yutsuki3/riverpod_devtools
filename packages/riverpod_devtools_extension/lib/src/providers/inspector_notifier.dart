@@ -68,6 +68,20 @@ class InspectorNotifier extends ChangeNotifier {
 
   InspectorState get state => _state;
 
+  // Memoized derived lists. Panels read [filteredProviders]/[filteredEvents]
+  // on every rebuild (which happens on every provider event), so recomputing
+  // the filter + merge/sort each time is wasted work. Every state mutation
+  // ends with [notifyListeners], which invalidates both caches.
+  List<ProviderInfo>? _filteredProvidersCache;
+  List<ProviderEvent>? _filteredEventsCache;
+
+  @override
+  void notifyListeners() {
+    _filteredProvidersCache = null;
+    _filteredEventsCache = null;
+    super.notifyListeners();
+  }
+
   static const int _maxEventCount = 1000;
   static const int _maxDisposedProviders = 100;
 
@@ -185,7 +199,10 @@ class InspectorNotifier extends ChangeNotifier {
     }
   }
 
-  List<ProviderInfo> get filteredProviders {
+  List<ProviderInfo> get filteredProviders =>
+      _filteredProvidersCache ??= _computeFilteredProviders();
+
+  List<ProviderInfo> _computeFilteredProviders() {
     final providers = _state.providers.values.toList();
     if (_state.providerSearchQuery.isEmpty) return providers;
 
@@ -195,7 +212,10 @@ class InspectorNotifier extends ChangeNotifier {
         .toList();
   }
 
-  List<ProviderEvent> get filteredEvents {
+  List<ProviderEvent> get filteredEvents =>
+      _filteredEventsCache ??= _computeFilteredEvents();
+
+  List<ProviderEvent> _computeFilteredEvents() {
     if (_state.selectedProviderNames.isEmpty) return _state.events;
 
     final allEvents = <ProviderEvent>[];
@@ -373,32 +393,35 @@ class InspectorNotifier extends ChangeNotifier {
         _eventsByProvider.putIfAbsent(newEvent.providerName, () => []);
         _eventsByProvider[newEvent.providerName]!.insert(0, newEvent);
 
-        _state = _state.copyWith(providers: newProviders, events: newEvents);
-        _applyRingBuffer();
+        // Ring buffer: evict the oldest event in place, on the copy we just
+        // made, instead of copying the whole list a second time.
+        Set<String>? newExpanded;
+        while (newEvents.length > _maxEventCount) {
+          final removed = newEvents.removeLast();
+
+          final providerEvents = _eventsByProvider[removed.providerName];
+          if (providerEvents != null) {
+            providerEvents.remove(removed);
+            if (providerEvents.isEmpty) {
+              _eventsByProvider.remove(removed.providerName);
+            }
+          }
+
+          if (_state.expandedEventIds.contains(removed.id)) {
+            newExpanded ??= Set<String>.from(_state.expandedEventIds);
+            newExpanded.remove(removed.id);
+          }
+        }
+
+        _state = _state.copyWith(
+          providers: newProviders,
+          events: newEvents,
+          expandedEventIds: newExpanded,
+        );
         _cleanupDisposedProviders();
         notifyListeners();
       }
     });
-  }
-
-  void _applyRingBuffer() {
-    if (_state.events.length > _maxEventCount) {
-      final newEvents = List<ProviderEvent>.from(_state.events);
-      final removed = newEvents.removeAt(_maxEventCount);
-
-      final providerEvents = _eventsByProvider[removed.providerName];
-      if (providerEvents != null) {
-        providerEvents.remove(removed);
-        if (providerEvents.isEmpty) {
-          _eventsByProvider.remove(removed.providerName);
-        }
-      }
-
-      final newExpanded = Set<String>.from(_state.expandedEventIds)
-        ..remove(removed.id);
-      _state =
-          _state.copyWith(events: newEvents, expandedEventIds: newExpanded);
-    }
   }
 
   void _cleanupDisposedProviders() {

@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
@@ -9,7 +10,10 @@ class RiverpodDevToolsHttpServer {
     : _maxBufferSize = maxBufferSize;
 
   final int _maxBufferSize;
-  final List<Map<String, Object?>> _buffer = [];
+  // ListQueue gives O(1) eviction at the front; a plain List would shift
+  // every remaining element on each removeAt(0) once the buffer is full,
+  // which runs on every provider event in the observed app.
+  final ListQueue<Map<String, Object?>> _buffer = ListQueue();
   HttpServer? _server;
 
   Future<void> start() async {
@@ -44,7 +48,7 @@ class RiverpodDevToolsHttpServer {
 
   void addEvent(Map<String, Object?> event) {
     if (_buffer.length >= _maxBufferSize) {
-      _buffer.removeAt(0);
+      _buffer.removeFirst();
     }
     _buffer.add(event);
   }
@@ -53,10 +57,30 @@ class RiverpodDevToolsHttpServer {
     _buffer.clear();
   }
 
+  /// Returns buffered events, optionally filtered by provider name and
+  /// truncated to the most recent [limit] entries (chronological order is
+  /// preserved).
+  List<Map<String, Object?>> eventsFor({String? provider, int? limit}) {
+    Iterable<Map<String, Object?>> events = _buffer;
+    if (provider != null && provider.isNotEmpty) {
+      events = events.where((event) => event['provider'] == provider);
+    }
+    final list = events.toList(growable: false);
+    if (limit != null && limit >= 0 && list.length > limit) {
+      return list.sublist(list.length - limit);
+    }
+    return list;
+  }
+
   Future<void> _handleRequest(HttpRequest request) async {
     try {
       if (request.method == 'GET' && request.uri.path == '/logs') {
-        final json = jsonEncode(_buffer, toEncodable: (obj) => obj.toString());
+        final params = request.uri.queryParameters;
+        final events = eventsFor(
+          provider: params['provider'],
+          limit: int.tryParse(params['limit'] ?? ''),
+        );
+        final json = jsonEncode(events, toEncodable: (obj) => obj.toString());
         request.response
           ..statusCode = 200
           ..headers.contentType = ContentType.json

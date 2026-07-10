@@ -13,8 +13,10 @@ Map<String, Object?> serializeValue(
     };
   }
 
-  // Cycle detection
-  visited ??= {};
+  // Cycle detection. Identity-based on purpose: cycles are a property of the
+  // object graph, and identity checks avoid invoking potentially deep (or
+  // even cyclic) user-defined ==/hashCode implementations on every event.
+  visited ??= Set<Object>.identity();
   // Primitives and strings are safe, no need to track
   if (value is! num && value is! bool && value is! String) {
     if (visited.contains(value)) {
@@ -34,16 +36,15 @@ Map<String, Object?> serializeValue(
     };
   }
 
-  // Capture toString() early
-  final stringValue = value.toString();
-
   // Helper to continue serialization
   Map<String, Object?> recurse(Object? val) {
     return serializeValue(val, depth: depth + 1, visited: visited);
   }
 
   try {
-    // Check if the object has a toJson() method first (most specific)
+    // Check if the object has a toJson() method first (most specific).
+    // Do this before computing toString() so objects that serialize via
+    // toJson() never pay for building their (possibly large) string form.
     try {
       final dynamic obj = value;
       // ignore: avoid_dynamic_calls
@@ -65,6 +66,8 @@ Map<String, Object?> serializeValue(
     } catch (_) {
       // toJson() doesn't exist or failed
     }
+
+    final stringValue = value.toString();
 
     // Try to extract useful information based on type
     final Map<String, Object?> result = {

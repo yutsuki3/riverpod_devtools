@@ -30,8 +30,25 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         '(previous/new value diff), and provider_disposed. '
         'Use this when investigating Riverpod state bugs, unexpected re-builds, '
         'or provider lifecycle issues. '
+        'The buffer can hold up to 1000 events; prefer passing "limit" (and '
+        '"provider" when you know which provider you are investigating) to '
+        'keep the response small. '
         'Requires the app to be running in debug mode (flutter run).',
-    inputSchema: Schema.object(properties: {}),
+    inputSchema: Schema.object(
+      properties: {
+        'limit': Schema.int(
+          description:
+              'Return only the most recent N events (after applying the '
+              'provider filter). Omit to return the full buffer.',
+          minimum: 1,
+        ),
+        'provider': Schema.string(
+          description:
+              'Return only events for the provider with this exact name '
+              '(e.g. "counterProvider").',
+        ),
+      },
+    ),
   );
 
   final _clearRiverpodLogsTool = Tool(
@@ -44,9 +61,18 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   );
 
   FutureOr<CallToolResult> _getRiverpodLogs(CallToolRequest request) async {
+    final arguments = request.arguments ?? const {};
+    final queryParameters = <String, String>{
+      // Some MCP clients send integers as JSON doubles (e.g. 50.0).
+      if (arguments['limit'] case final num limit) 'limit': '${limit.toInt()}',
+      if (arguments['provider'] case final String provider
+          when provider.isNotEmpty)
+        'provider': provider,
+    };
     return _request(
       'GET',
       '/logs',
+      queryParameters: queryParameters,
       (body) => CallToolResult(content: [TextContent(text: body)]),
     );
   }
@@ -63,15 +89,23 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   Future<CallToolResult> _request(
     String method,
     String path,
-    CallToolResult Function(String body) onSuccess,
-  ) async {
+    CallToolResult Function(String body) onSuccess, {
+    Map<String, String> queryParameters = const {},
+  }) async {
     try {
       final client = io.HttpClient();
       try {
         final req = await client
             .openUrl(
               method,
-              Uri.parse('http://localhost:$riverpodDevToolsMcpPort$path'),
+              Uri(
+                scheme: 'http',
+                host: 'localhost',
+                port: riverpodDevToolsMcpPort,
+                path: path,
+                queryParameters:
+                    queryParameters.isEmpty ? null : queryParameters,
+              ),
             )
             .timeout(const Duration(seconds: 5));
         final response = await req.close();
