@@ -21,6 +21,11 @@ class ProviderInfo {
   final DateTime? dependenciesLoadedAt;
   final DateTime? dependenciesGeneratedAt;
 
+  /// Error details (`type`, `message`, `stackTrace`) from the most recent
+  /// provider_failed event. Null while the provider is healthy — cleared
+  /// when a later add/update event arrives.
+  final Map<String, dynamic>? lastError;
+
   ProviderInfo({
     required this.id,
     required this.name,
@@ -30,6 +35,7 @@ class ProviderInfo {
     this.dependenciesSource = DependencySource.none,
     this.dependenciesLoadedAt,
     this.dependenciesGeneratedAt,
+    this.lastError,
   });
 
   String? _valueStringCache;

@@ -57,14 +57,23 @@ class RiverpodDevToolsHttpServer {
     _buffer.clear();
   }
 
-  /// Returns buffered events, optionally filtered by provider name and
-  /// truncated to the most recent [limit] entries (chronological order is
-  /// preserved). A negative [limit] is treated as 0 (empty result).
-  List<Map<String, Object?>> eventsFor({String? provider, int? limit}) {
+  /// Returns buffered events, optionally filtered by provider name and/or
+  /// event [type] (e.g. `provider_failed`), truncated to the most recent
+  /// [limit] entries (chronological order is preserved). A negative
+  /// [limit] is treated as 0 (empty result).
+  List<Map<String, Object?>> eventsFor({
+    String? provider,
+    String? type,
+    int? limit,
+  }) {
     if (limit != null && limit < 0) limit = 0;
-    if (provider != null && provider.isNotEmpty) {
+    final hasProvider = provider != null && provider.isNotEmpty;
+    final hasType = type != null && type.isNotEmpty;
+    if (hasProvider || hasType) {
       final list = _buffer
-          .where((event) => event['provider'] == provider)
+          .where((event) =>
+              (!hasProvider || event['provider'] == provider) &&
+              (!hasType || event['type'] == type))
           .toList(growable: false);
       if (limit == null || list.length <= limit) return list;
       return list.sublist(list.length - limit);
@@ -98,7 +107,11 @@ class RiverpodDevToolsHttpServer {
           }
         }
 
-        final events = eventsFor(provider: params['provider'], limit: limit);
+        final events = eventsFor(
+          provider: params['provider'],
+          type: params['type'],
+          limit: limit,
+        );
         final json = jsonEncode(events, toEncodable: (obj) => obj.toString());
         request.response
           ..statusCode = 200

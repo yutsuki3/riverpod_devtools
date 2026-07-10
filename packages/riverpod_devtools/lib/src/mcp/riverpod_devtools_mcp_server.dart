@@ -27,7 +27,9 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Get Riverpod provider state-change events from the running Flutter app. '
         'This is NOT a general app log or console output — it captures only Riverpod '
         'provider lifecycle events: provider_added (initial value), provider_updated '
-        '(previous/new value diff), and provider_disposed. '
+        '(previous/new value diff), provider_failed (error type, message, and stack '
+        'trace when a provider throws or an async provider emits an error), and '
+        'provider_disposed. '
         'Use this when investigating Riverpod state bugs, unexpected re-builds, '
         'or provider lifecycle issues. '
         'Each event carries a monotonic "seq" number for unambiguous ordering. '
@@ -51,6 +53,12 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
           description:
               'Return only events for the provider with this exact name '
               '(e.g. "counterProvider").',
+        ),
+        'type': Schema.string(
+          description:
+              'Return only events of this type: provider_added, '
+              'provider_updated, provider_failed, or provider_disposed. '
+              'Use "provider_failed" to fetch only errors.',
         ),
       },
     ),
@@ -76,6 +84,8 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
       if (arguments['provider'] case final String provider
           when provider.isNotEmpty)
         'provider': provider,
+      if (arguments['type'] case final String type when type.isNotEmpty)
+        'type': type,
     };
     return _request(
       'GET',

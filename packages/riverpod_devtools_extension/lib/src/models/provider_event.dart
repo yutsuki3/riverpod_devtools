@@ -29,6 +29,10 @@ class ProviderEvent {
   /// changes.
   final List<TriggerRef> triggeredBy;
 
+  /// Error details for [EventType.failed] events: `type` (runtime type),
+  /// `message`, and `stackTrace` strings. Null for other event types.
+  final Map<String, dynamic>? error;
+
   /// Unique ID for this event (used for expansion state tracking and
   /// list item keys)
   late final String id;
@@ -47,6 +51,7 @@ class ProviderEvent {
     required this.timestamp,
     this.seq,
     this.triggeredBy = const [],
+    this.error,
   }) {
     id = '${timestamp.microsecondsSinceEpoch}_${providerId}_${_sequence++}';
   }

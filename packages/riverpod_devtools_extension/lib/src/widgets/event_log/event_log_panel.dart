@@ -4,6 +4,7 @@ import '../../models/provider_event.dart';
 import '../../providers/inspector_notifier.dart';
 import '../../utils/color_utils.dart';
 import '../../utils/time_utils.dart';
+import '../common/error_details.dart';
 import '../common/json_tree_view.dart';
 import '../common/panel_ui.dart';
 
@@ -116,12 +117,14 @@ class _EventTile extends StatelessWidget {
     final icon = switch (event.type) {
       EventType.added => Icons.add_circle_outline,
       EventType.updated => Icons.change_circle_outlined,
+      EventType.failed => Icons.error_outline,
       EventType.disposed => Icons.remove_circle_outline,
     };
 
     final typeLabel = switch (event.type) {
       EventType.added => 'ADDED',
       EventType.updated => 'UPDATED',
+      EventType.failed => 'FAILED',
       EventType.disposed => 'DISPOSED',
     };
 
@@ -133,13 +136,18 @@ class _EventTile extends StatelessWidget {
     } else if (event.type == EventType.updated) {
       summarySubtitle =
           '${event.getPreviousValueString()} → ${event.getValueString()}';
+    } else if (event.type == EventType.failed) {
+      summarySubtitle =
+          (event.error?['message'] as String?)?.split('\n').first ?? 'Error';
     } else {
       summarySubtitle = event.getValueString();
     }
 
     final isLongText = event.type == EventType.disposed
         ? false
-        : (summarySubtitle.length > 50 || event.type == EventType.updated);
+        : (summarySubtitle.length > 50 ||
+            event.type == EventType.updated ||
+            event.type == EventType.failed);
 
     return Container(
       margin: EdgeInsets.only(
@@ -295,6 +303,9 @@ class _EventTile extends StatelessWidget {
   }
 
   Widget _buildExpandedContent(ThemeData theme, ProviderEvent event) {
+    if (event.type == EventType.failed) {
+      return ErrorDetails(error: event.error);
+    }
     if (event.type == EventType.updated) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,

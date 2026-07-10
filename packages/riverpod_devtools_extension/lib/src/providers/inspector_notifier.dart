@@ -405,12 +405,20 @@ class InspectorNotifier extends ChangeNotifier {
       final value = _normalizeValue(rawValue);
       final previousValue = _normalizeValue(rawPreviousValue);
 
-      final valueString = value.containsKey('string')
-          ? value['string']
-          : (value.containsKey('value')
-              ? value['value'].toString()
-              : value.toString());
-      final eventKey = '$kind:$providerId:$valueString';
+      // seq uniquely identifies an event, so when present it makes the
+      // dedup exact (only true re-deliveries collide). The value-based key
+      // remains as a fallback for payloads from older observers.
+      final String eventKey;
+      if (seq != null) {
+        eventKey = '$kind:$providerId:$seq';
+      } else {
+        final valueString = value.containsKey('string')
+            ? value['string']
+            : (value.containsKey('value')
+                ? value['value'].toString()
+                : value.toString());
+        eventKey = '$kind:$providerId:$valueString';
+      }
 
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       final dedupExpiry = _processedEventKeys[eventKey];
@@ -470,6 +478,38 @@ class InspectorNotifier extends ChangeNotifier {
           timestamp: eventTimestamp,
           seq: seq,
           triggeredBy: triggeredBy,
+        );
+      } else if (kind == 'riverpod:provider_failed') {
+        Map<String, dynamic>? errorMap;
+        final rawError = data['error'];
+        if (rawError is Map) {
+          errorMap = Map<String, dynamic>.from(rawError);
+        }
+
+        // The provider element still exists (it holds the error state), so
+        // keep its current value/status and just record the failure.
+        final existing = _state.providers[providerName];
+        newProviders[providerName] = ProviderInfo(
+          id: providerId,
+          name: providerName,
+          value: existing?.value ?? {'type': 'null', 'value': null},
+          status: existing?.status ?? ProviderStatus.active,
+          dependencies: existing?.dependencies ?? dependencies,
+          dependenciesSource:
+              existing?.dependenciesSource ?? dependenciesSource,
+          dependenciesLoadedAt:
+              existing?.dependenciesLoadedAt ?? dependenciesLoadedAt,
+          dependenciesGeneratedAt:
+              existing?.dependenciesGeneratedAt ?? dependenciesGeneratedAt,
+          lastError: errorMap ?? {'message': 'Unknown error'},
+        );
+        newEvent = ProviderEvent(
+          type: EventType.failed,
+          providerId: providerId,
+          providerName: providerName,
+          timestamp: eventTimestamp,
+          seq: seq,
+          error: errorMap,
         );
       } else if (kind == 'riverpod:provider_disposed') {
         final existing = _state.providers[providerName];

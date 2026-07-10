@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/event_type.dart';
 import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
+import '../common/error_details.dart';
 import '../common/json_tree_view.dart';
 import '../common/copy_button.dart';
 import '../common/panel_ui.dart';
@@ -201,6 +202,16 @@ class DetailPanel extends StatelessWidget {
 
           const SizedBox(height: 16),
 
+          // Error Section (only while the provider is in a failed state)
+          if (provider.lastError != null) ...[
+            _buildDetailSection(
+              theme: theme,
+              title: 'Error',
+              child: ErrorDetails(error: provider.lastError),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Last Update Section
           _buildLastUpdateSection(theme, provider),
 
@@ -310,6 +321,7 @@ class DetailPanel extends StatelessWidget {
     final eventTypeString = switch (lastEvent.type) {
       EventType.added => 'Added',
       EventType.updated => 'Updated',
+      EventType.failed => 'Failed',
       EventType.disposed => 'Disposed',
     };
 

@@ -1,1 +1,1 @@
-enum EventType { added, updated, disposed }
+enum EventType { added, updated, failed, disposed }
