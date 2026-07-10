@@ -8,8 +8,14 @@ class ProviderEvent {
   final Map<String, dynamic>? value;
   final DateTime timestamp;
 
-  /// Unique ID for this event (used for expansion state tracking)
+  /// Unique ID for this event (used for expansion state tracking and
+  /// list item keys)
   late final String id;
+
+  /// Monotonic counter so that two events for the same provider within the
+  /// same timestamp still get distinct IDs (duplicate ValueKeys would crash
+  /// the event list).
+  static int _sequence = 0;
 
   ProviderEvent({
     required this.type,
@@ -19,8 +25,7 @@ class ProviderEvent {
     this.value,
     required this.timestamp,
   }) {
-    // Generate unique ID based on timestamp and provider ID
-    id = '${timestamp.microsecondsSinceEpoch}_$providerId';
+    id = '${timestamp.microsecondsSinceEpoch}_${providerId}_${_sequence++}';
   }
 
   String? _valueStringCache;

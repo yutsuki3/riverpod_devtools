@@ -89,22 +89,30 @@ Map<String, Object?> serializeValue(
       return result;
     }
 
+    // For AsyncValue from Riverpod. Detect this before the toString() parsing
+    // below, because e.g. 'AsyncData<int>(value: 5)' also matches the
+    // "ClassName(prop: val)" pattern and would return early without it.
+    String? asyncState;
+    if (stringValue.startsWith('AsyncData')) {
+      asyncState = 'data';
+    } else if (stringValue.startsWith('AsyncLoading')) {
+      asyncState = 'loading';
+    } else if (stringValue.startsWith('AsyncError')) {
+      asyncState = 'error';
+    }
+
     // Try to parse the toString() representation for custom classes
     final parsed = _parseToString(stringValue);
     if (parsed != null) {
       return {
         'type': value.runtimeType.toString(),
         'value': parsed,
+        if (asyncState != null) 'asyncState': asyncState,
       };
     }
 
-    // For AsyncValue from Riverpod
-    if (stringValue.startsWith('AsyncData')) {
-      result['asyncState'] = 'data';
-    } else if (stringValue.startsWith('AsyncLoading')) {
-      result['asyncState'] = 'loading';
-    } else if (stringValue.startsWith('AsyncError')) {
-      result['asyncState'] = 'error';
+    if (asyncState != null) {
+      result['asyncState'] = asyncState;
     }
 
     return result;

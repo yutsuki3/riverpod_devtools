@@ -49,9 +49,7 @@ class EventLogPanel extends StatelessWidget {
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 16),
-                    onPressed: () {
-                      // Logic to clear events is not implemented yet in notifier, so we leave it no-op or implement it if requested.
-                    },
+                    onPressed: notifier.clearEvents,
                     tooltip: 'Clear All',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
@@ -311,19 +309,8 @@ class _EventTile extends StatelessWidget {
           style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
     }
 
-    // Unwrapping logic is handled by JsonTreeView itself, but we might want to do pre-processing if needed.
-    // For now, passing data directly as previous implementation did.
-    // However, the previous implementation in this file (step 62) had unwrapping logic DUPLICATED here.
-    // Since JsonTreeView handles unwrapping (as seen in step 113), we can simplify this!
-    // BUT, let's look closely at step 62 _buildJsonTreeView logic.
-    // It unwraps 'value', 'items', 'entries', 'string'.
-    // JsonTreeView (step 113) ALSO explicitly unwraps 'value', 'items', 'entries', 'string'.
-    // So we can just pass the data! Simpler!
-
-    // Wait, step 62 _buildJsonTreeView also unwrapped `type` and `asyncState` by removing them.
-    // JsonTreeView step 113 DOES handle that too inside `build` and `_buildExpandedValue`.
-    // So yes, we can simplify!
-
+    // JsonTreeView unwraps the metadata keys ('type', 'value', 'items',
+    // 'entries', 'string', 'asyncState') itself, so pass the data through.
     return JsonTreeView(data: data, initiallyExpanded: false);
   }
 }
