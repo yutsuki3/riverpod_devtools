@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
+import '../common/panel_ui.dart';
 
 class ProviderListPanel extends StatefulWidget {
   final InspectorNotifier notifier;
@@ -46,59 +47,42 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              color: theme.colorScheme.surfaceContainerHighest,
-              width: double.infinity,
-              height: 32,
-              alignment: Alignment.centerLeft,
-              child: Row(
-                children: [
-                  const Text(
-                    'Providers',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+            PanelHeader(
+              icon: Icons.account_tree_outlined,
+              title: 'Providers',
+              count: state.providers.length,
+              actions: [
+                if (state.selectedProviderNames.isNotEmpty)
+                  HeaderActionButton(
+                    label: 'Clear',
+                    icon: Icons.close,
+                    onPressed: () {
+                      for (final name
+                          in state.selectedProviderNames.toList()) {
+                        widget.notifier.removeSelectedProvider(name);
+                      }
+                    },
                   ),
-                  const Spacer(),
-                  if (state.selectedProviderNames.isNotEmpty)
-                    TextButton(
-                      onPressed: () {
-                        for (final name
-                            in state.selectedProviderNames.toList()) {
-                          widget.notifier.removeSelectedProvider(name);
-                        }
-                      },
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: const Size(0, 24),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child:
-                          const Text('Clear', style: TextStyle(fontSize: 10)),
-                    ),
-                ],
-              ),
+              ],
             ),
             // Search field
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
               child: TextField(
                 controller: _searchController,
                 onChanged: (value) {
                   widget.notifier.updateSearchQuery(value);
                 },
-                style: const TextStyle(fontSize: 10),
+                style: const TextStyle(fontSize: 11),
                 decoration: InputDecoration(
                   hintText: 'Search providers...',
                   hintStyle: TextStyle(
-                    fontSize: 10,
+                    fontSize: 11,
                     color: theme.colorScheme.onSurfaceVariant
                         .withValues(alpha: 0.6),
                   ),
                   prefixIcon: Padding(
-                    padding: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.only(left: 8, right: 4),
                     child: Icon(
                       Icons.search,
                       size: 14,
@@ -106,12 +90,12 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                     ),
                   ),
                   prefixIconConstraints: const BoxConstraints(
-                    minWidth: 20,
+                    minWidth: 26,
                     minHeight: 20,
                   ),
                   suffixIcon: SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: 24,
+                    height: 24,
                     child: state.providerSearchQuery.isNotEmpty
                         ? IconButton(
                             icon: Icon(
@@ -129,27 +113,26 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                         : null,
                   ),
                   isDense: true,
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerHighest
+                      .withValues(alpha: 0.5),
                   constraints: const BoxConstraints(
                     maxHeight: 32,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 6,
+                    horizontal: 8,
+                    vertical: 7,
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(
                       color: theme.colorScheme.primary,
                       width: 1.5,
@@ -160,24 +143,16 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
             ),
             Expanded(
               child: state.providers.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No providers yet',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                  ? const EmptyState(
+                      icon: Icons.hub_outlined,
+                      message: 'No providers yet',
+                      hint: 'Providers appear here once your app creates them',
                     )
                   : filteredProviders.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No providers found',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                      ? const EmptyState(
+                          icon: Icons.search_off,
+                          message: 'No providers found',
+                          hint: 'Try a different search query',
                         )
                       : GestureDetector(
                           behavior: HitTestBehavior.opaque,
@@ -190,6 +165,8 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                           },
                           child: ListView.builder(
                             controller: widget.scrollController,
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 4),
                             itemCount: filteredProviders.length,
                             itemBuilder: (context, index) {
                               final provider = filteredProviders[index];
@@ -197,90 +174,45 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                                   .contains(provider.name);
                               final isFlashing =
                                   state.flashingProviderName == provider.name;
-                              return Theme(
-                                data: Theme.of(context).copyWith(
-                                  splashFactory: NoSplash.splashFactory,
-                                  highlightColor: Colors.transparent,
-                                ),
-                                child: Listener(
-                                  onPointerDown: (event) {
-                                    final isCtrlOrCmd =
-                                        event.kind == PointerDeviceKind.mouse &&
-                                            (HardwareKeyboard
-                                                    .instance.isMetaPressed ||
-                                                HardwareKeyboard
-                                                    .instance.isControlPressed);
+                              return _ProviderListTile(
+                                provider: provider,
+                                isSelected: isSelected,
+                                isFlashing: isFlashing,
+                                onPointerDown: (event) {
+                                  final isCtrlOrCmd = event.kind ==
+                                          PointerDeviceKind.mouse &&
+                                      (HardwareKeyboard
+                                              .instance.isMetaPressed ||
+                                          HardwareKeyboard
+                                              .instance.isControlPressed);
 
-                                    if (isCtrlOrCmd) {
-                                      if (isSelected) {
-                                        widget.notifier.removeSelectedProvider(
-                                            provider.name);
-                                      } else {
-                                        widget.notifier
-                                            .selectProvider(provider.name);
-                                      }
+                                  if (isCtrlOrCmd) {
+                                    if (isSelected) {
+                                      widget.notifier.removeSelectedProvider(
+                                          provider.name);
                                     } else {
-                                      if (isSelected &&
-                                          state.selectedProviderNames.length ==
-                                              1) {
-                                        widget.notifier.removeSelectedProvider(
-                                            provider.name);
-                                      } else {
-                                        // Reset selection and select this one
-                                        for (final name in state
-                                            .selectedProviderNames
-                                            .toList()) {
-                                          widget.notifier
-                                              .removeSelectedProvider(name);
-                                        }
-                                        widget.notifier
-                                            .selectProvider(provider.name);
-                                      }
+                                      widget.notifier
+                                          .selectProvider(provider.name);
                                     }
-                                  },
-                                  child: InkWell(
-                                    onTap: () {},
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      color: isFlashing
-                                          ? theme.colorScheme.primary
-                                              .withValues(alpha: 0.3)
-                                          : isSelected
-                                              ? theme.colorScheme.primary
-                                                  .withValues(alpha: 0.1)
-                                              : null,
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            provider.status ==
-                                                    ProviderStatus.active
-                                                ? Icons.circle
-                                                : Icons.circle_outlined,
-                                            size: 8,
-                                            color: provider.status ==
-                                                    ProviderStatus.active
-                                                ? Colors.greenAccent
-                                                : theme.colorScheme
-                                                    .onSurfaceVariant,
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: Text(
-                                              provider.name,
-                                              style:
-                                                  const TextStyle(fontSize: 10),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
+                                  } else {
+                                    if (isSelected &&
+                                        state.selectedProviderNames.length ==
+                                            1) {
+                                      widget.notifier.removeSelectedProvider(
+                                          provider.name);
+                                    } else {
+                                      // Reset selection and select this one
+                                      for (final name in state
+                                          .selectedProviderNames
+                                          .toList()) {
+                                        widget.notifier
+                                            .removeSelectedProvider(name);
+                                      }
+                                      widget.notifier
+                                          .selectProvider(provider.name);
+                                    }
+                                  }
+                                },
                               );
                             },
                           ),
@@ -288,22 +220,108 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
             ),
             // Operation hint
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              color: theme.colorScheme.surfaceContainerHighest
-                  .withValues(alpha: 0.3),
-              child: Text(
-                'Tip: Ctrl/Cmd+Click for multi-selection',
-                style: TextStyle(
-                  fontSize: 8,
-                  color:
-                      theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                  fontStyle: FontStyle.italic,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.3),
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.1),
+                  ),
                 ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 10,
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.6),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Ctrl/Cmd+Click for multi-selection',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: theme.colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.7),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _ProviderListTile extends StatelessWidget {
+  final ProviderInfo provider;
+  final bool isSelected;
+  final bool isFlashing;
+  final void Function(PointerDownEvent event) onPointerDown;
+
+  const _ProviderListTile({
+    required this.provider,
+    required this.isSelected,
+    required this.isFlashing,
+    required this.onPointerDown,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isActive = provider.status == ProviderStatus.active;
+
+    return Listener(
+      onPointerDown: onPointerDown,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: isFlashing
+                ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                : isSelected
+                    ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              StatusDot(isActive: isActive, size: 7),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  provider.name,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : isActive
+                            ? theme.colorScheme.onSurface
+                            : theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.7),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

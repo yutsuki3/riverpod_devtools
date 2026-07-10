@@ -5,6 +5,7 @@ import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
 import '../common/json_tree_view.dart';
 import '../common/copy_button.dart';
+import '../common/panel_ui.dart';
 
 class DetailPanel extends StatelessWidget {
   final InspectorNotifier notifier;
@@ -29,29 +30,20 @@ class DetailPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              color: theme.colorScheme.surfaceContainerHighest,
-              width: double.infinity,
-              height: 32,
-              alignment: Alignment.centerLeft,
-              child: const Text(
-                'Provider Details',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
+            const PanelHeader(
+              icon: Icons.description_outlined,
+              title: 'Provider Details',
             ),
 
             // Tabs (only show when multiple providers selected)
             if (state.selectedProviderNames.length > 1)
               Container(
-                height: 28,
+                height: 34,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                      color: theme.colorScheme.outline.withValues(alpha: 0.12),
                     ),
                   ),
                 ),
@@ -60,53 +52,61 @@ class DetailPanel extends StatelessWidget {
                   children: state.selectedProviderNames.map((providerName) {
                     final isActive =
                         state.activeTabProviderName == providerName;
-                    return InkWell(
-                      onTap: () => notifier.setActiveTab(providerName),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? theme.colorScheme.primary.withValues(alpha: 0.1)
-                              : null,
-                          border: isActive
-                              ? Border(
-                                  bottom: BorderSide(
-                                    color: theme.colorScheme.primary,
-                                    width: 2,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              providerName.length > 20
-                                  ? '${providerName.substring(0, 20)}...'
-                                  : providerName,
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: isActive
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isActive
-                                    ? theme.colorScheme.primary
-                                    : theme.colorScheme.onSurface,
-                              ),
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 2, vertical: 5),
+                      child: InkWell(
+                        onTap: () => notifier.setActiveTab(providerName),
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? theme.colorScheme.primary
+                                    .withValues(alpha: 0.12)
+                                : theme.colorScheme.surfaceContainerHighest
+                                    .withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: isActive
+                                  ? theme.colorScheme.primary
+                                      .withValues(alpha: 0.5)
+                                  : theme.colorScheme.outline
+                                      .withValues(alpha: 0.15),
                             ),
-                            const SizedBox(width: 4),
-                            InkWell(
-                              onTap: () =>
-                                  notifier.removeSelectedProvider(providerName),
-                              child: Icon(
-                                Icons.close,
-                                size: 12,
-                                color: theme.colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                providerName.length > 20
+                                    ? '${providerName.substring(0, 20)}...'
+                                    : providerName,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: isActive
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: isActive
+                                      ? theme.colorScheme.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 5),
+                              InkWell(
+                                onTap: () => notifier
+                                    .removeSelectedProvider(providerName),
+                                borderRadius: BorderRadius.circular(999),
+                                child: Icon(
+                                  Icons.close,
+                                  size: 11,
+                                  color: theme.colorScheme.onSurfaceVariant
+                                      .withValues(alpha: 0.6),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -117,14 +117,10 @@ class DetailPanel extends StatelessWidget {
             // Content
             Expanded(
               child: state.selectedProviderNames.isEmpty
-                  ? Center(
-                      child: Text(
-                        'Select a provider to view details',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                  ? const EmptyState(
+                      icon: Icons.touch_app_outlined,
+                      message: 'Select a provider to view details',
+                      hint: 'Pick a provider from the list on the left',
                     )
                   : _buildSelectedProviderDetail(context, state, theme),
             ),
@@ -150,19 +146,14 @@ class DetailPanel extends StatelessWidget {
 
     final provider = state.providers[displayProviderName];
     if (provider == null) {
-      return Center(
-        child: Text(
-          'Provider not found',
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
+      return const EmptyState(
+        icon: Icons.error_outline,
+        message: 'Provider not found',
       );
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -175,34 +166,15 @@ class DetailPanel extends StatelessWidget {
                 SelectableText(
                   provider.name,
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.2,
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      provider.status == ProviderStatus.active
-                          ? Icons.circle
-                          : Icons.circle_outlined,
-                      size: 12,
-                      color: provider.status == ProviderStatus.active
-                          ? Colors.greenAccent
-                          : theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      provider.status == ProviderStatus.active
-                          ? 'Active'
-                          : 'Disposed',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 6),
+                StatusBadge(
+                  isActive: provider.status == ProviderStatus.active,
                 ),
               ],
             ),
@@ -217,10 +189,10 @@ class DetailPanel extends StatelessWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest
-                    .withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(4),
+                    .withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                  color: theme.colorScheme.outline.withValues(alpha: 0.12),
                 ),
               ),
               child: JsonTreeView(data: provider.value),
@@ -323,9 +295,9 @@ class DetailPanel extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              color: theme.colorScheme.outline.withValues(alpha: 0.12),
             ),
           ),
           child: Text(
@@ -355,12 +327,23 @@ class DetailPanel extends StatelessWidget {
       title: 'Last Update',
       child: Padding(
         padding: const EdgeInsets.only(left: 4, top: 2),
-        child: SelectableText(
-          '$eventTypeString ($timeString)',
-          style: TextStyle(
-            fontSize: 10,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.schedule,
+              size: 11,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+            const SizedBox(width: 5),
+            SelectableText(
+              '$eventTypeString ($timeString)',
+              style: TextStyle(
+                fontSize: 10,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -377,11 +360,21 @@ class DetailPanel extends StatelessWidget {
       children: [
         Row(
           children: [
+            Container(
+              width: 3,
+              height: 11,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Text(
               title,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
                 color: theme.colorScheme.primary,
               ),
             ),
@@ -457,8 +450,8 @@ class DetailPanel extends StatelessWidget {
             )
           else
             Wrap(
-              spacing: 4,
-              runSpacing: 4,
+              spacing: 5,
+              runSpacing: 5,
               children: dependencies.map((name) {
                 final isSelected = state.selectedProviderNames.contains(name);
                 final isActive = state.activeTabProviderName == name;
@@ -482,19 +475,19 @@ class DetailPanel extends StatelessWidget {
                         onProviderJump?.call();
                       }
                     },
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(999),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                          horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: isActive
                             ? theme.colorScheme.primary
                             : isSelected
                                 ? theme.colorScheme.primary
-                                    .withValues(alpha: 0.1)
+                                    .withValues(alpha: 0.12)
                                 : theme.colorScheme.surfaceContainerHighest
                                     .withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(999),
                         border: Border.all(
                           color: isActive
                               ? theme.colorScheme.primary
@@ -502,7 +495,7 @@ class DetailPanel extends StatelessWidget {
                                   ? theme.colorScheme.primary
                                       .withValues(alpha: 0.4)
                                   : theme.colorScheme.outline
-                                      .withValues(alpha: 0.1),
+                                      .withValues(alpha: 0.15),
                           width: 1,
                         ),
                       ),
@@ -524,7 +517,7 @@ class DetailPanel extends StatelessWidget {
                           Text(
                             name,
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 9.5,
                               fontFamily: 'monospace',
                               color: isActive
                                   ? theme.colorScheme.onPrimary
@@ -670,7 +663,7 @@ class _NameMismatchDropdownState extends State<_NameMismatchDropdown> {
             ? widget.theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.2)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
         border: _isExpanded
             ? Border.all(
                 color: widget.theme.colorScheme.outline.withValues(alpha: 0.15),
@@ -687,7 +680,7 @@ class _NameMismatchDropdownState extends State<_NameMismatchDropdown> {
                 _isExpanded = !_isExpanded;
               });
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
@@ -859,7 +852,7 @@ class _StaticAnalysisRequiredDropdownState
             ? widget.theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.2)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
         border: _isExpanded
             ? Border.all(
                 color: widget.theme.colorScheme.outline.withValues(alpha: 0.15),
@@ -876,7 +869,7 @@ class _StaticAnalysisRequiredDropdownState
                 _isExpanded = !_isExpanded;
               });
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
@@ -1206,7 +1199,7 @@ class _UpdateInfoDropdownState extends State<_UpdateInfoDropdown> {
             ? widget.theme.colorScheme.surfaceContainerHighest
                 .withValues(alpha: 0.2)
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(8),
         border: _isExpanded
             ? Border.all(
                 color: widget.theme.colorScheme.outline.withValues(alpha: 0.15),
@@ -1223,7 +1216,7 @@ class _UpdateInfoDropdownState extends State<_UpdateInfoDropdown> {
                 _isExpanded = !_isExpanded;
               });
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Row(
