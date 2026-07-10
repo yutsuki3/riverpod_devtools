@@ -53,14 +53,13 @@ Map<String, Object?> serializeValue(
       // Avoid re-encoding unless we need to ensure it's pure JSON safe,
       // but typically we can trust toJson or handle the result recursively.
       if (json is Map || json is List) {
-        // We wrap the result in our structure, but we might want to recurse
-        // if the toJson result contains non-primitive objects.
-        // For simplicity and safety, let's treat the result as a value to serialize
-        // but reset depth since it's a new representation?
-        // Actually, let's just use it.
+        // Sanitize the result: toJson() implementations may nest values that
+        // json.encode can't handle (DateTime, enums, custom objects), and
+        // developer.postEvent encodes the event without a toEncodable
+        // fallback — an unencodable leaf would make the whole event throw.
         return {
           'type': value.runtimeType.toString(),
-          'value': json,
+          'value': _jsonSafe(json, 0),
         };
       }
     } catch (_) {
@@ -124,6 +123,26 @@ Map<String, Object?> serializeValue(
       visited.remove(value);
     }
   }
+}
+
+/// Deep-copies a toJson() result, converting any leaf that json.encode
+/// cannot handle (DateTime, enums, custom objects) to its toString() form.
+Object? _jsonSafe(Object? value, int depth) {
+  const maxDepth = 10;
+  if (value == null || value is num || value is bool || value is String) {
+    return value;
+  }
+  if (depth > maxDepth) return value.toString();
+  if (value is Map) {
+    return {
+      for (final entry in value.entries)
+        entry.key.toString(): _jsonSafe(entry.value, depth + 1),
+    };
+  }
+  if (value is List) {
+    return [for (final item in value) _jsonSafe(item, depth + 1)];
+  }
+  return value.toString();
 }
 
 /// Parses a string representation of an object (e.g., from toString())

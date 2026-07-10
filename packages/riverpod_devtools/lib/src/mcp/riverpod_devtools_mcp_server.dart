@@ -63,7 +63,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   FutureOr<CallToolResult> _getRiverpodLogs(CallToolRequest request) async {
     final arguments = request.arguments ?? const {};
     final queryParameters = <String, String>{
-      // Some MCP clients send integers as JSON doubles (e.g. 50.0).
+      // dart_mcp validates arguments against the schema before this runs,
+      // rejecting strings and fractional numbers — but whole doubles
+      // (e.g. 50.0, as some clients encode integers) pass validation and
+      // arrive here as num, so normalize via toInt().
       if (arguments['limit'] case final num limit) 'limit': '${limit.toInt()}',
       if (arguments['provider'] case final String provider
           when provider.isNotEmpty)

@@ -70,16 +70,24 @@ class InspectorNotifier extends ChangeNotifier {
 
   // Memoized derived lists. Panels read [filteredProviders]/[filteredEvents]
   // on every rebuild (which happens on every provider event), so recomputing
-  // the filter + merge/sort each time is wasted work. Every state mutation
-  // ends with [notifyListeners], which invalidates both caches.
+  // the filter + merge/sort each time is wasted work. All state mutations go
+  // through [_setState], which invalidates exactly the caches whose inputs
+  // changed — e.g. flash-animation ticks touch neither cache.
   List<ProviderInfo>? _filteredProvidersCache;
   List<ProviderEvent>? _filteredEventsCache;
 
-  @override
-  void notifyListeners() {
-    _filteredProvidersCache = null;
-    _filteredEventsCache = null;
-    super.notifyListeners();
+  void _setState(InspectorState newState) {
+    final old = _state;
+    _state = newState;
+    if (!identical(old.providers, newState.providers) ||
+        old.providerSearchQuery != newState.providerSearchQuery) {
+      _filteredProvidersCache = null;
+    }
+    if (!identical(old.events, newState.events) ||
+        !identical(
+            old.selectedProviderNames, newState.selectedProviderNames)) {
+      _filteredEventsCache = null;
+    }
   }
 
   static const int _maxEventCount = 1000;
@@ -105,17 +113,17 @@ class InspectorNotifier extends ChangeNotifier {
   }
 
   void updateSearchQuery(String query) {
-    _state = _state.copyWith(providerSearchQuery: query);
+    _setState(_state.copyWith(providerSearchQuery: query));
     notifyListeners();
   }
 
   void clearEvents() {
     _eventsByProvider.clear();
     _processedEventKeys.clear();
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       events: const [],
       expandedEventIds: const {},
-    );
+    ));
     notifyListeners();
   }
 
@@ -126,17 +134,17 @@ class InspectorNotifier extends ChangeNotifier {
     } else {
       newExpanded.add(eventId);
     }
-    _state = _state.copyWith(expandedEventIds: newExpanded);
+    _setState(_state.copyWith(expandedEventIds: newExpanded));
     notifyListeners();
   }
 
   void selectProvider(String providerName) {
     final newSelected = Set<String>.from(_state.selectedProviderNames);
     newSelected.add(providerName);
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       selectedProviderNames: newSelected,
       activeTabProviderName: providerName,
-    );
+    ));
     notifyListeners();
   }
 
@@ -149,49 +157,49 @@ class InspectorNotifier extends ChangeNotifier {
       newActiveTab = newSelected.isNotEmpty ? newSelected.first : null;
     }
 
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       selectedProviderNames: newSelected,
       activeTabProviderName: newActiveTab,
-    );
+    ));
     notifyListeners();
   }
 
   void setActiveTab(String providerName) {
-    _state = _state.copyWith(activeTabProviderName: providerName);
+    _setState(_state.copyWith(activeTabProviderName: providerName));
     notifyListeners();
   }
 
   void updateLeftSplitRatio(double ratio) {
-    _state = _state.copyWith(leftSplitRatio: ratio);
+    _setState(_state.copyWith(leftSplitRatio: ratio));
     notifyListeners();
   }
 
   void updateRightSplitRatio(double ratio) {
-    _state = _state.copyWith(rightSplitRatio: ratio);
+    _setState(_state.copyWith(rightSplitRatio: ratio));
     notifyListeners();
   }
 
   void flashProvider(String providerName, {int flashCount = 2}) {
     _flashTimer?.cancel();
-    _state = _state.copyWith(flashingProviderName: providerName);
+    _setState(_state.copyWith(flashingProviderName: providerName));
     notifyListeners();
 
     if (flashCount == 1) {
       _flashTimer = Timer(const Duration(milliseconds: 300), () {
-        _state = _state.copyWith(flashingProviderName: null);
+        _setState(_state.copyWith(flashingProviderName: null));
         notifyListeners();
       });
     } else {
       _flashTimer = Timer(const Duration(milliseconds: 200), () {
-        _state = _state.copyWith(flashingProviderName: null);
+        _setState(_state.copyWith(flashingProviderName: null));
         notifyListeners();
 
         _flashTimer = Timer(const Duration(milliseconds: 100), () {
-          _state = _state.copyWith(flashingProviderName: providerName);
+          _setState(_state.copyWith(flashingProviderName: providerName));
           notifyListeners();
 
           _flashTimer = Timer(const Duration(milliseconds: 200), () {
-            _state = _state.copyWith(flashingProviderName: null);
+            _setState(_state.copyWith(flashingProviderName: null));
             notifyListeners();
           });
         });
@@ -367,16 +375,17 @@ class InspectorNotifier extends ChangeNotifier {
           timestamp: eventTimestamp,
         );
       } else if (kind == 'riverpod:provider_disposed') {
+        final existing = _state.providers[providerName];
         newProviders[providerName] = ProviderInfo(
           id: providerId,
           name: providerName,
-          value: _state.providers[providerName]?.value ??
-              {'type': 'null', 'value': null},
+          value: existing?.value ?? {'type': 'null', 'value': null},
           status: ProviderStatus.disposed,
-          dependencies: _state.providers[providerName]?.dependencies ?? [],
-          dependenciesSource: _state.providers[providerName]?.dependenciesSource ?? DependencySource.none,
-          dependenciesLoadedAt: _state.providers[providerName]?.dependenciesLoadedAt,
-          dependenciesGeneratedAt: _state.providers[providerName]?.dependenciesGeneratedAt,
+          dependencies: existing?.dependencies ?? [],
+          dependenciesSource:
+              existing?.dependenciesSource ?? DependencySource.none,
+          dependenciesLoadedAt: existing?.dependenciesLoadedAt,
+          dependenciesGeneratedAt: existing?.dependenciesGeneratedAt,
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,
@@ -393,10 +402,11 @@ class InspectorNotifier extends ChangeNotifier {
         _eventsByProvider.putIfAbsent(newEvent.providerName, () => []);
         _eventsByProvider[newEvent.providerName]!.insert(0, newEvent);
 
-        // Ring buffer: evict the oldest event in place, on the copy we just
-        // made, instead of copying the whole list a second time.
+        // Ring buffer: exactly one event was inserted, so at most one needs
+        // evicting. Evict in place on the copy we just made instead of
+        // copying the whole list a second time.
         Set<String>? newExpanded;
-        while (newEvents.length > _maxEventCount) {
+        if (newEvents.length > _maxEventCount) {
           final removed = newEvents.removeLast();
 
           final providerEvents = _eventsByProvider[removed.providerName];
@@ -408,16 +418,17 @@ class InspectorNotifier extends ChangeNotifier {
           }
 
           if (_state.expandedEventIds.contains(removed.id)) {
-            newExpanded ??= Set<String>.from(_state.expandedEventIds);
-            newExpanded.remove(removed.id);
+            // Passing null to copyWith below means "keep the current set".
+            newExpanded = Set<String>.from(_state.expandedEventIds)
+              ..remove(removed.id);
           }
         }
 
-        _state = _state.copyWith(
+        _setState(_state.copyWith(
           providers: newProviders,
           events: newEvents,
           expandedEventIds: newExpanded,
-        );
+        ));
         _cleanupDisposedProviders();
         notifyListeners();
       }
@@ -456,12 +467,12 @@ class InspectorNotifier extends ChangeNotifier {
       }
     }
 
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       providers: newProviders,
       events: newEvents,
       expandedEventIds: newExpanded,
       selectedProviderNames: newSelected,
       activeTabProviderName: newActiveTab,
-    );
+    ));
   }
 }

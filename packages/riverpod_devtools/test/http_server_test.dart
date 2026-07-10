@@ -57,6 +57,17 @@ void main() {
       expect(events.map((e) => e['newValue']), [6, 8]);
     });
 
+    test('eventsFor treats limit 0 and negative limits as empty', () {
+      final server = RiverpodDevToolsHttpServer();
+      for (var i = 0; i < 3; i++) {
+        server.addEvent(event('a', i));
+      }
+
+      expect(server.eventsFor(limit: 0), isEmpty);
+      expect(server.eventsFor(limit: -1), isEmpty);
+      expect(server.eventsFor(provider: 'a', limit: 0), isEmpty);
+    });
+
     test('eventsFor with a limit larger than the buffer returns everything',
         () {
       final server = RiverpodDevToolsHttpServer();
