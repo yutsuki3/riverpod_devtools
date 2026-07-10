@@ -282,6 +282,23 @@ class InspectorNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Seeds the whole inspector state — providers, events (newest first),
+  /// and the per-provider event index — bypassing the vm_service
+  /// subscription. Only for tests and the screenshot harness
+  /// (`main_mock.dart`).
+  @visibleForTesting
+  void debugSeed({
+    required Map<String, ProviderInfo> providers,
+    required List<ProviderEvent> events,
+  }) {
+    _eventsByProvider.clear();
+    for (final event in events) {
+      _eventsByProvider.putIfAbsent(event.providerName, () => []).add(event);
+    }
+    _setState(_state.copyWith(providers: providers, events: events));
+    notifyListeners();
+  }
+
   /// Cascade depth per event ID: 0 for root updates, 1+ for updates that
   /// were (transitively) triggered by another update in the log. Used by
   /// the event log to indent cascades. Rebuilt only when the event list
