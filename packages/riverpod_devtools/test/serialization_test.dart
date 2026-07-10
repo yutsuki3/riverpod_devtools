@@ -11,6 +11,23 @@ class TestObject {
   String toString() => 'TestObject(id: $id)';
 }
 
+/// Mimics Riverpod's AsyncData.toString() without depending on Riverpod
+class FakeAsyncData {
+  @override
+  String toString() => 'AsyncData<int>(value: 5)';
+}
+
+class FakeAsyncLoading {
+  @override
+  String toString() => 'AsyncLoading<int>()';
+}
+
+class FakeAsyncError {
+  @override
+  String toString() =>
+      'AsyncError<int>(error: Exception: boom, stackTrace: #0 main)';
+}
+
 void main() {
   group('serializeValue', () {
     test('handles null', () {
@@ -63,6 +80,18 @@ void main() {
         }
       }
       expect(foundMaxDepthMsg, isTrue, reason: 'Should hit max depth');
+    });
+
+    test('detects AsyncValue states from toString()', () {
+      final data = serializeValue(FakeAsyncData());
+      expect(data['asyncState'], 'data');
+      expect(data['value'], {'value': 5});
+
+      final loading = serializeValue(FakeAsyncLoading());
+      expect(loading['asyncState'], 'loading');
+
+      final error = serializeValue(FakeAsyncError());
+      expect(error['asyncState'], 'error');
     });
 
     test('handles circular references', () {
