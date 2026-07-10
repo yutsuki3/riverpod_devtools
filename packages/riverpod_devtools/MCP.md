@@ -54,7 +54,7 @@ The `get_riverpod_logs` tool is now available and Claude Code will call it autom
 
 | Tool | Description |
 |---|---|
-| `get_riverpod_logs` | Returns buffered provider lifecycle events (`provider_added`, `provider_updated`, `provider_disposed`) as JSON. Not a general app log — Riverpod state changes only. Optional parameters: `limit` (return only the most recent N events) and `provider` (return only events for the provider with this exact name). Use them to keep responses small — the buffer holds up to 1000 events. |
+| `get_riverpod_logs` | Returns buffered provider lifecycle events (`provider_added`, `provider_updated`, `provider_disposed`) as JSON. Not a general app log — Riverpod state changes only. Optional parameters: `limit` (return only the most recent N events) and `provider` (return only events for the provider with this exact name). Use them to keep responses small — the buffer holds up to 1000 events. Every event carries a monotonic `seq` number for unambiguous ordering, and `provider_updated` events may carry `triggeredBy` — the dependency update(s) that likely caused the recomputation, inferred from the static dependency graph plus temporal proximity (marked `triggerConfidence: "inferred"`) — so update cascades ("why did this provider rebuild?") can be traced. |
 | `clear_riverpod_logs` | Clears the event buffer. |
 
 ## Requirements & limitations

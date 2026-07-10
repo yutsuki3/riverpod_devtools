@@ -1,9 +1,10 @@
 import 'dart:async' show unawaited;
 import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'http_server_support.dart';
 import 'static_dependencies.dart';
+import 'trigger_tracker.dart';
 import 'utils/serialization.dart';
 
 /// A [ProviderObserver] that sends Riverpod events to the Flutter DevTools extension.
@@ -47,6 +48,19 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   final RiverpodDevToolsHttpServer _httpServer;
 
+  /// Monotonic per-observer event sequence. Timestamps have millisecond
+  /// resolution and collide within a burst of updates, so consumers use
+  /// [seq] for unambiguous ordering and for `triggeredBy` references.
+  int _eventSeq = 0;
+
+  final UpdateTriggerTracker _triggerTracker = UpdateTriggerTracker();
+
+  /// The events buffered for the local MCP endpoint, exposed so tests can
+  /// assert on posted payloads (developer.postEvent is not interceptable).
+  @visibleForTesting
+  List<Map<String, Object?>> get bufferedEventsForTesting =>
+      _httpServer.eventsFor();
+
   /// Whether any consumer can observe events right now.
   ///
   /// In debug mode the local HTTP buffer (MCP) always needs events. Outside
@@ -83,8 +97,22 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     final provider = _getProvider(context);
     final providerName = _getProviderName(provider);
 
+    final data = _buildProviderEventData(provider, providerName);
+    final seq = data['seq'] as int;
+    final nowMs = data['timestamp'] as int;
+    final triggers = _triggerTracker.triggersFor(
+      providerName,
+      data['dependencies'] as List<String>,
+      nowMs,
+    );
+    if (triggers.isNotEmpty) {
+      data['triggeredBy'] = triggers;
+      data['triggerConfidence'] = 'inferred';
+    }
+    _triggerTracker.recordUpdate(providerName, seq, nowMs);
+
     _postEvent('provider_updated', {
-      ..._buildProviderEventData(provider, providerName),
+      ...data,
       'previousValue': serializeValue(previousValue),
       'newValue': serializeValue(newValue),
     });
@@ -168,6 +196,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   Map<String, Object?> _buildProviderEventData(
       dynamic provider, String providerName) {
     return {
+      'seq': ++_eventSeq,
       'providerId': identityHashCode(provider).toString(),
       'provider': providerName,
       'dependencies': _getDependencies(providerName),

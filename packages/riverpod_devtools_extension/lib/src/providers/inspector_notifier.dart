@@ -76,6 +76,7 @@ class InspectorNotifier extends ChangeNotifier {
   List<ProviderInfo>? _filteredProvidersCache;
   List<ProviderEvent>? _filteredEventsCache;
   Map<String, List<String>>? _usedByIndex;
+  Map<String, int>? _eventDepthsCache;
 
   void _setState(InspectorState newState) {
     final old = _state;
@@ -90,6 +91,9 @@ class InspectorNotifier extends ChangeNotifier {
         !identical(
             old.selectedProviderNames, newState.selectedProviderNames)) {
       _filteredEventsCache = null;
+    }
+    if (!identical(old.events, newState.events)) {
+      _eventDepthsCache = null;
     }
   }
 
@@ -269,6 +273,46 @@ class InspectorNotifier extends ChangeNotifier {
     return index;
   }
 
+  /// Replaces the event list directly, bypassing the vm_service
+  /// subscription. Only for tests (the subscription needs a live service
+  /// connection, which unit tests don't have).
+  @visibleForTesting
+  void debugSetEvents(List<ProviderEvent> events) {
+    _setState(_state.copyWith(events: events));
+    notifyListeners();
+  }
+
+  /// Cascade depth per event ID: 0 for root updates, 1+ for updates that
+  /// were (transitively) triggered by another update in the log. Used by
+  /// the event log to indent cascades. Rebuilt only when the event list
+  /// changes.
+  Map<String, int> get eventDepths =>
+      _eventDepthsCache ??= _computeEventDepths();
+
+  static const int _maxCascadeDepth = 4;
+
+  Map<String, int> _computeEventDepths() {
+    final depthBySeq = <int, int>{};
+    final depthById = <String, int>{};
+    // Oldest first, so an event's triggers are processed before it.
+    for (var i = _state.events.length - 1; i >= 0; i--) {
+      final event = _state.events[i];
+      var depth = 0;
+      for (final trigger in event.triggeredBy) {
+        final triggerDepth =
+            trigger.seq != null ? depthBySeq[trigger.seq] : null;
+        // A trigger that is no longer in the log (evicted) still means
+        // this event was caused by something: treat it as depth 1.
+        final candidate = (triggerDepth ?? 0) + 1;
+        if (candidate > depth) depth = candidate;
+      }
+      if (depth > _maxCascadeDepth) depth = _maxCascadeDepth;
+      if (event.seq != null) depthBySeq[event.seq!] = depth;
+      if (depth > 0) depthById[event.id] = depth;
+    }
+    return depthById;
+  }
+
   /// The most recent event for [providerName], if any (O(1) lookup).
   ProviderEvent? latestEventFor(String providerName) {
     final events = _eventsByProvider[providerName];
@@ -309,6 +353,20 @@ class InspectorNotifier extends ChangeNotifier {
       final rawValue = data['newValue'] ?? data['value'];
       final rawPreviousValue = data['previousValue'];
       final timestamp = data['timestamp'] as int?;
+      final seq = data['seq'] is int ? data['seq'] as int : null;
+
+      var triggeredBy = const <TriggerRef>[];
+      final rawTriggers = data['triggeredBy'];
+      if (rawTriggers is List) {
+        triggeredBy = [
+          for (final trigger in rawTriggers)
+            if (trigger is Map && trigger['provider'] != null)
+              TriggerRef(
+                provider: trigger['provider'].toString(),
+                seq: trigger['seq'] is int ? trigger['seq'] as int : null,
+              ),
+        ];
+      }
 
       List<String> dependencies = [];
       DependencySource dependenciesSource = DependencySource.none;
@@ -389,6 +447,7 @@ class InspectorNotifier extends ChangeNotifier {
           providerName: providerName,
           value: value,
           timestamp: eventTimestamp,
+          seq: seq,
         );
       } else if (kind == 'riverpod:provider_updated') {
         _disposedProviderTimestamps.remove(providerName);
@@ -409,6 +468,8 @@ class InspectorNotifier extends ChangeNotifier {
           previousValue: previousValue,
           value: value,
           timestamp: eventTimestamp,
+          seq: seq,
+          triggeredBy: triggeredBy,
         );
       } else if (kind == 'riverpod:provider_disposed') {
         final existing = _state.providers[providerName];
@@ -428,6 +489,7 @@ class InspectorNotifier extends ChangeNotifier {
           providerId: providerId,
           providerName: providerName,
           timestamp: eventTimestamp,
+          seq: seq,
         );
         _disposedProviderTimestamps[providerName] = eventTimestamp;
       }

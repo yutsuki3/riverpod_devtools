@@ -74,6 +74,8 @@ class EventLogPanel extends StatelessWidget {
                               timeDiffString: timeDiff != null
                                   ? formatTimeDiff(timeDiff)
                                   : null,
+                              cascadeDepth:
+                                  notifier.eventDepths[event.id] ?? 0,
                               key: ValueKey(event.id),
                             );
                           },
@@ -91,11 +93,16 @@ class _EventTile extends StatelessWidget {
   final InspectorNotifier notifier;
   final String? timeDiffString;
 
+  /// 0 for root events; 1+ indents the tile under the update cascade that
+  /// (transitively) triggered it.
+  final int cascadeDepth;
+
   const _EventTile({
     super.key,
     required this.event,
     required this.notifier,
     this.timeDiffString,
+    this.cascadeDepth = 0,
   });
 
   @override
@@ -135,7 +142,12 @@ class _EventTile extends StatelessWidget {
         : (summarySubtitle.length > 50 || event.type == EventType.updated);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      margin: EdgeInsets.only(
+        left: 6.0 + cascadeDepth * 12.0,
+        right: 6,
+        top: 2,
+        bottom: 2,
+      ),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest
@@ -234,6 +246,24 @@ class _EventTile extends StatelessWidget {
                       ],
                     ],
                   ),
+                  if (event.triggeredBy.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 20, top: 3),
+                      child: Wrap(
+                        spacing: 4,
+                        runSpacing: 2,
+                        children: [
+                          for (final trigger in event.triggeredBy)
+                            _TriggerChip(
+                              providerName: trigger.provider,
+                              onTap: () {
+                                notifier.selectProvider(trigger.provider);
+                                notifier.flashProvider(trigger.provider);
+                              },
+                            ),
+                        ],
+                      ),
+                    ),
                   if (!isExpanded)
                     Padding(
                       padding: const EdgeInsets.only(left: 20, top: 4),
@@ -338,5 +368,57 @@ class _EventTile extends StatelessWidget {
     // JsonTreeView unwraps the metadata keys ('type', 'value', 'items',
     // 'entries', 'string', 'asyncState') itself, so pass the data through.
     return JsonTreeView(data: data, initiallyExpanded: false);
+  }
+}
+
+/// "caused by <provider>" chip shown on updates that were (likely)
+/// triggered by a dependency change. Tapping selects and flashes the
+/// triggering provider.
+class _TriggerChip extends StatelessWidget {
+  final String providerName;
+  final VoidCallback onTap;
+
+  const _TriggerChip({
+    required this.providerName,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.tertiary;
+
+    return Tooltip(
+      message: 'Likely triggered by $providerName\n'
+          '(inferred from static dependencies + timing)',
+      waitDuration: const Duration(milliseconds: 400),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.bolt, size: 10, color: color),
+              const SizedBox(width: 2),
+              Text(
+                'caused by $providerName',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
