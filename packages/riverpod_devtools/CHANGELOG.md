@@ -1,3 +1,13 @@
+## Unreleased
+
+- **Fixes**:
+    - `AsyncValue` states (`data`/`loading`/`error`) are shown again in the extension UI — the `asyncState` marker was unreachable in serialization because the structured `toString()` parser returned first.
+    - DevTools extension: the Event Log "Clear All" button now actually clears the log (it was a no-op).
+    - DevTools extension: providers that are disposed and later re-created are no longer evicted from the provider list by the disposed-provider cleanup.
+    - DevTools extension: event IDs are now unique even when a provider emits multiple events within the same millisecond, preventing duplicate-key errors in the event list.
+- **Dev**:
+    - Widened the extension package's `vm_service` constraint to `>=14.0.0 <16.0.0` so it resolves with Flutter >=3.32 (which pins `vm_service` 15.0.0).
+
 ## 0.6.2
 
 - **Docs**:

@@ -34,6 +34,13 @@ class EventLogPanel extends StatelessWidget {
                       ? 'Event Log (${state.selectedProviderNames.first})'
                       : 'Event Log (${state.selectedProviderNames.length} providers)',
               count: filteredEvents.length,
+              actions: [
+                HeaderActionButton(
+                  label: 'Clear',
+                  icon: Icons.delete_outline,
+                  onPressed: notifier.clearEvents,
+                ),
+              ],
             ),
             Expanded(
               child: state.events.isEmpty
@@ -328,6 +335,8 @@ class _EventTile extends StatelessWidget {
           style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
     }
 
+    // JsonTreeView unwraps the metadata keys ('type', 'value', 'items',
+    // 'entries', 'string', 'asyncState') itself, so pass the data through.
     return JsonTreeView(data: data, initiallyExpanded: false);
   }
 }

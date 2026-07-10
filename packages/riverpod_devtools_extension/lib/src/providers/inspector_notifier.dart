@@ -95,6 +95,16 @@ class InspectorNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearEvents() {
+    _eventsByProvider.clear();
+    _processedEventKeys.clear();
+    _state = _state.copyWith(
+      events: const [],
+      expandedEventIds: const {},
+    );
+    notifyListeners();
+  }
+
   void toggleEventExpansion(String eventId) {
     final newExpanded = Set<String>.from(_state.expandedEventIds);
     if (newExpanded.contains(eventId)) {
@@ -296,6 +306,9 @@ class InspectorNotifier extends ChangeNotifier {
       ProviderEvent? newEvent;
 
       if (kind == 'riverpod:provider_added') {
+        // The provider is alive again; drop it from the disposed list so
+        // _cleanupDisposedProviders never evicts an active provider.
+        _disposedProviderTimestamps.remove(providerName);
         newProviders[providerName] = ProviderInfo(
           id: providerId,
           name: providerName,
@@ -314,6 +327,7 @@ class InspectorNotifier extends ChangeNotifier {
           timestamp: eventTimestamp,
         );
       } else if (kind == 'riverpod:provider_updated') {
+        _disposedProviderTimestamps.remove(providerName);
         newProviders[providerName] = ProviderInfo(
           id: providerId,
           name: providerName,
