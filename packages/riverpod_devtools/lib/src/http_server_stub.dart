@@ -1,5 +1,7 @@
 class RiverpodDevToolsHttpServer {
-  const RiverpodDevToolsHttpServer({int maxBufferSize = 1000});
+  RiverpodDevToolsHttpServer({int maxBufferSize = 1000});
+  Map<String, Object?> Function(String action, String provider)?
+      commandHandler;
   Future<void> start() async {}
   void stop() {}
   void addEvent(Map<String, Object?> event) {}

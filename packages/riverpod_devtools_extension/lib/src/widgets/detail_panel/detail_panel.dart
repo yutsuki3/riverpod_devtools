@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/event_type.dart';
@@ -174,8 +177,17 @@ class DetailPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                StatusBadge(
-                  isActive: provider.status == ProviderStatus.active,
+                Row(
+                  children: [
+                    StatusBadge(
+                      isActive: provider.status == ProviderStatus.active,
+                    ),
+                    const Spacer(),
+                    _CommandButtons(
+                      providerName: provider.name,
+                      enabled: provider.status == ProviderStatus.active,
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1333,6 +1345,183 @@ class _UpdateInfoDropdownState extends State<_UpdateInfoDropdown> {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Invalidate / Refresh actions for the selected provider, executed inside
+/// the running app via the `ext.riverpod_devtools.command` service
+/// extension registered by RiverpodDevToolsObserver. Shows a short inline
+/// result label instead of a snackbar (the extension has no Scaffold).
+class _CommandButtons extends StatefulWidget {
+  final String providerName;
+  final bool enabled;
+
+  const _CommandButtons({
+    required this.providerName,
+    required this.enabled,
+  });
+
+  @override
+  State<_CommandButtons> createState() => _CommandButtonsState();
+}
+
+class _CommandButtonsState extends State<_CommandButtons> {
+  static const _commandExtension = 'ext.riverpod_devtools.command';
+
+  String? _feedback;
+  bool _feedbackIsError = false;
+  bool _busy = false;
+  Timer? _feedbackTimer;
+
+  @override
+  void dispose() {
+    _feedbackTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _send(String action) async {
+    setState(() => _busy = true);
+    try {
+      final service = serviceManager.service;
+      final isolateId = serviceManager.isolateManager.mainIsolate.value?.id;
+      if (service == null || isolateId == null) {
+        _showFeedback('App not connected', isError: true);
+        return;
+      }
+      final response = await service.callServiceExtension(
+        _commandExtension,
+        isolateId: isolateId,
+        args: {'action': action, 'provider': widget.providerName},
+      );
+      final json = response.json ?? const {};
+      if (json['status'] == 'ok') {
+        _showFeedback(action == 'refresh' ? 'Refreshed' : 'Invalidated');
+      } else {
+        _showFeedback(
+          json['message']?.toString() ?? 'Command failed',
+          isError: true,
+        );
+      }
+    } catch (error) {
+      // Typically: the app runs an older riverpod_devtools without the
+      // command extension.
+      _showFeedback('Not supported by the running app ($error)',
+          isError: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _showFeedback(String message, {bool isError = false}) {
+    if (!mounted) return;
+    _feedbackTimer?.cancel();
+    setState(() {
+      _feedback = message;
+      _feedbackIsError = isError;
+    });
+    _feedbackTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _feedback = null);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_feedback != null) ...[
+          Flexible(
+            child: Text(
+              _feedback!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 9,
+                color: _feedbackIsError
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.primary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        _CommandButton(
+          icon: Icons.restart_alt,
+          label: 'Invalidate',
+          tooltip: 'Mark this provider for rebuild '
+              '(rebuilds on next read/listen)',
+          onPressed:
+              widget.enabled && !_busy ? () => _send('invalidate') : null,
+        ),
+        const SizedBox(width: 4),
+        _CommandButton(
+          icon: Icons.refresh,
+          label: 'Refresh',
+          tooltip: 'Invalidate and rebuild this provider immediately',
+          onPressed: widget.enabled && !_busy ? () => _send('refresh') : null,
+        ),
+      ],
+    );
+  }
+}
+
+class _CommandButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onPressed;
+
+  const _CommandButton({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onPressed != null;
+    final color = enabled
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4);
+
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: enabled
+                  ? theme.colorScheme.primary.withValues(alpha: 0.4)
+                  : theme.colorScheme.outline.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 11, color: color),
+              const SizedBox(width: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

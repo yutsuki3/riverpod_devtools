@@ -1,4 +1,5 @@
 import 'dart:async' show unawaited;
+import 'dart:convert' show jsonEncode;
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,88 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       : _httpServer = RiverpodDevToolsHttpServer(maxBufferSize: maxBufferSize) {
     if (kDebugMode) {
       unawaited(_httpServer.start());
+      _httpServer.commandHandler = executeCommand;
+      _commandTarget = this;
+      _registerCommandExtension();
+    }
+  }
+
+  /// Service extension DevTools calls to run state commands
+  /// (invalidate/refresh) inside the app.
+  static const commandExtensionName = 'ext.riverpod_devtools.command';
+
+  /// registerExtension is per-isolate and permanent, so the extension is
+  /// registered once and routed to the most recently constructed observer
+  /// (a new observer replaces the old one on hot restart).
+  static bool _commandExtensionRegistered = false;
+  static RiverpodDevToolsObserver? _commandTarget;
+
+  static void _registerCommandExtension() {
+    if (_commandExtensionRegistered) return;
+    _commandExtensionRegistered = true;
+    try {
+      developer.registerExtension(commandExtensionName,
+          (method, parameters) async {
+        final result = _commandTarget?.executeCommand(
+              parameters['action'] ?? '',
+              parameters['provider'] ?? '',
+            ) ??
+            {'status': 'error', 'message': 'No active observer.'};
+        return developer.ServiceExtensionResponse.result(jsonEncode(result));
+      });
+    } catch (error) {
+      developer.log(
+        'riverpod_devtools: failed to register $commandExtensionName; '
+        'invalidate/refresh from DevTools will not work.',
+        name: 'riverpod_devtools',
+        error: error,
+      );
+    }
+  }
+
+  /// Live provider instances (with the container that owns them) by name,
+  /// so state commands can target them. Filled in [didAddProvider],
+  /// cleared in [didDisposeProvider].
+  final Map<String, ({Object container, Object provider})> _aliveProviders =
+      {};
+
+  /// Executes a state command coming from DevTools (service extension) or
+  /// MCP (`POST /commands`). Supported actions: `invalidate` (mark the
+  /// provider for rebuild) and `refresh` (invalidate, then re-read
+  /// immediately so it rebuilds even without listeners). Returns a
+  /// JSON-encodable result map with `status: ok | error`.
+  @visibleForTesting
+  Map<String, Object?> executeCommand(String action, String providerName) {
+    if (action != 'invalidate' && action != 'refresh') {
+      return {
+        'status': 'error',
+        'message':
+            'Unknown action "$action". Supported: invalidate, refresh.',
+      };
+    }
+    final target = _aliveProviders[providerName];
+    if (target == null) {
+      return {
+        'status': 'error',
+        'message': 'Provider "$providerName" is not alive '
+            '(unknown name or already disposed).',
+      };
+    }
+    try {
+      final dynamic container = target.container;
+      final dynamic provider = target.provider;
+      // ignore: avoid_dynamic_calls
+      container.invalidate(provider);
+      if (action == 'refresh') {
+        // ignore: avoid_dynamic_calls
+        container.read(provider);
+      }
+      return {'status': 'ok', 'action': action, 'provider': providerName};
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': 'Failed to $action "$providerName": $error',
+      };
     }
   }
 
@@ -80,6 +163,12 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     if (!_hasConsumer) return;
     final provider = _getProvider(context);
     final providerName = _getProviderName(provider);
+
+    final container = _getContainer(context, arg3);
+    if (container != null && provider != null) {
+      _aliveProviders[providerName] =
+          (container: container, provider: provider as Object);
+    }
 
     _postEvent('provider_added', {
       ..._buildProviderEventData(provider, providerName),
@@ -149,6 +238,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     final provider = _getProvider(context);
     final providerName = _getProviderName(provider);
 
+    _aliveProviders.remove(providerName);
+
     _postEvent('provider_disposed', {
       ..._buildProviderEventData(provider, providerName),
     });
@@ -179,6 +270,22 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       // Fallback for other errors
       return arg;
     }
+  }
+
+  /// Extracts the owning ProviderContainer: `context.container` on
+  /// Riverpod 3.0, the trailing container argument on 2.x.
+  Object? _getContainer(Object arg, Object? legacyContainer) {
+    if (_contextHasProviderProperty != false) {
+      try {
+        final dynamic context = arg;
+        // ignore: avoid_dynamic_calls
+        final container = context.container;
+        if (container != null) return container as Object;
+      } catch (_) {
+        // Not a 3.0 ProviderObserverContext; fall through to the 2.x arg.
+      }
+    }
+    return legacyContainer;
   }
 
   /// Gets the provider name safely

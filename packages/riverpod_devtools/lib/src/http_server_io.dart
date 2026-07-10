@@ -25,6 +25,11 @@ class RiverpodDevToolsHttpServer {
 
   HttpServer? _server;
 
+  /// Executes state commands (invalidate/refresh) arriving via
+  /// `POST /commands` from the MCP server. Wired up by the observer.
+  Map<String, Object?> Function(String action, String provider)?
+      commandHandler;
+
   Future<void> start() async {
     // Avoid binding a real socket during `flutter test` runs — consumers
     // commonly construct RiverpodDevToolsObserver() in their own widget
@@ -182,6 +187,9 @@ class RiverpodDevToolsHttpServer {
           focusProvider: request.uri.queryParameters['provider'],
         );
         await _writeJson(request, graph);
+      } else if (request.method == 'POST' &&
+          request.uri.path == '/commands') {
+        await _handleCommand(request);
       } else if (request.method == 'DELETE' && request.uri.path == '/logs') {
         clearEvents();
         request.response.statusCode = 204;
@@ -196,6 +204,42 @@ class RiverpodDevToolsHttpServer {
         await request.response.close();
       } catch (_) {}
     }
+  }
+
+  /// `POST /commands` with `{"action": "invalidate"|"refresh",
+  /// "provider": name}`. Always answers 200 with a JSON body carrying
+  /// `status: ok | error` — the MCP server relays the body as-is.
+  Future<void> _handleCommand(HttpRequest request) async {
+    final handler = commandHandler;
+    if (handler == null) {
+      await _writeJson(request, {
+        'status': 'error',
+        'message': 'Command handler not ready (no observer attached).',
+      });
+      return;
+    }
+
+    Object? payload;
+    try {
+      payload = jsonDecode(await utf8.decoder.bind(request).join());
+    } catch (_) {
+      // Falls through to the shape check below.
+    }
+    if (payload is! Map ||
+        payload['action'] is! String ||
+        payload['provider'] is! String) {
+      await _writeJson(request, {
+        'status': 'error',
+        'message': 'Expected JSON body '
+            '{"action": "invalidate"|"refresh", "provider": "<name>"}.',
+      });
+      return;
+    }
+
+    await _writeJson(
+      request,
+      handler(payload['action'] as String, payload['provider'] as String),
+    );
   }
 
   Future<void> _writeJson(HttpRequest request, Object payload) async {
