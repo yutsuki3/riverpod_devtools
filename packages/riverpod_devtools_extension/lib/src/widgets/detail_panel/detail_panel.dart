@@ -317,6 +317,11 @@ class DetailPanel extends StatelessWidget {
         '${lastEvent.timestamp.minute.toString().padLeft(2, '0')}:'
         '${lastEvent.timestamp.second.toString().padLeft(2, '0')}';
 
+    final triggerSuffix = lastEvent.triggeredBy.isEmpty
+        ? ''
+        : ' · triggered by '
+            '${lastEvent.triggeredBy.map((t) => t.provider).join(', ')}';
+
     return _buildDetailSection(
       theme: theme,
       title: 'Last Update',
@@ -331,11 +336,13 @@ class DetailPanel extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
             ),
             const SizedBox(width: 5),
-            SelectableText(
-              '$eventTypeString ($timeString)',
-              style: TextStyle(
-                fontSize: 10,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+            Flexible(
+              child: SelectableText(
+                '$eventTypeString ($timeString)$triggerSuffix',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+                ),
               ),
             ),
           ],

@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **Causality chain (why did this provider rebuild?)** ([#51](https://github.com/yutsuki3/riverpod_devtools/issues/51)):
+    - Every observer event now carries a monotonic `seq` number for unambiguous ordering (timestamps collide within a millisecond).
+    - `provider_updated` events now carry `triggeredBy` — the dependency update(s) that likely caused the recomputation, inferred from the static dependency graph plus temporal proximity and marked `triggerConfidence: "inferred"`.
+    - DevTools extension: update cascades are rendered as indented chains in the Event Log, with a clickable "caused by X" chip that selects and flashes the triggering provider; the Provider Details "Last Update" section also shows the trigger.
+    - MCP: the new fields flow through `get_riverpod_logs` automatically, so AI tools can trace update cascades.
 - **MCP**:
     - `get_riverpod_logs` now accepts optional `limit` (most recent N events) and `provider` (exact provider name) parameters, so AI tools can fetch only the relevant slice of the buffer instead of up to 1000 full events. The local HTTP endpoint (`GET /logs`) accepts the same values as query parameters.
 - **Performance**:

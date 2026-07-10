@@ -1,5 +1,17 @@
 import 'event_type.dart';
 
+/// Reference to the event that likely triggered a dependent update,
+/// inferred by the observer from static dependencies + temporal proximity.
+class TriggerRef {
+  final String provider;
+
+  /// Observer-side sequence number of the triggering event, used to locate
+  /// it in the event log. Null if the payload predates seq support.
+  final int? seq;
+
+  const TriggerRef({required this.provider, this.seq});
+}
+
 class ProviderEvent {
   final EventType type;
   final String providerId;
@@ -7,6 +19,15 @@ class ProviderEvent {
   final Map<String, dynamic>? previousValue;
   final Map<String, dynamic>? value;
   final DateTime timestamp;
+
+  /// Observer-side monotonic sequence number (unambiguous ordering even
+  /// within the same millisecond). Null for payloads from older observers.
+  final int? seq;
+
+  /// The dependency update(s) that likely caused this update (inferred).
+  /// Empty for non-update events and updates with no recent dependency
+  /// changes.
+  final List<TriggerRef> triggeredBy;
 
   /// Unique ID for this event (used for expansion state tracking and
   /// list item keys)
@@ -24,6 +45,8 @@ class ProviderEvent {
     this.previousValue,
     this.value,
     required this.timestamp,
+    this.seq,
+    this.triggeredBy = const [],
   }) {
     id = '${timestamp.microsecondsSinceEpoch}_${providerId}_${_sequence++}';
   }
