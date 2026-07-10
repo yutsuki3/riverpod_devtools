@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
@@ -9,7 +10,10 @@ class RiverpodDevToolsHttpServer {
     : _maxBufferSize = maxBufferSize;
 
   final int _maxBufferSize;
-  final List<Map<String, Object?>> _buffer = [];
+  // ListQueue gives O(1) eviction at the front; a plain List would shift
+  // every remaining element on each removeAt(0) once the buffer is full,
+  // which runs on every provider event in the observed app.
+  final ListQueue<Map<String, Object?>> _buffer = ListQueue();
   HttpServer? _server;
 
   Future<void> start() async {
@@ -44,7 +48,7 @@ class RiverpodDevToolsHttpServer {
 
   void addEvent(Map<String, Object?> event) {
     if (_buffer.length >= _maxBufferSize) {
-      _buffer.removeAt(0);
+      _buffer.removeFirst();
     }
     _buffer.add(event);
   }
@@ -53,10 +57,49 @@ class RiverpodDevToolsHttpServer {
     _buffer.clear();
   }
 
+  /// Returns buffered events, optionally filtered by provider name and
+  /// truncated to the most recent [limit] entries (chronological order is
+  /// preserved). A negative [limit] is treated as 0 (empty result).
+  List<Map<String, Object?>> eventsFor({String? provider, int? limit}) {
+    if (limit != null && limit < 0) limit = 0;
+    if (provider != null && provider.isNotEmpty) {
+      final list = _buffer
+          .where((event) => event['provider'] == provider)
+          .toList(growable: false);
+      if (limit == null || list.length <= limit) return list;
+      return list.sublist(list.length - limit);
+    }
+    // No filter: take the tail directly so only `limit` elements are ever
+    // materialized instead of copying the whole buffer first.
+    if (limit == null || _buffer.length <= limit) {
+      return _buffer.toList(growable: false);
+    }
+    return _buffer.skip(_buffer.length - limit).toList(growable: false);
+  }
+
   Future<void> _handleRequest(HttpRequest request) async {
     try {
       if (request.method == 'GET' && request.uri.path == '/logs') {
-        final json = jsonEncode(_buffer, toEncodable: (obj) => obj.toString());
+        final params = request.uri.queryParameters;
+
+        int? limit;
+        final rawLimit = params['limit'];
+        if (rawLimit != null) {
+          // Accept "50" and "50.0" (some clients format integers as
+          // doubles); reject anything else explicitly instead of silently
+          // returning the full buffer.
+          limit = int.tryParse(rawLimit) ?? num.tryParse(rawLimit)?.toInt();
+          if (limit == null || limit < 0) {
+            request.response
+              ..statusCode = 400
+              ..write('Invalid "limit": expected a non-negative integer.');
+            await request.response.close();
+            return;
+          }
+        }
+
+        final events = eventsFor(provider: params['provider'], limit: limit);
+        final json = jsonEncode(events, toEncodable: (obj) => obj.toString());
         request.response
           ..statusCode = 200
           ..headers.contentType = ContentType.json

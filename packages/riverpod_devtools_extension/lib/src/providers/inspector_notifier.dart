@@ -68,12 +68,44 @@ class InspectorNotifier extends ChangeNotifier {
 
   InspectorState get state => _state;
 
+  // Memoized derived lists. Panels read [filteredProviders]/[filteredEvents]
+  // on every rebuild (which happens on every provider event), so recomputing
+  // the filter + merge/sort each time is wasted work. All state mutations go
+  // through [_setState], which invalidates exactly the caches whose inputs
+  // changed — e.g. flash-animation ticks touch neither cache.
+  List<ProviderInfo>? _filteredProvidersCache;
+  List<ProviderEvent>? _filteredEventsCache;
+  Map<String, List<String>>? _usedByIndex;
+
+  void _setState(InspectorState newState) {
+    final old = _state;
+    _state = newState;
+    if (!identical(old.providers, newState.providers)) {
+      _filteredProvidersCache = null;
+      _usedByIndex = null;
+    } else if (old.providerSearchQuery != newState.providerSearchQuery) {
+      _filteredProvidersCache = null;
+    }
+    if (!identical(old.events, newState.events) ||
+        !identical(
+            old.selectedProviderNames, newState.selectedProviderNames)) {
+      _filteredEventsCache = null;
+    }
+  }
+
   static const int _maxEventCount = 1000;
   static const int _maxDisposedProviders = 100;
+  static const int _dedupWindowMs = 100;
+  static const int _dedupPruneThreshold = 64;
 
   final Map<String, DateTime> _disposedProviderTimestamps = {};
   final Map<String, List<ProviderEvent>> _eventsByProvider = {};
-  final Set<String> _processedEventKeys = {};
+
+  /// Recently seen event keys mapped to their dedup-window expiry, in
+  /// milliseconds since epoch. Expired entries are pruned in bulk once the
+  /// map grows past [_dedupPruneThreshold] — cheaper than the previous
+  /// approach of scheduling a 100ms Timer per event.
+  final Map<String, int> _processedEventKeys = {};
   StreamSubscription? _extensionSubscription;
   Timer? _flashTimer;
 
@@ -91,17 +123,17 @@ class InspectorNotifier extends ChangeNotifier {
   }
 
   void updateSearchQuery(String query) {
-    _state = _state.copyWith(providerSearchQuery: query);
+    _setState(_state.copyWith(providerSearchQuery: query));
     notifyListeners();
   }
 
   void clearEvents() {
     _eventsByProvider.clear();
     _processedEventKeys.clear();
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       events: const [],
       expandedEventIds: const {},
-    );
+    ));
     notifyListeners();
   }
 
@@ -112,17 +144,17 @@ class InspectorNotifier extends ChangeNotifier {
     } else {
       newExpanded.add(eventId);
     }
-    _state = _state.copyWith(expandedEventIds: newExpanded);
+    _setState(_state.copyWith(expandedEventIds: newExpanded));
     notifyListeners();
   }
 
   void selectProvider(String providerName) {
     final newSelected = Set<String>.from(_state.selectedProviderNames);
     newSelected.add(providerName);
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       selectedProviderNames: newSelected,
       activeTabProviderName: providerName,
-    );
+    ));
     notifyListeners();
   }
 
@@ -135,49 +167,49 @@ class InspectorNotifier extends ChangeNotifier {
       newActiveTab = newSelected.isNotEmpty ? newSelected.first : null;
     }
 
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       selectedProviderNames: newSelected,
       activeTabProviderName: newActiveTab,
-    );
+    ));
     notifyListeners();
   }
 
   void setActiveTab(String providerName) {
-    _state = _state.copyWith(activeTabProviderName: providerName);
+    _setState(_state.copyWith(activeTabProviderName: providerName));
     notifyListeners();
   }
 
   void updateLeftSplitRatio(double ratio) {
-    _state = _state.copyWith(leftSplitRatio: ratio);
+    _setState(_state.copyWith(leftSplitRatio: ratio));
     notifyListeners();
   }
 
   void updateRightSplitRatio(double ratio) {
-    _state = _state.copyWith(rightSplitRatio: ratio);
+    _setState(_state.copyWith(rightSplitRatio: ratio));
     notifyListeners();
   }
 
   void flashProvider(String providerName, {int flashCount = 2}) {
     _flashTimer?.cancel();
-    _state = _state.copyWith(flashingProviderName: providerName);
+    _setState(_state.copyWith(flashingProviderName: providerName));
     notifyListeners();
 
     if (flashCount == 1) {
       _flashTimer = Timer(const Duration(milliseconds: 300), () {
-        _state = _state.copyWith(flashingProviderName: null);
+        _setState(_state.copyWith(flashingProviderName: null));
         notifyListeners();
       });
     } else {
       _flashTimer = Timer(const Duration(milliseconds: 200), () {
-        _state = _state.copyWith(flashingProviderName: null);
+        _setState(_state.copyWith(flashingProviderName: null));
         notifyListeners();
 
         _flashTimer = Timer(const Duration(milliseconds: 100), () {
-          _state = _state.copyWith(flashingProviderName: providerName);
+          _setState(_state.copyWith(flashingProviderName: providerName));
           notifyListeners();
 
           _flashTimer = Timer(const Duration(milliseconds: 200), () {
-            _state = _state.copyWith(flashingProviderName: null);
+            _setState(_state.copyWith(flashingProviderName: null));
             notifyListeners();
           });
         });
@@ -185,7 +217,10 @@ class InspectorNotifier extends ChangeNotifier {
     }
   }
 
-  List<ProviderInfo> get filteredProviders {
+  List<ProviderInfo> get filteredProviders =>
+      _filteredProvidersCache ??= _computeFilteredProviders();
+
+  List<ProviderInfo> _computeFilteredProviders() {
     final providers = _state.providers.values.toList();
     if (_state.providerSearchQuery.isEmpty) return providers;
 
@@ -195,7 +230,10 @@ class InspectorNotifier extends ChangeNotifier {
         .toList();
   }
 
-  List<ProviderEvent> get filteredEvents {
+  List<ProviderEvent> get filteredEvents =>
+      _filteredEventsCache ??= _computeFilteredEvents();
+
+  List<ProviderEvent> _computeFilteredEvents() {
     if (_state.selectedProviderNames.isEmpty) return _state.events;
 
     final allEvents = <ProviderEvent>[];
@@ -209,19 +247,42 @@ class InspectorNotifier extends ChangeNotifier {
     return allEvents;
   }
 
-  List<String> getUsedBy(String providerName) {
-    final usedBy = <String>[];
+  /// Providers that depend on [providerName], from a reverse-dependency
+  /// index that is rebuilt only when the provider map changes (the naive
+  /// scan was O(providers × dependencies) on every detail-panel rebuild).
+  List<String> getUsedBy(String providerName) =>
+      (_usedByIndex ??= _computeUsedByIndex())[providerName] ?? const [];
+
+  Map<String, List<String>> _computeUsedByIndex() {
+    final index = <String, List<String>>{};
     for (final entry in _state.providers.entries) {
-      if (entry.value.dependencies.contains(providerName)) {
-        usedBy.add(entry.key);
+      for (final dependency in entry.value.dependencies) {
+        final dependents = index[dependency] ??= [];
+        // A provider may list the same dependency several times (e.g. watch
+        // + read of the same provider); additions for one provider are
+        // contiguous, so checking the last element is enough to dedupe.
+        if (dependents.isEmpty || dependents.last != entry.key) {
+          dependents.add(entry.key);
+        }
       }
     }
-    return usedBy;
+    return index;
+  }
+
+  /// The most recent event for [providerName], if any (O(1) lookup).
+  ProviderEvent? latestEventFor(String providerName) {
+    final events = _eventsByProvider[providerName];
+    return events == null || events.isEmpty ? null : events.first;
   }
 
   Map<String, dynamic> _normalizeValue(dynamic rawValue) {
     if (rawValue == null) {
       return {'type': 'null', 'value': null};
+    }
+    if (rawValue is Map<String, dynamic>) {
+      // Already the right type (the common case for decoded event JSON):
+      // it is treated as read-only downstream, so skip the copy.
+      return rawValue;
     }
     if (rawValue is Map) {
       return Map<String, dynamic>.from(rawValue);
@@ -293,10 +354,13 @@ class InspectorNotifier extends ChangeNotifier {
               : value.toString());
       final eventKey = '$kind:$providerId:$valueString';
 
-      if (_processedEventKeys.contains(eventKey)) return;
-      _processedEventKeys.add(eventKey);
-      Timer(const Duration(milliseconds: 100),
-          () => _processedEventKeys.remove(eventKey));
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final dedupExpiry = _processedEventKeys[eventKey];
+      if (dedupExpiry != null && nowMs < dedupExpiry) return;
+      if (_processedEventKeys.length >= _dedupPruneThreshold) {
+        _processedEventKeys.removeWhere((_, expiry) => expiry <= nowMs);
+      }
+      _processedEventKeys[eventKey] = nowMs + _dedupWindowMs;
 
       final eventTimestamp = timestamp != null
           ? DateTime.fromMillisecondsSinceEpoch(timestamp)
@@ -347,16 +411,17 @@ class InspectorNotifier extends ChangeNotifier {
           timestamp: eventTimestamp,
         );
       } else if (kind == 'riverpod:provider_disposed') {
+        final existing = _state.providers[providerName];
         newProviders[providerName] = ProviderInfo(
           id: providerId,
           name: providerName,
-          value: _state.providers[providerName]?.value ??
-              {'type': 'null', 'value': null},
+          value: existing?.value ?? {'type': 'null', 'value': null},
           status: ProviderStatus.disposed,
-          dependencies: _state.providers[providerName]?.dependencies ?? [],
-          dependenciesSource: _state.providers[providerName]?.dependenciesSource ?? DependencySource.none,
-          dependenciesLoadedAt: _state.providers[providerName]?.dependenciesLoadedAt,
-          dependenciesGeneratedAt: _state.providers[providerName]?.dependenciesGeneratedAt,
+          dependencies: existing?.dependencies ?? [],
+          dependenciesSource:
+              existing?.dependenciesSource ?? DependencySource.none,
+          dependenciesLoadedAt: existing?.dependenciesLoadedAt,
+          dependenciesGeneratedAt: existing?.dependenciesGeneratedAt,
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,
@@ -373,32 +438,37 @@ class InspectorNotifier extends ChangeNotifier {
         _eventsByProvider.putIfAbsent(newEvent.providerName, () => []);
         _eventsByProvider[newEvent.providerName]!.insert(0, newEvent);
 
-        _state = _state.copyWith(providers: newProviders, events: newEvents);
-        _applyRingBuffer();
+        // Ring buffer: exactly one event was inserted, so at most one needs
+        // evicting. Evict in place on the copy we just made instead of
+        // copying the whole list a second time.
+        Set<String>? newExpanded;
+        if (newEvents.length > _maxEventCount) {
+          final removed = newEvents.removeLast();
+
+          final providerEvents = _eventsByProvider[removed.providerName];
+          if (providerEvents != null) {
+            providerEvents.remove(removed);
+            if (providerEvents.isEmpty) {
+              _eventsByProvider.remove(removed.providerName);
+            }
+          }
+
+          if (_state.expandedEventIds.contains(removed.id)) {
+            // Passing null to copyWith below means "keep the current set".
+            newExpanded = Set<String>.from(_state.expandedEventIds)
+              ..remove(removed.id);
+          }
+        }
+
+        _setState(_state.copyWith(
+          providers: newProviders,
+          events: newEvents,
+          expandedEventIds: newExpanded,
+        ));
         _cleanupDisposedProviders();
         notifyListeners();
       }
     });
-  }
-
-  void _applyRingBuffer() {
-    if (_state.events.length > _maxEventCount) {
-      final newEvents = List<ProviderEvent>.from(_state.events);
-      final removed = newEvents.removeAt(_maxEventCount);
-
-      final providerEvents = _eventsByProvider[removed.providerName];
-      if (providerEvents != null) {
-        providerEvents.remove(removed);
-        if (providerEvents.isEmpty) {
-          _eventsByProvider.remove(removed.providerName);
-        }
-      }
-
-      final newExpanded = Set<String>.from(_state.expandedEventIds)
-        ..remove(removed.id);
-      _state =
-          _state.copyWith(events: newEvents, expandedEventIds: newExpanded);
-    }
   }
 
   void _cleanupDisposedProviders() {
@@ -433,12 +503,12 @@ class InspectorNotifier extends ChangeNotifier {
       }
     }
 
-    _state = _state.copyWith(
+    _setState(_state.copyWith(
       providers: newProviders,
       events: newEvents,
       expandedEventIds: newExpanded,
       selectedProviderNames: newSelected,
       activeTabProviderName: newActiveTab,
-    );
+    ));
   }
 }

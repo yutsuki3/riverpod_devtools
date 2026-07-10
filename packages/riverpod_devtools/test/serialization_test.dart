@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod_devtools/src/utils/serialization.dart';
 
@@ -26,6 +28,18 @@ class FakeAsyncError {
   @override
   String toString() =>
       'AsyncError<int>(error: Exception: boom, stackTrace: #0 main)';
+}
+
+/// A model whose toJson() contains values json.encode can't handle directly.
+class ModelWithUnsafeToJson {
+  Map<String, Object?> toJson() => {
+        'name': 'test',
+        'createdAt': DateTime.utc(2026, 1, 1),
+        'nested': [
+          DateTime.utc(2026, 1, 2),
+          {'inner': DateTime.utc(2026, 1, 3)},
+        ],
+      };
 }
 
 void main() {
@@ -92,6 +106,20 @@ void main() {
 
       final error = serializeValue(FakeAsyncError());
       expect(error['asyncState'], 'error');
+    });
+
+    test('sanitizes non-JSON-encodable leaves in toJson() output', () {
+      final result = serializeValue(ModelWithUnsafeToJson());
+      final value = result['value'] as Map;
+
+      expect(value['name'], 'test');
+      expect(value['createdAt'], isA<String>());
+      final nested = value['nested'] as List;
+      expect(nested[0], isA<String>());
+      expect((nested[1] as Map)['inner'], isA<String>());
+      // The whole event must survive json.encode without a toEncodable
+      // fallback, as developer.postEvent has none.
+      expect(() => jsonEncode(result), returnsNormally);
     });
 
     test('handles circular references', () {

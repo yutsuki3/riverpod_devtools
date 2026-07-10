@@ -117,6 +117,11 @@ class RiverpodDevToolsRegistry {
   /// Internal storage of provider metadata
   final Map<String, StaticProviderMetadata> _metadata = {};
 
+  /// Dependency-name lists derived from [_metadata], cached because the
+  /// observer asks for them on every single provider event. Entries are
+  /// unmodifiable since they are shared across events.
+  final Map<String, List<String>> _dependencyNamesCache = {};
+
   /// Timestamp when the JSON was last loaded (app startup time)
   DateTime? _lastLoadedTimestamp;
 
@@ -128,6 +133,7 @@ class RiverpodDevToolsRegistry {
   /// This is typically called by generated code, not by user code.
   void register(StaticProviderMetadata metadata) {
     _metadata[metadata.name] = metadata;
+    _dependencyNamesCache.remove(metadata.name);
   }
 
   /// Get full metadata for a provider
@@ -141,7 +147,14 @@ class RiverpodDevToolsRegistry {
   ///
   /// Returns an empty list if no static metadata is available.
   List<String> getDependencyNames(String providerName) {
-    return _metadata[providerName]?.dependencies.map((dep) => dep.providerName).toList() ?? [];
+    final cached = _dependencyNamesCache[providerName];
+    if (cached != null) return cached;
+
+    final metadata = _metadata[providerName];
+    if (metadata == null) return const [];
+    return _dependencyNamesCache[providerName] = List.unmodifiable(
+      metadata.dependencies.map((dep) => dep.providerName),
+    );
   }
 
   /// Get dependencies with full details (type, source location) as JSON
@@ -164,6 +177,7 @@ class RiverpodDevToolsRegistry {
   /// Primarily used for testing.
   void clear() {
     _metadata.clear();
+    _dependencyNamesCache.clear();
   }
 
   /// Get the total number of registered providers
