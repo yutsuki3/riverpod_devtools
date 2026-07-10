@@ -5,6 +5,7 @@ import '../../providers/inspector_notifier.dart';
 import '../../utils/color_utils.dart';
 import '../../utils/time_utils.dart';
 import '../common/json_tree_view.dart';
+import '../common/panel_ui.dart';
 
 class EventLogPanel extends StatelessWidget {
   final InspectorNotifier notifier;
@@ -16,8 +17,6 @@ class EventLogPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return ListenableBuilder(
       listenable: notifier,
       builder: (context, child) {
@@ -27,59 +26,37 @@ class EventLogPanel extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              color: theme.colorScheme.surfaceContainerHighest,
-              width: double.infinity,
-              height: 32,
-              alignment: Alignment.centerLeft,
-              child: Row(
-                children: [
-                  Text(
-                    state.selectedProviderNames.isEmpty
-                        ? 'Event Log'
-                        : state.selectedProviderNames.length == 1
-                            ? 'Event Log (${state.selectedProviderNames.first})'
-                            : 'Event Log (${state.selectedProviderNames.length} providers)',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    onPressed: notifier.clearEvents,
-                    tooltip: 'Clear All',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    iconSize: 16,
-                  ),
-                ],
-              ),
+            PanelHeader(
+              icon: Icons.history,
+              title: state.selectedProviderNames.isEmpty
+                  ? 'Event Log'
+                  : state.selectedProviderNames.length == 1
+                      ? 'Event Log (${state.selectedProviderNames.first})'
+                      : 'Event Log (${state.selectedProviderNames.length} providers)',
+              count: filteredEvents.length,
+              actions: [
+                HeaderActionButton(
+                  label: 'Clear',
+                  icon: Icons.delete_outline,
+                  onPressed: notifier.clearEvents,
+                ),
+              ],
             ),
             Expanded(
               child: state.events.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No events yet',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
+                  ? const EmptyState(
+                      icon: Icons.timeline,
+                      message: 'No events yet',
+                      hint: 'Provider events appear here in real time',
                     )
                   : filteredEvents.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No events found for selected providers',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
+                      ? const EmptyState(
+                          icon: Icons.filter_alt_off_outlined,
+                          message: 'No events found',
+                          hint: 'No events for the selected providers',
                         )
                       : ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
                           itemCount: filteredEvents.length,
                           itemBuilder: (context, index) {
                             final event = filteredEvents[index];
@@ -129,14 +106,16 @@ class _EventTile extends StatelessWidget {
 
     final semanticColor = getEventColor(event.type, isDark);
 
-    final backgroundColor = isDark
-        ? Colors.white.withValues(alpha: 0.03)
-        : Colors.black.withValues(alpha: 0.02);
-
     final icon = switch (event.type) {
       EventType.added => Icons.add_circle_outline,
       EventType.updated => Icons.change_circle_outlined,
       EventType.disposed => Icons.remove_circle_outline,
+    };
+
+    final typeLabel = switch (event.type) {
+      EventType.added => 'ADDED',
+      EventType.updated => 'UPDATED',
+      EventType.disposed => 'DISPOSED',
     };
 
     final isExpanded = state.expandedEventIds.contains(event.id);
@@ -156,17 +135,25 @@ class _EventTile extends StatelessWidget {
         : (summarySubtitle.length > 50 || event.type == EventType.updated);
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(4),
-        border: Border(
-          left: BorderSide(color: semanticColor, width: 3),
+        color: theme.colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.1),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
+          // Left accent bar
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Container(width: 3, color: semanticColor),
+          ),
           InkWell(
             splashFactory: NoSplash.splashFactory,
             highlightColor: Colors.transparent,
@@ -174,32 +161,55 @@ class _EventTile extends StatelessWidget {
                 ? () => notifier.toggleEventExpansion(event.id)
                 : null,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 6, 4),
+              padding: const EdgeInsets.fromLTRB(11, 6, 8, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Icon(icon, color: semanticColor, size: 14),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           event.providerName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: semanticColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          typeLabel,
+                          style: TextStyle(
+                            fontSize: 7.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.4,
                             color: semanticColor,
                           ),
                         ),
                       ),
+                      const SizedBox(width: 6),
                       Text(
                         '${event.timestamp.hour.toString().padLeft(2, '0')}:'
                         '${event.timestamp.minute.toString().padLeft(2, '0')}:'
                         '${event.timestamp.second.toString().padLeft(2, '0')}',
                         style: TextStyle(
-                            color: theme.colorScheme.onSurfaceVariant
-                                .withValues(alpha: 0.8),
-                            fontSize: 10),
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withValues(alpha: 0.8),
+                          fontSize: 10,
+                          fontFamily: 'monospace',
+                        ),
                       ),
                       if (timeDiffString != null &&
                           timeDiffString!.isNotEmpty) ...[
@@ -207,10 +217,9 @@ class _EventTile extends StatelessWidget {
                         Text(
                           timeDiffString!,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9,
                             color: theme.colorScheme.onSurfaceVariant
                                 .withValues(alpha: 0.5),
-                            fontStyle: FontStyle.italic,
                           ),
                         ),
                       ],
@@ -227,7 +236,7 @@ class _EventTile extends StatelessWidget {
                   ),
                   if (!isExpanded)
                     Padding(
-                      padding: const EdgeInsets.only(left: 22, top: 4),
+                      padding: const EdgeInsets.only(left: 20, top: 4),
                       child: Text(
                         summarySubtitle,
                         maxLines: 1,
@@ -236,14 +245,14 @@ class _EventTile extends StatelessWidget {
                           fontSize: 10,
                           fontFamily: 'monospace',
                           color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.8),
+                              .withValues(alpha: 0.75),
                         ),
                       ),
                     )
                   else
                     Padding(
                       padding:
-                          const EdgeInsets.only(left: 22, top: 6, bottom: 4),
+                          const EdgeInsets.only(left: 20, top: 6, bottom: 4),
                       child: _buildExpandedContent(theme, event),
                     ),
                 ],
@@ -281,21 +290,38 @@ class _EventTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            color: labelColor,
-          ),
+        Row(
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: labelColor,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                color: labelColor,
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 3),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(4),
+          padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest
-                .withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(2),
+            color: theme.colorScheme.surface.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.1),
+            ),
           ),
           child: _buildJsonTreeView(data),
         ),
