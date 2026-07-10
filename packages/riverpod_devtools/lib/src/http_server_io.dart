@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'graph_builder.dart';
 import 'mcp_constants.dart';
 
 class RiverpodDevToolsHttpServer {
@@ -14,6 +15,14 @@ class RiverpodDevToolsHttpServer {
   // every remaining element on each removeAt(0) once the buffer is full,
   // which runs on every provider event in the observed app.
   final ListQueue<Map<String, Object?>> _buffer = ListQueue();
+
+  /// Latest state per live provider, serving `GET /providers`. Entries are
+  /// written on add/update/fail events and removed on dispose, so the map
+  /// only holds providers that currently exist — unlike the ring buffer it
+  /// cannot grow past the number of live providers, and it survives
+  /// [clearEvents] (clearing the history does not change current state).
+  final Map<String, Map<String, Object?>> _providerSnapshot = {};
+
   HttpServer? _server;
 
   Future<void> start() async {
@@ -51,7 +60,56 @@ class RiverpodDevToolsHttpServer {
       _buffer.removeFirst();
     }
     _buffer.add(event);
+    _updateSnapshot(event);
   }
+
+  void _updateSnapshot(Map<String, Object?> event) {
+    final provider = event['provider'];
+    if (provider is! String) return;
+
+    Map<String, Object?> entry(String status, Object? value) => {
+          'provider': provider,
+          'providerId': event['providerId'],
+          'status': status,
+          'value': value,
+          'dependencies': event['dependencies'],
+          'lastUpdated': event['timestamp'],
+          'seq': event['seq'],
+        };
+
+    switch (event['type']) {
+      case 'provider_added':
+        _providerSnapshot[provider] = entry('active', event['value']);
+      case 'provider_updated':
+        _providerSnapshot[provider] = entry('active', event['newValue']);
+      case 'provider_failed':
+        // The element still exists and holds its previous value; record the
+        // failure alongside it.
+        _providerSnapshot[provider] =
+            entry('failed', _providerSnapshot[provider]?['value'])
+              ..['error'] = event['error'];
+      case 'provider_disposed':
+        _providerSnapshot.remove(provider);
+    }
+  }
+
+  /// Current state of live providers (sorted by name), or just [provider]'s
+  /// entry when given — empty if it does not exist / was disposed.
+  List<Map<String, Object?>> providerSnapshot({String? provider}) {
+    if (provider != null && provider.isNotEmpty) {
+      final entry = _providerSnapshot[provider];
+      return entry == null ? const [] : [entry];
+    }
+    return _providerSnapshot.values.toList(growable: false)
+      ..sort((a, b) =>
+          (a['provider'] as String).compareTo(b['provider'] as String));
+  }
+
+  /// Runtime status per live provider, merged into the dependency graph.
+  Map<String, String> get _runtimeStatuses => {
+        for (final entry in _providerSnapshot.entries)
+          entry.key: entry.value['status'] as String,
+      };
 
   void clearEvents() {
     _buffer.clear();
@@ -112,12 +170,18 @@ class RiverpodDevToolsHttpServer {
           type: params['type'],
           limit: limit,
         );
-        final json = jsonEncode(events, toEncodable: (obj) => obj.toString());
-        request.response
-          ..statusCode = 200
-          ..headers.contentType = ContentType.json
-          ..write(json);
-        await request.response.close();
+        await _writeJson(request, events);
+      } else if (request.method == 'GET' &&
+          request.uri.path == '/providers') {
+        final snapshot =
+            providerSnapshot(provider: request.uri.queryParameters['provider']);
+        await _writeJson(request, snapshot);
+      } else if (request.method == 'GET' && request.uri.path == '/graph') {
+        final graph = buildDependencyGraph(
+          runtimeStatus: _runtimeStatuses,
+          focusProvider: request.uri.queryParameters['provider'],
+        );
+        await _writeJson(request, graph);
       } else if (request.method == 'DELETE' && request.uri.path == '/logs') {
         clearEvents();
         request.response.statusCode = 204;
@@ -132,5 +196,14 @@ class RiverpodDevToolsHttpServer {
         await request.response.close();
       } catch (_) {}
     }
+  }
+
+  Future<void> _writeJson(HttpRequest request, Object payload) async {
+    final json = jsonEncode(payload, toEncodable: (obj) => obj.toString());
+    request.response
+      ..statusCode = 200
+      ..headers.contentType = ContentType.json
+      ..write(json);
+    await request.response.close();
   }
 }

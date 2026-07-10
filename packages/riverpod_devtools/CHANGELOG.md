@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **MCP tool expansion** ([#53](https://github.com/yutsuki3/riverpod_devtools/issues/53)):
+    - New `get_provider_state` MCP tool (and `GET /providers` on the local HTTP endpoint): a current-state snapshot of live providers — name, status (`active`/`failed`), latest value, error details when failed, and last-update timestamp — so AI tools no longer need to replay the event log to answer "what is the current state". Disposed providers are evicted from the snapshot; `clear_riverpod_logs` does not affect it.
+    - New `get_dependency_graph` MCP tool (and `GET /graph`): nodes with runtime status merged in, plus directed dependency edges (`watch`/`read`/`listen`, with source locations) from the static-analysis registry. An optional `provider` parameter returns only that provider's transitive dependencies and dependents.
 - **First-class error capture** ([#52](https://github.com/yutsuki3/riverpod_devtools/issues/52)):
     - The observer now implements `providerDidFail` (Riverpod 2.x and 3.x signatures) and emits a `provider_failed` event carrying the error's runtime type, message (capped at 2000 chars), and a trimmed stack trace (Riverpod-internal frames dropped, max 20 frames).
     - DevTools extension: failed events appear in the Event Log with a red FAILED badge and expandable error details; providers currently in a failed state show an error badge in the provider list and a dedicated "Error" section (message + collapsible stack trace + copy button) in Provider Details. The error clears when the provider next updates successfully.
