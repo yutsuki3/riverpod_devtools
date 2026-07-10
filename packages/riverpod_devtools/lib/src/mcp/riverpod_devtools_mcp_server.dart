@@ -20,6 +20,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     registerTool(_getRiverpodLogsTool, _getRiverpodLogs);
     registerTool(_getProviderStateTool, _getProviderState);
     registerTool(_getDependencyGraphTool, _getDependencyGraph);
+    registerTool(_invalidateProviderTool, _invalidateProvider);
     registerTool(_clearRiverpodLogsTool, _clearRiverpodLogs);
   }
 
@@ -113,6 +114,36 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     ),
   );
 
+  final _invalidateProviderTool = Tool(
+    name: 'invalidate_provider',
+    description:
+        'MUTATES APP STATE: invalidate a Riverpod provider in the running '
+        'Flutter app, forcing it to recompute — its state resets to what '
+        'build() produces. '
+        'By default the rebuild happens when the provider is next read or '
+        'has active listeners; pass refresh=true to re-read it immediately. '
+        'Use this to reproduce flows during debugging (e.g. '
+        'clear_riverpod_logs → invalidate_provider → trigger the flow → '
+        'get_riverpod_logs) or to test how the UI reacts to a state reset. '
+        'The provider must be currently alive (see get_provider_state). '
+        'Debug mode only.',
+    inputSchema: Schema.object(
+      properties: {
+        'provider': Schema.string(
+          description:
+              'Exact name of the provider to invalidate '
+              '(e.g. "counterProvider").',
+        ),
+        'refresh': Schema.bool(
+          description:
+              'Also re-read the provider immediately so it rebuilds even '
+              'without active listeners. Defaults to false.',
+        ),
+      },
+      required: ['provider'],
+    ),
+  );
+
   final _clearRiverpodLogsTool = Tool(
     name: 'clear_riverpod_logs',
     description:
@@ -168,6 +199,29 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
           'provider': provider,
       };
 
+  FutureOr<CallToolResult> _invalidateProvider(CallToolRequest request) async {
+    final arguments = request.arguments ?? const {};
+    final provider = arguments['provider'];
+    if (provider is! String || provider.isEmpty) {
+      return CallToolResult(
+        content: [
+          TextContent(text: 'Missing required "provider" argument.'),
+        ],
+        isError: true,
+      );
+    }
+    final refresh = arguments['refresh'] == true;
+    return _request(
+      'POST',
+      '/commands',
+      body: jsonEncode({
+        'action': refresh ? 'refresh' : 'invalidate',
+        'provider': provider,
+      }),
+      (body) => CallToolResult(content: [TextContent(text: body)]),
+    );
+  }
+
   FutureOr<CallToolResult> _clearRiverpodLogs(CallToolRequest request) async {
     return _request(
       'DELETE',
@@ -182,6 +236,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     String path,
     CallToolResult Function(String body) onSuccess, {
     Map<String, String> queryParameters = const {},
+    String? body,
   }) async {
     try {
       final client = io.HttpClient();
@@ -199,9 +254,13 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
               ),
             )
             .timeout(const Duration(seconds: 5));
+        if (body != null) {
+          req.headers.contentType = io.ContentType.json;
+          req.write(body);
+        }
         final response = await req.close();
-        final body = await response.transform(utf8.decoder).join();
-        return onSuccess(body);
+        final responseBody = await response.transform(utf8.decoder).join();
+        return onSuccess(responseBody);
       } finally {
         client.close();
       }

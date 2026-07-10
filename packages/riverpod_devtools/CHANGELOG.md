@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **State operations: invalidate / refresh from DevTools and MCP** ([#54](https://github.com/yutsuki3/riverpod_devtools/issues/54)):
+    - The observer now tracks live provider instances (with their owning container) and can execute `invalidate` / `refresh` commands against them. Debug mode only.
+    - New `ext.riverpod_devtools.command` service extension so the DevTools extension can run commands on any platform; the DevTools Provider Details panel gains **Invalidate** and **Refresh** buttons (disabled for disposed providers, with inline success/error feedback).
+    - New `invalidate_provider` MCP tool (and `POST /commands` on the local HTTP endpoint) so AI tools can reproduce flows end-to-end: clear logs → invalidate → read logs. The tool description flags it as a state-mutating action.
 - **MCP tool expansion** ([#53](https://github.com/yutsuki3/riverpod_devtools/issues/53)):
     - New `get_provider_state` MCP tool (and `GET /providers` on the local HTTP endpoint): a current-state snapshot of live providers — name, status (`active`/`failed`), latest value, error details when failed, and last-update timestamp — so AI tools no longer need to replay the event log to answer "what is the current state". Disposed providers are evicted from the snapshot; `clear_riverpod_logs` does not affect it.
     - New `get_dependency_graph` MCP tool (and `GET /graph`): nodes with runtime status merged in, plus directed dependency edges (`watch`/`read`/`listen`, with source locations) from the static-analysis registry. An optional `provider` parameter returns only that provider's transitive dependencies and dependents.
