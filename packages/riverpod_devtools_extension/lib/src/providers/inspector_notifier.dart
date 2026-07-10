@@ -279,6 +279,11 @@ class InspectorNotifier extends ChangeNotifier {
     if (rawValue == null) {
       return {'type': 'null', 'value': null};
     }
+    if (rawValue is Map<String, dynamic>) {
+      // Already the right type (the common case for decoded event JSON):
+      // it is treated as read-only downstream, so skip the copy.
+      return rawValue;
+    }
     if (rawValue is Map) {
       return Map<String, dynamic>.from(rawValue);
     }

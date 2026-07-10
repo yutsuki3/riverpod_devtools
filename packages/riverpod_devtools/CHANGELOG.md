@@ -7,6 +7,7 @@
     - Value serialization uses identity-based cycle detection, avoiding deep user-defined `==`/`hashCode` calls (e.g. freezed models with large collections) on every event, and no longer builds an object's `toString()` when it serializes via `toJson()`.
     - The Riverpod 2.x/3.x API probe in the observer is cached, so it no longer throws and catches a `NoSuchMethodError` on every event on Riverpod 2.x.
     - The MCP event buffer is now a ring buffer with O(1) eviction (previously each event shifted the whole 1000-entry list once full).
+    - Static dependency names are cached per provider in the registry instead of being rebuilt from metadata on every provider event.
     - DevTools extension: the filtered provider/event lists are memoized per state change instead of being re-filtered and re-sorted on every widget rebuild, and appending an event no longer copies the event list twice.
     - DevTools extension: "Used By" is now answered from a reverse-dependency index rebuilt only when the provider map changes (previously a full providers × dependencies scan on every detail-panel rebuild), the "Last Update" section reads the provider's latest event in O(1) instead of filtering the whole event log, and event de-duplication no longer schedules a Timer per incoming event.
 - **Fixes**:
