@@ -110,4 +110,79 @@ void main() {
       expect(server.eventsFor(), isEmpty);
     });
   });
+
+  group('RiverpodDevToolsHttpServer provider snapshot', () {
+    Map<String, Object?> lifecycleEvent(
+      String type,
+      String provider, {
+      Object? value,
+      Object? newValue,
+      Object? error,
+      int? seq,
+    }) =>
+        {
+          'type': type,
+          'provider': provider,
+          'providerId': '1',
+          if (value != null) 'value': value,
+          if (newValue != null) 'newValue': newValue,
+          if (error != null) 'error': error,
+          'dependencies': const <String>[],
+          'timestamp': 1000,
+          'seq': seq,
+        };
+
+    test('tracks the latest value per provider', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'a', value: 1, seq: 1));
+      server
+          .addEvent(lifecycleEvent('provider_updated', 'a', newValue: 2, seq: 2));
+
+      final snapshot = server.providerSnapshot();
+      expect(snapshot, hasLength(1));
+      expect(snapshot.single['value'], 2);
+      expect(snapshot.single['status'], 'active');
+      expect(snapshot.single['seq'], 2);
+    });
+
+    test('marks failed providers and keeps their previous value', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'a', value: 1));
+      server.addEvent(lifecycleEvent('provider_failed', 'a',
+          error: {'message': 'boom'}));
+
+      final entry = server.providerSnapshot().single;
+      expect(entry['status'], 'failed');
+      expect(entry['value'], 1);
+      expect((entry['error'] as Map)['message'], 'boom');
+    });
+
+    test('evicts disposed providers', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'a', value: 1));
+      server.addEvent(lifecycleEvent('provider_disposed', 'a'));
+
+      expect(server.providerSnapshot(), isEmpty);
+      expect(server.providerSnapshot(provider: 'a'), isEmpty);
+    });
+
+    test('filters by provider name and sorts the full snapshot', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'b', value: 2));
+      server.addEvent(lifecycleEvent('provider_added', 'a', value: 1));
+
+      expect(server.providerSnapshot().map((e) => e['provider']), ['a', 'b']);
+      expect(server.providerSnapshot(provider: 'b').single['value'], 2);
+      expect(server.providerSnapshot(provider: 'missing'), isEmpty);
+    });
+
+    test('survives clearEvents (history is not current state)', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'a', value: 1));
+      server.clearEvents();
+
+      expect(server.eventsFor(), isEmpty);
+      expect(server.providerSnapshot(), hasLength(1));
+    });
+  });
 }
