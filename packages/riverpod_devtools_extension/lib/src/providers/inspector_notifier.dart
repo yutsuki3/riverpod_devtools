@@ -75,12 +75,15 @@ class InspectorNotifier extends ChangeNotifier {
   // changed — e.g. flash-animation ticks touch neither cache.
   List<ProviderInfo>? _filteredProvidersCache;
   List<ProviderEvent>? _filteredEventsCache;
+  Map<String, List<String>>? _usedByIndex;
 
   void _setState(InspectorState newState) {
     final old = _state;
     _state = newState;
-    if (!identical(old.providers, newState.providers) ||
-        old.providerSearchQuery != newState.providerSearchQuery) {
+    if (!identical(old.providers, newState.providers)) {
+      _filteredProvidersCache = null;
+      _usedByIndex = null;
+    } else if (old.providerSearchQuery != newState.providerSearchQuery) {
       _filteredProvidersCache = null;
     }
     if (!identical(old.events, newState.events) ||
@@ -92,10 +95,17 @@ class InspectorNotifier extends ChangeNotifier {
 
   static const int _maxEventCount = 1000;
   static const int _maxDisposedProviders = 100;
+  static const int _dedupWindowMs = 100;
+  static const int _dedupPruneThreshold = 64;
 
   final Map<String, DateTime> _disposedProviderTimestamps = {};
   final Map<String, List<ProviderEvent>> _eventsByProvider = {};
-  final Set<String> _processedEventKeys = {};
+
+  /// Recently seen event keys mapped to their dedup-window expiry, in
+  /// milliseconds since epoch. Expired entries are pruned in bulk once the
+  /// map grows past [_dedupPruneThreshold] — cheaper than the previous
+  /// approach of scheduling a 100ms Timer per event.
+  final Map<String, int> _processedEventKeys = {};
   StreamSubscription? _extensionSubscription;
   Timer? _flashTimer;
 
@@ -237,14 +247,32 @@ class InspectorNotifier extends ChangeNotifier {
     return allEvents;
   }
 
-  List<String> getUsedBy(String providerName) {
-    final usedBy = <String>[];
+  /// Providers that depend on [providerName], from a reverse-dependency
+  /// index that is rebuilt only when the provider map changes (the naive
+  /// scan was O(providers × dependencies) on every detail-panel rebuild).
+  List<String> getUsedBy(String providerName) =>
+      (_usedByIndex ??= _computeUsedByIndex())[providerName] ?? const [];
+
+  Map<String, List<String>> _computeUsedByIndex() {
+    final index = <String, List<String>>{};
     for (final entry in _state.providers.entries) {
-      if (entry.value.dependencies.contains(providerName)) {
-        usedBy.add(entry.key);
+      for (final dependency in entry.value.dependencies) {
+        final dependents = index[dependency] ??= [];
+        // A provider may list the same dependency several times (e.g. watch
+        // + read of the same provider); additions for one provider are
+        // contiguous, so checking the last element is enough to dedupe.
+        if (dependents.isEmpty || dependents.last != entry.key) {
+          dependents.add(entry.key);
+        }
       }
     }
-    return usedBy;
+    return index;
+  }
+
+  /// The most recent event for [providerName], if any (O(1) lookup).
+  ProviderEvent? latestEventFor(String providerName) {
+    final events = _eventsByProvider[providerName];
+    return events == null || events.isEmpty ? null : events.first;
   }
 
   Map<String, dynamic> _normalizeValue(dynamic rawValue) {
@@ -321,10 +349,13 @@ class InspectorNotifier extends ChangeNotifier {
               : value.toString());
       final eventKey = '$kind:$providerId:$valueString';
 
-      if (_processedEventKeys.contains(eventKey)) return;
-      _processedEventKeys.add(eventKey);
-      Timer(const Duration(milliseconds: 100),
-          () => _processedEventKeys.remove(eventKey));
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final dedupExpiry = _processedEventKeys[eventKey];
+      if (dedupExpiry != null && nowMs < dedupExpiry) return;
+      if (_processedEventKeys.length >= _dedupPruneThreshold) {
+        _processedEventKeys.removeWhere((_, expiry) => expiry <= nowMs);
+      }
+      _processedEventKeys[eventKey] = nowMs + _dedupWindowMs;
 
       final eventTimestamp = timestamp != null
           ? DateTime.fromMillisecondsSinceEpoch(timestamp)

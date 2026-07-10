@@ -8,6 +8,7 @@
     - The Riverpod 2.x/3.x API probe in the observer is cached, so it no longer throws and catches a `NoSuchMethodError` on every event on Riverpod 2.x.
     - The MCP event buffer is now a ring buffer with O(1) eviction (previously each event shifted the whole 1000-entry list once full).
     - DevTools extension: the filtered provider/event lists are memoized per state change instead of being re-filtered and re-sorted on every widget rebuild, and appending an event no longer copies the event list twice.
+    - DevTools extension: "Used By" is now answered from a reverse-dependency index rebuilt only when the provider map changes (previously a full providers × dependencies scan on every detail-panel rebuild), the "Last Update" section reads the provider's latest event in O(1) instead of filtering the whole event log, and event de-duplication no longer schedules a Timer per incoming event.
 - **Fixes**:
     - `AsyncValue` states (`data`/`loading`/`error`) are shown again in the extension UI — the `asyncState` marker was unreachable in serialization because the structured `toString()` parser returned first.
     - DevTools extension: the Event Log "Clear All" button now actually clears the log (it was a no-op).

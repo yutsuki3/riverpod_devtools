@@ -278,12 +278,7 @@ class DetailPanel extends StatelessWidget {
   }
 
   Widget _buildLastUpdateSection(ThemeData theme, ProviderInfo provider) {
-    // We need to look at events logic here. It's in the notifier.
-    // For now we'll just implement it similarly.
-    final providerEvents = notifier.filteredEvents
-        .where((e) => e.providerName == provider.name)
-        .toList();
-    final lastEvent = providerEvents.isNotEmpty ? providerEvents.first : null;
+    final lastEvent = notifier.latestEventFor(provider.name);
 
     if (lastEvent == null) {
       return _buildDetailSection(
