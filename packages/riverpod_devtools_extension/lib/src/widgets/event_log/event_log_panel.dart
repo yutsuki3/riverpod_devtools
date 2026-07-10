@@ -6,13 +6,34 @@ import '../../utils/color_utils.dart';
 import '../../utils/time_utils.dart';
 import '../common/json_tree_view.dart';
 
-class EventLogPanel extends StatelessWidget {
+class EventLogPanel extends StatefulWidget {
   final InspectorNotifier notifier;
 
   const EventLogPanel({
     super.key,
     required this.notifier,
   });
+
+  @override
+  State<EventLogPanel> createState() => _EventLogPanelState();
+}
+
+class _EventLogPanelState extends State<EventLogPanel> {
+  final TextEditingController _searchController = TextEditingController();
+
+  InspectorNotifier get notifier => widget.notifier;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.text = notifier.state.eventSearchQuery;
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +44,8 @@ class EventLogPanel extends StatelessWidget {
       builder: (context, child) {
         final state = notifier.state;
         final filteredEvents = notifier.filteredEvents;
+        final hasActiveFilter = state.eventSearchQuery.trim().isNotEmpty ||
+            state.enabledEventTypes.length != EventType.values.length;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,17 +70,99 @@ class EventLogPanel extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
+                  for (final type in EventType.values) ...[
+                    _EventTypeFilterChip(
+                      type: type,
+                      enabled: state.enabledEventTypes.contains(type),
+                      onTap: () => notifier.toggleEventTypeFilter(type),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 16),
-                    onPressed: () {
-                      // Logic to clear events is not implemented yet in notifier, so we leave it no-op or implement it if requested.
-                    },
+                    onPressed:
+                        state.events.isEmpty ? null : notifier.clearEvents,
                     tooltip: 'Clear All',
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     iconSize: 16,
                   ),
                 ],
+              ),
+            ),
+            // Search field
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: TextField(
+                controller: _searchController,
+                onChanged: notifier.updateEventSearchQuery,
+                style: const TextStyle(fontSize: 10),
+                decoration: InputDecoration(
+                  hintText: 'Search events (provider name or value)...',
+                  hintStyle: TextStyle(
+                    fontSize: 10,
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.6),
+                  ),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: Icon(
+                      Icons.search,
+                      size: 14,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 20,
+                    minHeight: 20,
+                  ),
+                  suffixIcon: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: state.eventSearchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(
+                              Icons.clear,
+                              size: 14,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            onPressed: () {
+                              _searchController.clear();
+                              notifier.updateEventSearchQuery('');
+                            },
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          )
+                        : null,
+                  ),
+                  isDense: true,
+                  constraints: const BoxConstraints(
+                    maxHeight: 32,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 6,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.primary,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -74,7 +179,9 @@ class EventLogPanel extends StatelessWidget {
                   : filteredEvents.isEmpty
                       ? Center(
                           child: Text(
-                            'No events found for selected providers',
+                            hasActiveFilter
+                                ? 'No events match the current filters'
+                                : 'No events found for selected providers',
                             style: TextStyle(
                               fontSize: 12,
                               color: theme.colorScheme.onSurfaceVariant,
@@ -107,6 +214,60 @@ class EventLogPanel extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _EventTypeFilterChip extends StatelessWidget {
+  final EventType type;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _EventTypeFilterChip({
+    required this.type,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final color = getEventColor(type, isDark);
+
+    final label = switch (type) {
+      EventType.added => 'added',
+      EventType.updated => 'updated',
+      EventType.disposed => 'disposed',
+    };
+
+    return Tooltip(
+      message: enabled ? 'Hide $label events' : 'Show $label events',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: enabled ? color.withValues(alpha: 0.15) : null,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: enabled
+                  ? color
+                  : theme.colorScheme.outline.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 9,
+              color: enabled
+                  ? color
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -311,19 +472,7 @@ class _EventTile extends StatelessWidget {
           style: TextStyle(fontSize: 10, fontFamily: 'monospace'));
     }
 
-    // Unwrapping logic is handled by JsonTreeView itself, but we might want to do pre-processing if needed.
-    // For now, passing data directly as previous implementation did.
-    // However, the previous implementation in this file (step 62) had unwrapping logic DUPLICATED here.
-    // Since JsonTreeView handles unwrapping (as seen in step 113), we can simplify this!
-    // BUT, let's look closely at step 62 _buildJsonTreeView logic.
-    // It unwraps 'value', 'items', 'entries', 'string'.
-    // JsonTreeView (step 113) ALSO explicitly unwraps 'value', 'items', 'entries', 'string'.
-    // So we can just pass the data! Simpler!
-
-    // Wait, step 62 _buildJsonTreeView also unwrapped `type` and `asyncState` by removing them.
-    // JsonTreeView step 113 DOES handle that too inside `build` and `_buildExpandedValue`.
-    // So yes, we can simplify!
-
+    // JsonTreeView handles unwrapping of wrapped metadata maps itself.
     return JsonTreeView(data: data, initiallyExpanded: false);
   }
 }

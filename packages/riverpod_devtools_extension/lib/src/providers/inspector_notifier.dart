@@ -16,6 +16,8 @@ class InspectorState {
   final Set<String> selectedProviderNames;
   final String? activeTabProviderName;
   final String providerSearchQuery;
+  final Set<EventType> enabledEventTypes;
+  final String eventSearchQuery;
   final Set<String> expandedEventIds;
   final String? flashingProviderName;
   final double leftSplitRatio;
@@ -27,6 +29,12 @@ class InspectorState {
     this.selectedProviderNames = const {},
     this.activeTabProviderName,
     this.providerSearchQuery = '',
+    this.enabledEventTypes = const {
+      EventType.added,
+      EventType.updated,
+      EventType.disposed,
+    },
+    this.eventSearchQuery = '',
     this.expandedEventIds = const {},
     this.flashingProviderName,
     this.leftSplitRatio = 0.2,
@@ -39,6 +47,8 @@ class InspectorState {
     Set<String>? selectedProviderNames,
     Object? activeTabProviderName = const _Unset(),
     String? providerSearchQuery,
+    Set<EventType>? enabledEventTypes,
+    String? eventSearchQuery,
     Set<String>? expandedEventIds,
     Object? flashingProviderName = const _Unset(),
     double? leftSplitRatio,
@@ -53,6 +63,8 @@ class InspectorState {
           ? this.activeTabProviderName
           : activeTabProviderName as String?,
       providerSearchQuery: providerSearchQuery ?? this.providerSearchQuery,
+      enabledEventTypes: enabledEventTypes ?? this.enabledEventTypes,
+      eventSearchQuery: eventSearchQuery ?? this.eventSearchQuery,
       expandedEventIds: expandedEventIds ?? this.expandedEventIds,
       flashingProviderName: flashingProviderName is _Unset
           ? this.flashingProviderName
@@ -92,6 +104,38 @@ class InspectorNotifier extends ChangeNotifier {
 
   void updateSearchQuery(String query) {
     _state = _state.copyWith(providerSearchQuery: query);
+    notifyListeners();
+  }
+
+  void updateEventSearchQuery(String query) {
+    _state = _state.copyWith(eventSearchQuery: query);
+    notifyListeners();
+  }
+
+  void toggleEventTypeFilter(EventType type) {
+    final newTypes = Set<EventType>.from(_state.enabledEventTypes);
+    if (newTypes.contains(type)) {
+      newTypes.remove(type);
+    } else {
+      newTypes.add(type);
+    }
+    _state = _state.copyWith(enabledEventTypes: newTypes);
+    notifyListeners();
+  }
+
+  void clearEvents() {
+    _eventsByProvider.clear();
+    _state = _state.copyWith(events: [], expandedEventIds: {});
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void addEventForTest(ProviderEvent event) {
+    final newEvents = List<ProviderEvent>.from(_state.events)..insert(0, event);
+    _eventsByProvider
+        .putIfAbsent(event.providerName, () => [])
+        .insert(0, event);
+    _state = _state.copyWith(events: newEvents);
     notifyListeners();
   }
 
@@ -186,17 +230,41 @@ class InspectorNotifier extends ChangeNotifier {
   }
 
   List<ProviderEvent> get filteredEvents {
-    if (_state.selectedProviderNames.isEmpty) return _state.events;
-
-    final allEvents = <ProviderEvent>[];
-    for (final providerName in _state.selectedProviderNames) {
-      final providerEvents = _eventsByProvider[providerName];
-      if (providerEvents != null) {
-        allEvents.addAll(providerEvents);
+    List<ProviderEvent> events;
+    if (_state.selectedProviderNames.isEmpty) {
+      events = _state.events;
+    } else {
+      final allEvents = <ProviderEvent>[];
+      for (final providerName in _state.selectedProviderNames) {
+        final providerEvents = _eventsByProvider[providerName];
+        if (providerEvents != null) {
+          allEvents.addAll(providerEvents);
+        }
       }
+      allEvents.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      events = allEvents;
     }
-    allEvents.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    return allEvents;
+
+    if (_state.enabledEventTypes.length != EventType.values.length) {
+      events = events
+          .where((event) => _state.enabledEventTypes.contains(event.type))
+          .toList();
+    }
+
+    final query = _state.eventSearchQuery.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      events = events.where((event) {
+        if (event.providerName.toLowerCase().contains(query)) return true;
+        if (event.getValueString().toLowerCase().contains(query)) return true;
+        if (event.type == EventType.updated &&
+            event.getPreviousValueString().toLowerCase().contains(query)) {
+          return true;
+        }
+        return false;
+      }).toList();
+    }
+
+    return events;
   }
 
   List<String> getUsedBy(String providerName) {
@@ -262,12 +330,14 @@ class InspectorNotifier extends ChangeNotifier {
 
         final rawLoadedAt = data['dependenciesLoadedAt'];
         if (rawLoadedAt is int) {
-          dependenciesLoadedAt = DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
+          dependenciesLoadedAt =
+              DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
         }
 
         final rawGeneratedAt = data['dependenciesGeneratedAt'];
         if (rawGeneratedAt is int) {
-          dependenciesGeneratedAt = DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
+          dependenciesGeneratedAt =
+              DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
         }
       } catch (e) {
         // Fallback or ignore if dependencies parsing fails
@@ -340,9 +410,13 @@ class InspectorNotifier extends ChangeNotifier {
               {'type': 'null', 'value': null},
           status: ProviderStatus.disposed,
           dependencies: _state.providers[providerName]?.dependencies ?? [],
-          dependenciesSource: _state.providers[providerName]?.dependenciesSource ?? DependencySource.none,
-          dependenciesLoadedAt: _state.providers[providerName]?.dependenciesLoadedAt,
-          dependenciesGeneratedAt: _state.providers[providerName]?.dependenciesGeneratedAt,
+          dependenciesSource:
+              _state.providers[providerName]?.dependenciesSource ??
+                  DependencySource.none,
+          dependenciesLoadedAt:
+              _state.providers[providerName]?.dependenciesLoadedAt,
+          dependenciesGeneratedAt:
+              _state.providers[providerName]?.dependenciesGeneratedAt,
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,

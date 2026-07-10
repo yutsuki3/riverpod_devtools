@@ -1,5 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:riverpod_devtools_extension/src/models/event_type.dart';
+import 'package:riverpod_devtools_extension/src/models/provider_event.dart';
 import 'package:riverpod_devtools_extension/src/providers/inspector_notifier.dart';
+
+ProviderEvent _event(
+  String providerName,
+  EventType type, {
+  String? value,
+  int timestampMicros = 0,
+}) {
+  return ProviderEvent(
+    type: type,
+    providerId: providerName,
+    providerName: providerName,
+    value: value != null ? {'type': 'String', 'value': value} : null,
+    timestamp: DateTime.fromMicrosecondsSinceEpoch(timestampMicros),
+  );
+}
 
 void main() {
   group('InspectorNotifier', () {
@@ -96,6 +113,106 @@ void main() {
       notifier.flashProvider(p1);
 
       expect(notifier.state.flashingProviderName, p1);
+    });
+
+    test('initial state enables all event types', () {
+      expect(
+        notifier.state.enabledEventTypes,
+        containsAll(EventType.values),
+      );
+      expect(notifier.state.eventSearchQuery, isEmpty);
+    });
+
+    test('toggleEventTypeFilter toggles a type on and off', () {
+      notifier.toggleEventTypeFilter(EventType.updated);
+      expect(
+        notifier.state.enabledEventTypes,
+        isNot(contains(EventType.updated)),
+      );
+      expect(notifier.state.enabledEventTypes, contains(EventType.added));
+
+      notifier.toggleEventTypeFilter(EventType.updated);
+      expect(notifier.state.enabledEventTypes, contains(EventType.updated));
+    });
+
+    test('updateEventSearchQuery updates state', () {
+      notifier.updateEventSearchQuery('todo');
+      expect(notifier.state.eventSearchQuery, 'todo');
+    });
+
+    test('filteredEvents filters by event type', () {
+      notifier.addEventForTest(_event('counterProvider', EventType.added,
+          value: '0', timestampMicros: 1));
+      notifier.addEventForTest(_event('counterProvider', EventType.updated,
+          value: '1', timestampMicros: 2));
+      notifier.addEventForTest(
+          _event('counterProvider', EventType.disposed, timestampMicros: 3));
+
+      expect(notifier.filteredEvents.length, 3);
+
+      notifier.toggleEventTypeFilter(EventType.disposed);
+      expect(notifier.filteredEvents.length, 2);
+      expect(
+        notifier.filteredEvents.every((e) => e.type != EventType.disposed),
+        isTrue,
+      );
+
+      notifier.toggleEventTypeFilter(EventType.added);
+      notifier.toggleEventTypeFilter(EventType.updated);
+      expect(notifier.filteredEvents, isEmpty);
+    });
+
+    test('filteredEvents filters by search query on name and value', () {
+      notifier.addEventForTest(_event('counterProvider', EventType.updated,
+          value: '42', timestampMicros: 1));
+      notifier.addEventForTest(_event('todoProvider', EventType.updated,
+          value: 'buy milk', timestampMicros: 2));
+
+      notifier.updateEventSearchQuery('todo');
+      expect(notifier.filteredEvents.length, 1);
+      expect(notifier.filteredEvents.first.providerName, 'todoProvider');
+
+      // Matches value content, case-insensitively
+      notifier.updateEventSearchQuery('MILK');
+      expect(notifier.filteredEvents.length, 1);
+      expect(notifier.filteredEvents.first.providerName, 'todoProvider');
+
+      notifier.updateEventSearchQuery('42');
+      expect(notifier.filteredEvents.length, 1);
+      expect(notifier.filteredEvents.first.providerName, 'counterProvider');
+
+      notifier.updateEventSearchQuery('nomatch');
+      expect(notifier.filteredEvents, isEmpty);
+
+      notifier.updateEventSearchQuery('');
+      expect(notifier.filteredEvents.length, 2);
+    });
+
+    test('filteredEvents combines provider selection with filters', () {
+      notifier.addEventForTest(_event('counterProvider', EventType.added,
+          value: '0', timestampMicros: 1));
+      notifier.addEventForTest(_event('todoProvider', EventType.added,
+          value: 'buy milk', timestampMicros: 2));
+      notifier.addEventForTest(_event('todoProvider', EventType.updated,
+          value: 'buy bread', timestampMicros: 3));
+
+      notifier.selectProvider('todoProvider');
+      expect(notifier.filteredEvents.length, 2);
+
+      notifier.toggleEventTypeFilter(EventType.added);
+      expect(notifier.filteredEvents.length, 1);
+      expect(notifier.filteredEvents.first.type, EventType.updated);
+    });
+
+    test('clearEvents removes all events and expansion state', () {
+      notifier.addEventForTest(_event('counterProvider', EventType.added,
+          value: '0', timestampMicros: 1));
+      notifier.toggleEventExpansion(notifier.state.events.first.id);
+
+      notifier.clearEvents();
+      expect(notifier.state.events, isEmpty);
+      expect(notifier.filteredEvents, isEmpty);
+      expect(notifier.state.expandedEventIds, isEmpty);
     });
 
     // Note: Testing actual event subscription requires mocking vm_service,
