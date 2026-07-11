@@ -75,31 +75,26 @@ class GraphLayout {
 /// Computes the layout.
 ///
 /// [nodeNames] is the full node set; [edges] the dependency edges
-/// (`from` depends on `to` — edges referencing nodes outside the set are
-/// ignored). When [focus] is set, the graph is restricted to the focus
-/// node plus its transitive dependencies and dependents.
+/// (`from` depends on `to` — edges referencing nodes outside the set, or
+/// self-edges, are ignored).
+///
+/// The layout always covers the full graph — "focusing" on a node is a
+/// render-time concern (dim unrelated nodes, hide unrelated edges; see
+/// [reachableFromFocus]), not a layout concern, so that node positions
+/// stay stable as the focus changes instead of the whole graph
+/// reshuffling on every click.
 GraphLayout computeGraphLayout({
   required Set<String> nodeNames,
   required List<GraphEdgeInput> edges,
-  String? focus,
 }) {
-  var nodes = Set<String>.of(nodeNames);
-  var validEdges = [
+  final nodes = nodeNames;
+  final validEdges = [
     for (final edge in edges)
       if (nodes.contains(edge.from) &&
           nodes.contains(edge.to) &&
           edge.from != edge.to)
         edge,
   ];
-
-  if (focus != null && nodes.contains(focus)) {
-    final reachable = _reachableFrom(focus, validEdges);
-    nodes = nodes.intersection(reachable);
-    validEdges = [
-      for (final edge in validEdges)
-        if (nodes.contains(edge.from) && nodes.contains(edge.to)) edge,
-    ];
-  }
 
   // dependencies of each node, deduplicated (a provider may watch + read
   // the same dependency).
@@ -195,15 +190,63 @@ GraphLayout computeGraphLayout({
 
 int _max(int a, int b) => a > b ? a : b;
 
-/// Focus node plus its transitive dependencies and dependents.
-Set<String> _reachableFrom(String start, List<GraphEdgeInput> edges) {
+/// Whether [nodeName] should render dimmed, combining the two independent
+/// reasons a node can be de-emphasized:
+///
+/// - It doesn't match [searchQuery] (always dims, regardless of focus).
+/// - [focusedSet] is set (a node is focused) and [nodeName] isn't in it —
+///   *unless* [searchQuery] is non-empty and matches, in which case the
+///   search wins so the node the user is actively looking for stays
+///   visible even outside the current focus.
+bool isNodeDimmed({
+  required String nodeName,
+  required String searchQuery,
+  required Set<String>? focusedSet,
+}) {
+  if (searchQuery.isEmpty) {
+    return focusedSet != null && !focusedSet.contains(nodeName);
+  }
+  return !nodeName.toLowerCase().contains(searchQuery.toLowerCase());
+}
+
+/// Whether an edge between [from] and [to] should be drawn: always when
+/// nothing is focused, or when focused, only when both endpoints are in
+/// [focusedSet] — this is the single source of truth for edge visibility,
+/// shared by the painter and [hasVisibleCycle] so they can't disagree.
+bool isEdgeVisible({
+  required String from,
+  required String to,
+  required Set<String>? focusedSet,
+}) {
+  return focusedSet == null ||
+      (focusedSet.contains(from) && focusedSet.contains(to));
+}
+
+/// Whether any cycle edge is actually visible given [focusedSet] — an
+/// edge outside the focused sub-graph is hidden by the view, so a cycle
+/// entirely outside it should not trigger the "cycle detected" warning
+/// (there would be nothing red on screen to point at).
+bool hasVisibleCycle({
+  required List<GraphEdgeLayout> edges,
+  required Set<String>? focusedSet,
+}) {
+  return edges.any((edge) =>
+      edge.isCycle &&
+      isEdgeVisible(from: edge.from, to: edge.to, focusedSet: focusedSet));
+}
+
+/// The set of nodes "related" to [focus] for rendering purposes: itself
+/// plus its transitive dependencies and dependents. Used by the view to
+/// decide which nodes to dim and which edges to hide when a node is
+/// focused — the layout itself (node positions) does not change.
+Set<String> reachableFromFocus(String focus, List<GraphEdgeInput> edges) {
   final forward = <String, List<String>>{};
   final backward = <String, List<String>>{};
   for (final edge in edges) {
     forward.putIfAbsent(edge.from, () => []).add(edge.to);
     backward.putIfAbsent(edge.to, () => []).add(edge.from);
   }
-  return {..._closure(start, forward), ..._closure(start, backward)};
+  return {..._closure(focus, forward), ..._closure(focus, backward)};
 }
 
 Set<String> _closure(String start, Map<String, List<String>> adjacency) {

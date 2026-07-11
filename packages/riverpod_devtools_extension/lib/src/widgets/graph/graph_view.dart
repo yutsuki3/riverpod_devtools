@@ -49,11 +49,23 @@ class GraphView extends StatelessWidget {
           }
         }
 
-        final layout = computeGraphLayout(
-          nodeNames: nodeNames,
-          edges: edges,
-          focus: state.graphFocusProvider,
-        );
+        final layout = computeGraphLayout(nodeNames: nodeNames, edges: edges);
+
+        // Focusing is a render-time filter (dim unrelated nodes, hide
+        // unrelated edges), not a layout change — node positions stay
+        // fixed regardless of focus so the graph doesn't reshuffle on
+        // every click. Null means "nothing focused, show everything".
+        final focus = state.graphFocusProvider;
+        final focusedSet = focus != null && nodeNames.contains(focus)
+            ? reachableFromFocus(focus, edges)
+            : null;
+
+        // layout.hasCycle reflects the whole graph, but an edge outside
+        // the focused sub-graph is hidden by _EdgePainter — computed once
+        // here and shared by the toolbar badge and the legend so they
+        // can't disagree about whether a cycle is actually on screen.
+        final visibleCycle =
+            hasVisibleCycle(edges: layout.edges, focusedSet: focusedSet);
 
         return Row(
           children: [
@@ -65,23 +77,21 @@ class GraphView extends StatelessWidget {
                     _GraphToolbar(
                       notifier: notifier,
                       layout: layout,
+                      hasVisibleCycle: visibleCycle,
                     ),
                     Expanded(
                       child: layout.nodes.isEmpty
-                          ? EmptyState(
+                          ? const EmptyState(
                               icon: Icons.account_tree_outlined,
-                              message: state.providers.isEmpty
-                                  ? 'No providers yet'
-                                  : 'No matching providers',
-                              hint: state.providers.isEmpty
-                                  ? 'The graph appears once your app '
-                                      'creates providers'
-                                  : 'Adjust the search query or exit '
-                                      'focus mode',
+                              message: 'No providers yet',
+                              hint: 'The graph appears once your app '
+                                  'creates providers',
                             )
                           : _GraphCanvas(
                               notifier: notifier,
                               layout: layout,
+                              focusedSet: focusedSet,
+                              hasVisibleCycle: visibleCycle,
                             ),
                     ),
                   ],
@@ -108,8 +118,13 @@ class GraphView extends StatelessWidget {
 class _GraphToolbar extends StatelessWidget {
   final InspectorNotifier notifier;
   final GraphLayout layout;
+  final bool hasVisibleCycle;
 
-  const _GraphToolbar({required this.notifier, required this.layout});
+  const _GraphToolbar({
+    required this.notifier,
+    required this.layout,
+    required this.hasVisibleCycle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -147,7 +162,7 @@ class _GraphToolbar extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
             ),
           ),
-          if (layout.hasCycle) ...[
+          if (hasVisibleCycle) ...[
             const SizedBox(width: 8),
             Tooltip(
               message: 'Dependency cycle detected — highlighted in red',
@@ -193,7 +208,20 @@ class _GraphCanvas extends StatelessWidget {
   final InspectorNotifier notifier;
   final GraphLayout layout;
 
-  const _GraphCanvas({required this.notifier, required this.layout});
+  /// Nodes related to the focused provider (itself + transitive deps and
+  /// dependents), or null when nothing is focused. Nodes outside this set
+  /// are dimmed and edges not fully inside it are hidden, but they stay
+  /// laid out in place — see [computeGraphLayout].
+  final Set<String>? focusedSet;
+
+  final bool hasVisibleCycle;
+
+  const _GraphCanvas({
+    required this.notifier,
+    required this.layout,
+    required this.focusedSet,
+    required this.hasVisibleCycle,
+  });
 
   Offset _nodeOrigin(GraphNodeLayout node) => Offset(
         GraphView._padding +
@@ -217,8 +245,6 @@ class _GraphCanvas extends StatelessWidget {
     final origins = <String, Offset>{
       for (final node in layout.nodes) node.name: _nodeOrigin(node),
     };
-
-    final query = state.providerSearchQuery.toLowerCase();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -260,6 +286,7 @@ class _GraphCanvas extends StatelessWidget {
                           layout: layout,
                           origins: origins,
                           selected: state.selectedProviderNames,
+                          focusedSet: focusedSet,
                           theme: theme,
                         ),
                       ),
@@ -275,8 +302,11 @@ class _GraphCanvas extends StatelessWidget {
                             isSelected:
                                 state.selectedProviderNames.contains(node.name),
                             isFlashing: state.flashingProviderName == node.name,
-                            isDimmed: query.isNotEmpty &&
-                                !node.name.toLowerCase().contains(query),
+                            isDimmed: isNodeDimmed(
+                              nodeName: node.name,
+                              searchQuery: state.providerSearchQuery,
+                              focusedSet: focusedSet,
+                            ),
                             onTap: () =>
                                 notifier.selectAndFocusInGraph(node.name),
                           ),
@@ -291,7 +321,7 @@ class _GraphCanvas extends StatelessWidget {
             Positioned(
               left: 8,
               bottom: 8,
-              child: _GraphLegend(hasCycle: layout.hasCycle),
+              child: _GraphLegend(hasCycle: hasVisibleCycle),
             ),
           ],
         );
@@ -534,12 +564,18 @@ class _EdgePainter extends CustomPainter {
   final GraphLayout layout;
   final Map<String, Offset> origins;
   final Set<String> selected;
+
+  /// See [_GraphCanvas.focusedSet]. An edge is only drawn when both of
+  /// its endpoints are in this set (or it is null, meaning no focus).
+  final Set<String>? focusedSet;
+
   final ThemeData theme;
 
   _EdgePainter({
     required this.layout,
     required this.origins,
     required this.selected,
+    required this.focusedSet,
     required this.theme,
   });
 
@@ -549,6 +585,10 @@ class _EdgePainter extends CustomPainter {
       final fromOrigin = origins[edge.from];
       final toOrigin = origins[edge.to];
       if (fromOrigin == null || toOrigin == null) continue;
+      if (!isEdgeVisible(
+          from: edge.from, to: edge.to, focusedSet: focusedSet)) {
+        continue;
+      }
 
       // Data flows dependency -> dependent: start at the dependency's
       // right edge, end at the dependent's left edge.
@@ -631,5 +671,6 @@ class _EdgePainter extends CustomPainter {
       oldDelegate.layout != layout ||
       oldDelegate.origins != origins ||
       oldDelegate.selected != selected ||
+      oldDelegate.focusedSet != focusedSet ||
       oldDelegate.theme != theme;
 }

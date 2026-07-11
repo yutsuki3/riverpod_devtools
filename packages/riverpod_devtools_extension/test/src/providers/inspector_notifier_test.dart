@@ -101,8 +101,7 @@ void main() {
     });
 
     group('graph selection', () {
-      test('selectAndFocusInGraph selects and focuses the given provider',
-          () {
+      test('selectAndFocusInGraph selects and focuses the given provider', () {
         notifier.selectAndFocusInGraph('a');
 
         expect(notifier.state.selectedProviderNames, {'a'});
@@ -118,8 +117,7 @@ void main() {
         expect(notifier.state.graphFocusProvider, 'new');
       });
 
-      test('resetGraphSelection clears selection, active tab, and focus',
-          () {
+      test('resetGraphSelection clears selection, active tab, and focus', () {
         notifier.selectAndFocusInGraph('a');
         notifier.resetGraphSelection();
 
@@ -128,8 +126,7 @@ void main() {
         expect(notifier.state.graphFocusProvider, isNull);
       });
 
-      test(
-          'resetGraphSelection is a no-op-equivalent from the neutral state',
+      test('resetGraphSelection is a no-op-equivalent from the neutral state',
           () {
         notifier.resetGraphSelection();
 

@@ -71,8 +71,9 @@ void main() {
       expect(layout.nodes, hasLength(2));
     });
 
-    test('focus restricts to transitive deps and dependents', () {
-      // d -> c -> b -> a, unrelated y -> x.
+    test('layout includes all nodes regardless of any later focus', () {
+      // d -> c -> b -> a, unrelated y -> x: layout is not filtered by
+      // focus — see reachableFromFocus for that.
       final layout = computeGraphLayout(
         nodeNames: {'a', 'b', 'c', 'd', 'x', 'y'},
         edges: [
@@ -81,20 +82,9 @@ void main() {
           _edge('d', 'c'),
           _edge('y', 'x'),
         ],
-        focus: 'b',
       );
 
-      expect(layout.nodes.map((n) => n.name), ['a', 'b', 'c', 'd']);
-    });
-
-    test('focus does not pull in siblings of a shared dependency', () {
-      final layout = computeGraphLayout(
-        nodeNames: {'a', 'b', 'z'},
-        edges: [_edge('b', 'a'), _edge('z', 'a')],
-        focus: 'b',
-      );
-
-      expect(layout.nodes.map((n) => n.name), ['a', 'b']);
+      expect(layout.nodes.map((n) => n.name), ['a', 'b', 'c', 'd', 'x', 'y']);
     });
 
     test('self- and dangling edges are ignored', () {
@@ -117,6 +107,170 @@ void main() {
 
       expect(layout.edges, hasLength(2));
       expect(layout['b']!.layer, 1);
+    });
+  });
+
+  group('reachableFromFocus', () {
+    test('includes transitive dependencies and dependents', () {
+      // d -> c -> b -> a, unrelated y -> x.
+      final related = reachableFromFocus('b', [
+        _edge('b', 'a'),
+        _edge('c', 'b'),
+        _edge('d', 'c'),
+        _edge('y', 'x'),
+      ]);
+
+      expect(related, {'a', 'b', 'c', 'd'});
+    });
+
+    test('does not pull in siblings of a shared dependency', () {
+      final related =
+          reachableFromFocus('b', [_edge('b', 'a'), _edge('z', 'a')]);
+
+      expect(related, {'a', 'b'});
+    });
+
+    test('a node with no edges is related only to itself', () {
+      expect(reachableFromFocus('a', []), {'a'});
+    });
+
+    test('handles cycles without hanging', () {
+      final related =
+          reachableFromFocus('a', [_edge('a', 'b'), _edge('b', 'a')]);
+      expect(related, {'a', 'b'});
+    });
+  });
+
+  group('isEdgeVisible', () {
+    test('every edge is visible when nothing is focused', () {
+      expect(isEdgeVisible(from: 'a', to: 'b', focusedSet: null), isTrue);
+    });
+
+    test('visible when both endpoints are in the focused set', () {
+      expect(
+        isEdgeVisible(from: 'a', to: 'b', focusedSet: {'a', 'b', 'c'}),
+        isTrue,
+      );
+    });
+
+    test('hidden when either endpoint is outside the focused set', () {
+      expect(
+        isEdgeVisible(from: 'a', to: 'x', focusedSet: {'a', 'b'}),
+        isFalse,
+      );
+      expect(
+        isEdgeVisible(from: 'x', to: 'a', focusedSet: {'a', 'b'}),
+        isFalse,
+      );
+    });
+  });
+
+  group('hasVisibleCycle', () {
+    GraphEdgeLayout cycleEdge(String from, String to) => GraphEdgeLayout(
+          from: from,
+          to: to,
+          isCycle: true,
+        );
+
+    test('false when there are no cycle edges', () {
+      expect(
+        hasVisibleCycle(
+          edges: [const GraphEdgeLayout(from: 'a', to: 'b')],
+          focusedSet: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test('true when a cycle edge is visible (nothing focused)', () {
+      expect(
+        hasVisibleCycle(edges: [cycleEdge('a', 'b')], focusedSet: null),
+        isTrue,
+      );
+    });
+
+    test('false when the only cycle is entirely outside the focused set', () {
+      expect(
+        hasVisibleCycle(
+          edges: [cycleEdge('x', 'y')],
+          focusedSet: {'a', 'b'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('true when the cycle is inside the focused set', () {
+      expect(
+        hasVisibleCycle(
+          edges: [cycleEdge('a', 'b')],
+          focusedSet: {'a', 'b', 'c'},
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('isNodeDimmed', () {
+    test('not dimmed with no search and no focus', () {
+      expect(
+        isNodeDimmed(nodeName: 'a', searchQuery: '', focusedSet: null),
+        isFalse,
+      );
+    });
+
+    test('dimmed when outside the focused set and not searching', () {
+      expect(
+        isNodeDimmed(
+          nodeName: 'a',
+          searchQuery: '',
+          focusedSet: {'b', 'c'},
+        ),
+        isTrue,
+      );
+    });
+
+    test('not dimmed when inside the focused set', () {
+      expect(
+        isNodeDimmed(
+          nodeName: 'a',
+          searchQuery: '',
+          focusedSet: {'a', 'b'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('dimmed when it does not match an active search, focus or not', () {
+      expect(
+        isNodeDimmed(
+          nodeName: 'apiClientProvider',
+          searchQuery: 'counter',
+          focusedSet: null,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a search match stays lit even outside the focused set', () {
+      expect(
+        isNodeDimmed(
+          nodeName: 'counterProvider',
+          searchQuery: 'counter',
+          focusedSet: {'apiClientProvider'},
+        ),
+        isFalse,
+      );
+    });
+
+    test('search is case-insensitive', () {
+      expect(
+        isNodeDimmed(
+          nodeName: 'counterProvider',
+          searchQuery: 'COUNTER',
+          focusedSet: null,
+        ),
+        isFalse,
+      );
     });
   });
 }
