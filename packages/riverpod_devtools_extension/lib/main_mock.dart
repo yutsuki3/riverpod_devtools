@@ -7,7 +7,7 @@
 // Query parameters:
 //   ?theme=light|dark   (default dark, like DevTools)
 //   ?select=<provider>  provider to pre-select in the detail panel
-//   ?view=graph         open the dependency graph view
+//   ?view=graph|stats   open the dependency graph or stats view
 //   ?focus=<provider>   focus the graph on one provider's sub-graph
 import 'package:flutter/material.dart';
 import 'package:riverpod_devtools_extension/src/models/event_type.dart';
@@ -118,7 +118,10 @@ class _MockAppState extends State<_MockApp> {
         providerId: '3',
         providerName: 'userProfileProvider',
         value: {'type': 'AsyncLoading<UserProfile>', 'asyncState': 'loading'},
-        timestamp: at(62),
+        // Close to the provider_failed event's at(2) below, so the
+        // loading->failed pairing in the Stats tab shows a plausible ~1s
+        // duration instead of the full time since the provider was added.
+        timestamp: at(3),
         seq: 3,
       ),
       ProviderEvent(
@@ -136,6 +139,84 @@ class _MockAppState extends State<_MockApp> {
         value: intValue(1),
         timestamp: at(63),
         seq: 1,
+      ),
+
+      // --- Stats-tab scenarios (#56) ---
+      // A provider updating well past the high-frequency threshold
+      // (>10/sec sustained over the last 10s, i.e. >100 updates in 10s).
+      for (var i = 0; i < 120; i++)
+        ProviderEvent(
+          type: EventType.updated,
+          providerId: '8',
+          providerName: 'searchResultsProvider',
+          previousValue: intValue(i),
+          value: intValue(i + 1),
+          timestamp: now.subtract(Duration(milliseconds: i * 80)),
+          seq: 1000 + i,
+        ),
+      // A slow async load (loading -> data over the 2s threshold).
+      ProviderEvent(
+        type: EventType.updated,
+        providerId: '9',
+        providerName: 'weatherProvider',
+        previousValue: {
+          'type': 'AsyncLoading<Weather>',
+          'asyncState': 'loading'
+        },
+        value: {
+          'type': 'AsyncData<Weather>',
+          'asyncState': 'data',
+          'string': 'Weather(sunny)'
+        },
+        timestamp: at(50),
+        seq: 120,
+      ),
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '9',
+        providerName: 'weatherProvider',
+        value: {'type': 'AsyncLoading<Weather>', 'asyncState': 'loading'},
+        timestamp: at(54),
+        seq: 119,
+      ),
+      // A provider disposed and re-created twice (churn).
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '10c',
+        providerName: 'sessionProvider',
+        value: const {'type': 'String', 'value': 'session-3'},
+        timestamp: at(10),
+        seq: 133,
+      ),
+      ProviderEvent(
+        type: EventType.disposed,
+        providerId: '10b',
+        providerName: 'sessionProvider',
+        timestamp: at(15),
+        seq: 132,
+      ),
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '10b',
+        providerName: 'sessionProvider',
+        value: const {'type': 'String', 'value': 'session-2'},
+        timestamp: at(30),
+        seq: 131,
+      ),
+      ProviderEvent(
+        type: EventType.disposed,
+        providerId: '10a',
+        providerName: 'sessionProvider',
+        timestamp: at(35),
+        seq: 130,
+      ),
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '10a',
+        providerName: 'sessionProvider',
+        value: const {'type': 'String', 'value': 'session-1'},
+        timestamp: at(50),
+        seq: 129,
       ),
     ];
 
@@ -224,6 +305,34 @@ class _MockAppState extends State<_MockApp> {
           dep('counterProvider', 'listen'),
         ],
       ),
+      'searchResultsProvider': ProviderInfo(
+        id: '8',
+        name: 'searchResultsProvider',
+        value: intValue(120),
+        status: ProviderStatus.active,
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
+      'weatherProvider': ProviderInfo(
+        id: '9',
+        name: 'weatherProvider',
+        value: const {
+          'type': 'AsyncData<Weather>',
+          'asyncState': 'data',
+          'string': 'Weather(sunny)',
+        },
+        status: ProviderStatus.active,
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
+      'sessionProvider': ProviderInfo(
+        id: '10c',
+        name: 'sessionProvider',
+        value: const {'type': 'String', 'value': 'session-3'},
+        status: ProviderStatus.active,
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
     };
 
     // The mock harness is the one legitimate non-test consumer.
@@ -234,8 +343,11 @@ class _MockAppState extends State<_MockApp> {
     if (select != null && providers.containsKey(select)) {
       _notifier.selectProvider(select);
     }
-    if (Uri.base.queryParameters['view'] == 'graph') {
-      _notifier.setViewMode(InspectorViewMode.graph);
+    switch (Uri.base.queryParameters['view']) {
+      case 'graph':
+        _notifier.setViewMode(InspectorViewMode.graph);
+      case 'stats':
+        _notifier.setViewMode(InspectorViewMode.stats);
     }
     final focus = Uri.base.queryParameters['focus'];
     if (focus != null && providers.containsKey(focus)) {

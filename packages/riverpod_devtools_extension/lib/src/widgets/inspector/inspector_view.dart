@@ -5,6 +5,7 @@ import '../detail_panel/detail_panel.dart';
 import '../event_log/event_log_panel.dart';
 import '../graph/graph_view.dart';
 import '../provider_list/provider_list_panel.dart';
+import '../stats/stats_view.dart';
 
 class InspectorView extends StatefulWidget {
   final InspectorNotifier notifier;
@@ -37,17 +38,21 @@ class _InspectorViewState extends State<InspectorView> {
         final state = widget.notifier.state;
 
         return Container(
-          color: theme.colorScheme.surfaceContainerLowest
-              .withValues(alpha: 0.5),
+          color:
+              theme.colorScheme.surfaceContainerLowest.withValues(alpha: 0.5),
           padding: const EdgeInsets.all(8),
           child: Column(
             children: [
               _ViewSwitcher(notifier: widget.notifier),
               const SizedBox(height: 8),
               Expanded(
-                child: state.viewMode == InspectorViewMode.graph
-                    ? GraphView(notifier: widget.notifier)
-                    : _buildInspectorPanels(state),
+                child: switch (state.viewMode) {
+                  InspectorViewMode.graph =>
+                    GraphView(notifier: widget.notifier),
+                  InspectorViewMode.stats =>
+                    StatsView(notifier: widget.notifier),
+                  InspectorViewMode.inspector => _buildInspectorPanels(state),
+                },
               ),
             ],
           ),
@@ -58,68 +63,62 @@ class _InspectorViewState extends State<InspectorView> {
 
   Widget _buildInspectorPanels(InspectorState state) {
     return LayoutBuilder(
-            builder: (context, constraints) {
-              final totalWidth = constraints.maxWidth;
-              const dividerWidth = 8.0;
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
+        const dividerWidth = 8.0;
 
-              final providerListWidth = totalWidth * state.leftSplitRatio;
-              final remainingWidth =
-                  totalWidth - providerListWidth - dividerWidth;
-              final detailPanelWidth = remainingWidth * state.rightSplitRatio;
-              final eventLogWidth =
-                  remainingWidth - detailPanelWidth - dividerWidth;
+        final providerListWidth = totalWidth * state.leftSplitRatio;
+        final remainingWidth = totalWidth - providerListWidth - dividerWidth;
+        final detailPanelWidth = remainingWidth * state.rightSplitRatio;
+        final eventLogWidth = remainingWidth - detailPanelWidth - dividerWidth;
 
-              return Row(
-                children: [
-                  SizedBox(
-                    width: providerListWidth,
-                    child: PanelCard(
-                      child: ProviderListPanel(
-                        notifier: widget.notifier,
-                        scrollController: _providerListScrollController,
-                      ),
-                    ),
-                  ),
-                  _PanelDivider(
-                    width: dividerWidth,
-                    onDrag: (delta) {
-                      final newRatio =
-                          state.leftSplitRatio + delta / totalWidth;
-                      widget.notifier
-                          .updateLeftSplitRatio(newRatio.clamp(0.15, 0.5));
-                    },
-                  ),
-                  SizedBox(
-                    width: detailPanelWidth,
-                    child: PanelCard(
-                      child: DetailPanel(
-                        notifier: widget.notifier,
-                        onProviderJump: () {
-                          // Handle jump logic if needed
-                        },
-                      ),
-                    ),
-                  ),
-                  _PanelDivider(
-                    width: dividerWidth,
-                    onDrag: (delta) {
-                      final newRatio =
-                          state.rightSplitRatio + delta / remainingWidth;
-                      widget.notifier
-                          .updateRightSplitRatio(newRatio.clamp(0.3, 0.7));
-                    },
-                  ),
-                  SizedBox(
-                    width: eventLogWidth,
-                    child: PanelCard(
-                      child: EventLogPanel(
-                        notifier: widget.notifier,
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
+        return Row(
+          children: [
+            SizedBox(
+              width: providerListWidth,
+              child: PanelCard(
+                child: ProviderListPanel(
+                  notifier: widget.notifier,
+                  scrollController: _providerListScrollController,
+                ),
+              ),
+            ),
+            _PanelDivider(
+              width: dividerWidth,
+              onDrag: (delta) {
+                final newRatio = state.leftSplitRatio + delta / totalWidth;
+                widget.notifier.updateLeftSplitRatio(newRatio.clamp(0.15, 0.5));
+              },
+            ),
+            SizedBox(
+              width: detailPanelWidth,
+              child: PanelCard(
+                child: DetailPanel(
+                  notifier: widget.notifier,
+                  onProviderJump: () {
+                    // Handle jump logic if needed
+                  },
+                ),
+              ),
+            ),
+            _PanelDivider(
+              width: dividerWidth,
+              onDrag: (delta) {
+                final newRatio = state.rightSplitRatio + delta / remainingWidth;
+                widget.notifier.updateRightSplitRatio(newRatio.clamp(0.3, 0.7));
+              },
+            ),
+            SizedBox(
+              width: eventLogWidth,
+              child: PanelCard(
+                child: EventLogPanel(
+                  notifier: widget.notifier,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -181,8 +180,8 @@ class _ViewSwitcher extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerHighest
-              .withValues(alpha: 0.4),
+          color:
+              theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: theme.colorScheme.outline.withValues(alpha: 0.12),
@@ -194,8 +193,10 @@ class _ViewSwitcher extends StatelessWidget {
             buildTab(InspectorViewMode.inspector, Icons.view_column_outlined,
                 'Inspector'),
             const SizedBox(width: 2),
-            buildTab(InspectorViewMode.graph, Icons.account_tree_outlined,
-                'Graph'),
+            buildTab(
+                InspectorViewMode.graph, Icons.account_tree_outlined, 'Graph'),
+            const SizedBox(width: 2),
+            buildTab(InspectorViewMode.stats, Icons.speed_outlined, 'Stats'),
           ],
         ),
       ),

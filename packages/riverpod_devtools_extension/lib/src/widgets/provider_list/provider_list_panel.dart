@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
+import '../../utils/provider_stats.dart';
 import '../common/panel_ui.dart';
 
 class ProviderListPanel extends StatefulWidget {
@@ -43,6 +44,10 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
       builder: (context, child) {
         final state = widget.notifier.state;
         final filteredProviders = widget.notifier.filteredProviders;
+        final statsByProvider = <String, ProviderStats>{
+          for (final stat in widget.notifier.providerStats)
+            stat.providerName: stat,
+        };
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -57,8 +62,7 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                     label: 'Clear',
                     icon: Icons.close,
                     onPressed: () {
-                      for (final name
-                          in state.selectedProviderNames.toList()) {
+                      for (final name in state.selectedProviderNames.toList()) {
                         widget.notifier.removeSelectedProvider(name);
                       }
                     },
@@ -165,8 +169,7 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                           },
                           child: ListView.builder(
                             controller: widget.scrollController,
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 4),
+                            padding: const EdgeInsets.symmetric(vertical: 4),
                             itemCount: filteredProviders.length,
                             itemBuilder: (context, index) {
                               final provider = filteredProviders[index];
@@ -176,15 +179,16 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                                   state.flashingProviderName == provider.name;
                               return _ProviderListTile(
                                 provider: provider,
+                                stats: statsByProvider[provider.name],
                                 isSelected: isSelected,
                                 isFlashing: isFlashing,
                                 onPointerDown: (event) {
-                                  final isCtrlOrCmd = event.kind ==
-                                          PointerDeviceKind.mouse &&
-                                      (HardwareKeyboard
-                                              .instance.isMetaPressed ||
-                                          HardwareKeyboard
-                                              .instance.isControlPressed);
+                                  final isCtrlOrCmd =
+                                      event.kind == PointerDeviceKind.mouse &&
+                                          (HardwareKeyboard
+                                                  .instance.isMetaPressed ||
+                                              HardwareKeyboard
+                                                  .instance.isControlPressed);
 
                                   if (isCtrlOrCmd) {
                                     if (isSelected) {
@@ -264,12 +268,14 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
 
 class _ProviderListTile extends StatelessWidget {
   final ProviderInfo provider;
+  final ProviderStats? stats;
   final bool isSelected;
   final bool isFlashing;
   final void Function(PointerDownEvent event) onPointerDown;
 
   const _ProviderListTile({
     required this.provider,
+    required this.stats,
     required this.isSelected,
     required this.isFlashing,
     required this.onPointerDown,
@@ -333,10 +339,37 @@ class _ProviderListTile extends StatelessWidget {
                   ),
                 ),
               ],
+              if (stats != null &&
+                  (stats!.isHighFrequency || stats!.isSlowLoading)) ...[
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: [
+                    if (stats!.isHighFrequency)
+                      '${stats!.updatesPerSecond.toStringAsFixed(1)} updates/sec',
+                    if (stats!.isSlowLoading)
+                      'Slow load: ${_formatBadgeDuration(stats!.maxLoadDuration!)}',
+                  ].join('\n'),
+                  waitDuration: const Duration(milliseconds: 400),
+                  child: Icon(
+                    stats!.isHighFrequency
+                        ? Icons.bolt
+                        : Icons.hourglass_bottom,
+                    size: 12,
+                    color: theme.brightness == Brightness.dark
+                        ? const Color(0xFFFFB74D)
+                        : const Color(0xFFE65100),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+}
+
+String _formatBadgeDuration(Duration d) {
+  if (d.inMilliseconds < 1000) return '${d.inMilliseconds}ms';
+  return '${(d.inMilliseconds / 1000).toStringAsFixed(1)}s';
 }

@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'graph_builder.dart';
 import 'mcp_constants.dart';
+import 'provider_stats.dart';
 
 class RiverpodDevToolsHttpServer {
   RiverpodDevToolsHttpServer({int maxBufferSize = 1000})
@@ -27,8 +28,7 @@ class RiverpodDevToolsHttpServer {
 
   /// Executes state commands (invalidate/refresh) arriving via
   /// `POST /commands` from the MCP server. Wired up by the observer.
-  Map<String, Object?> Function(String action, String provider)?
-      commandHandler;
+  Map<String, Object?> Function(String action, String provider)? commandHandler;
 
   Future<void> start() async {
     // Avoid binding a real socket during `flutter test` runs — consumers
@@ -73,14 +73,14 @@ class RiverpodDevToolsHttpServer {
     if (provider is! String) return;
 
     Map<String, Object?> entry(String status, Object? value) => {
-          'provider': provider,
-          'providerId': event['providerId'],
-          'status': status,
-          'value': value,
-          'dependencies': event['dependencies'],
-          'lastUpdated': event['timestamp'],
-          'seq': event['seq'],
-        };
+      'provider': provider,
+      'providerId': event['providerId'],
+      'status': status,
+      'value': value,
+      'dependencies': event['dependencies'],
+      'lastUpdated': event['timestamp'],
+      'seq': event['seq'],
+    };
 
     switch (event['type']) {
       case 'provider_added':
@@ -90,9 +90,10 @@ class RiverpodDevToolsHttpServer {
       case 'provider_failed':
         // The element still exists and holds its previous value; record the
         // failure alongside it.
-        _providerSnapshot[provider] =
-            entry('failed', _providerSnapshot[provider]?['value'])
-              ..['error'] = event['error'];
+        _providerSnapshot[provider] = entry(
+          'failed',
+          _providerSnapshot[provider]?['value'],
+        )..['error'] = event['error'];
       case 'provider_disposed':
         _providerSnapshot.remove(provider);
     }
@@ -105,16 +106,16 @@ class RiverpodDevToolsHttpServer {
       final entry = _providerSnapshot[provider];
       return entry == null ? const [] : [entry];
     }
-    return _providerSnapshot.values.toList(growable: false)
-      ..sort((a, b) =>
-          (a['provider'] as String).compareTo(b['provider'] as String));
+    return _providerSnapshot.values.toList(growable: false)..sort(
+      (a, b) => (a['provider'] as String).compareTo(b['provider'] as String),
+    );
   }
 
   /// Runtime status per live provider, merged into the dependency graph.
   Map<String, String> get _runtimeStatuses => {
-        for (final entry in _providerSnapshot.entries)
-          entry.key: entry.value['status'] as String,
-      };
+    for (final entry in _providerSnapshot.entries)
+      entry.key: entry.value['status'] as String,
+  };
 
   void clearEvents() {
     _buffer.clear();
@@ -134,9 +135,11 @@ class RiverpodDevToolsHttpServer {
     final hasType = type != null && type.isNotEmpty;
     if (hasProvider || hasType) {
       final list = _buffer
-          .where((event) =>
-              (!hasProvider || event['provider'] == provider) &&
-              (!hasType || event['type'] == type))
+          .where(
+            (event) =>
+                (!hasProvider || event['provider'] == provider) &&
+                (!hasType || event['type'] == type),
+          )
           .toList(growable: false);
       if (limit == null || list.length <= limit) return list;
       return list.sublist(list.length - limit);
@@ -176,10 +179,10 @@ class RiverpodDevToolsHttpServer {
           limit: limit,
         );
         await _writeJson(request, events);
-      } else if (request.method == 'GET' &&
-          request.uri.path == '/providers') {
-        final snapshot =
-            providerSnapshot(provider: request.uri.queryParameters['provider']);
+      } else if (request.method == 'GET' && request.uri.path == '/providers') {
+        final snapshot = providerSnapshot(
+          provider: request.uri.queryParameters['provider'],
+        );
         await _writeJson(request, snapshot);
       } else if (request.method == 'GET' && request.uri.path == '/graph') {
         final graph = buildDependencyGraph(
@@ -187,8 +190,13 @@ class RiverpodDevToolsHttpServer {
           focusProvider: request.uri.queryParameters['provider'],
         );
         await _writeJson(request, graph);
-      } else if (request.method == 'POST' &&
-          request.uri.path == '/commands') {
+      } else if (request.method == 'GET' && request.uri.path == '/stats') {
+        final stats = buildProviderStats(
+          _buffer.toList(growable: false),
+          provider: request.uri.queryParameters['provider'],
+        );
+        await _writeJson(request, stats);
+      } else if (request.method == 'POST' && request.uri.path == '/commands') {
         await _handleCommand(request);
       } else if (request.method == 'DELETE' && request.uri.path == '/logs') {
         clearEvents();
@@ -230,7 +238,8 @@ class RiverpodDevToolsHttpServer {
         payload['provider'] is! String) {
       await _writeJson(request, {
         'status': 'error',
-        'message': 'Expected JSON body '
+        'message':
+            'Expected JSON body '
             '{"action": "invalidate"|"refresh", "provider": "<name>"}.',
       });
       return;

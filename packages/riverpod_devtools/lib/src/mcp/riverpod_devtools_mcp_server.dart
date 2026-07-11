@@ -20,6 +20,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     registerTool(_getRiverpodLogsTool, _getRiverpodLogs);
     registerTool(_getProviderStateTool, _getProviderState);
     registerTool(_getDependencyGraphTool, _getDependencyGraph);
+    registerTool(_getProviderStatsTool, _getProviderStats);
     registerTool(_invalidateProviderTool, _invalidateProvider);
     registerTool(_clearRiverpodLogsTool, _clearRiverpodLogs);
   }
@@ -114,6 +115,32 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     ),
   );
 
+  final _getProviderStatsTool = Tool(
+    name: 'get_provider_stats',
+    description:
+        'Get aggregated activity/health stats per provider, computed from '
+        'the event log: update count (total and in the last 10s, plus a '
+        'rate), async load duration (min/avg/max of observed loading→data '
+        'or loading→error transitions), and dispose→re-create churn count. '
+        'Each entry also carries "isHighFrequency" (recent rate above '
+        '10 updates/sec) and "isSlowLoading" (a load took over 2s) flags, '
+        'plus "updateBuckets" — update counts bucketed over the last 30s '
+        '(oldest→newest) to spot bursts. '
+        'Use this to answer "which provider is rebuilding excessively?" or '
+        '"is anything loading unusually slowly?" without pulling and '
+        'analyzing the full event log yourself. '
+        'Requires the app to be running in debug mode (flutter run).',
+    inputSchema: Schema.object(
+      properties: {
+        'provider': Schema.string(
+          description:
+              'Return only the stats for the provider with this exact name '
+              '(e.g. "counterProvider").',
+        ),
+      },
+    ),
+  );
+
   final _invalidateProviderTool = Tool(
     name: 'invalidate_provider',
     description:
@@ -193,20 +220,27 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     );
   }
 
+  FutureOr<CallToolResult> _getProviderStats(CallToolRequest request) async {
+    return _request(
+      'GET',
+      '/stats',
+      queryParameters: _providerQuery(request),
+      (body) => CallToolResult(content: [TextContent(text: body)]),
+    );
+  }
+
   Map<String, String> _providerQuery(CallToolRequest request) => {
-        if ((request.arguments ?? const {})['provider']
-            case final String provider when provider.isNotEmpty)
-          'provider': provider,
-      };
+    if ((request.arguments ?? const {})['provider'] case final String provider
+        when provider.isNotEmpty)
+      'provider': provider,
+  };
 
   FutureOr<CallToolResult> _invalidateProvider(CallToolRequest request) async {
     final arguments = request.arguments ?? const {};
     final provider = arguments['provider'];
     if (provider is! String || provider.isEmpty) {
       return CallToolResult(
-        content: [
-          TextContent(text: 'Missing required "provider" argument.'),
-        ],
+        content: [TextContent(text: 'Missing required "provider" argument.')],
         isError: true,
       );
     }
