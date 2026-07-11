@@ -207,10 +207,10 @@ class _GraphCanvas extends StatelessWidget {
     final theme = Theme.of(context);
     final state = notifier.state;
 
-    final width = GraphView._padding * 2 +
+    final contentWidth = GraphView._padding * 2 +
         layout.layerCount * GraphView._nodeWidth +
         (layout.layerCount - 1).clamp(0, 1 << 30) * GraphView._hGap;
-    final height = GraphView._padding * 2 +
+    final contentHeight = GraphView._padding * 2 +
         layout.maxRowCount * GraphView._nodeHeight +
         (layout.maxRowCount - 1).clamp(0, 1 << 30) * GraphView._vGap;
 
@@ -220,63 +220,93 @@ class _GraphCanvas extends StatelessWidget {
 
     final query = state.providerSearchQuery.toLowerCase();
 
-    return Stack(
-      children: [
-        InteractiveViewer(
-          constrained: false,
-          minScale: 0.25,
-          maxScale: 2.5,
-          boundaryMargin: const EdgeInsets.all(200),
-          child: SizedBox(
-            width: width,
-            height: height,
-            child: Stack(
-              children: [
-                CustomPaint(
-                  size: Size(width, height),
-                  painter: _EdgePainter(
-                    layout: layout,
-                    origins: origins,
-                    selected: state.selectedProviderNames,
-                    theme: theme,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The deselect-on-empty-tap area below must cover at least the
+        // visible viewport, not just the (possibly much smaller) graph
+        // content — otherwise clicking the panel's empty margin around a
+        // small graph would hit nothing and silently do nothing.
+        final width = contentWidth > constraints.maxWidth
+            ? contentWidth
+            : constraints.maxWidth;
+        final height = contentHeight > constraints.maxHeight
+            ? contentHeight
+            : constraints.maxHeight;
+
+        return Stack(
+          children: [
+            InteractiveViewer(
+              constrained: false,
+              minScale: 0.25,
+              maxScale: 2.5,
+              boundaryMargin: const EdgeInsets.all(200),
+              child: GestureDetector(
+                // Tapping empty canvas (not a node — those have their own
+                // GestureDetector and are hit-tested first) clears the
+                // selection and exits focus, mirroring the Inspector view's
+                // "tap empty area to deselect" behavior. Without this there
+                // was no way back to a fully neutral state once a node had
+                // been clicked.
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  for (final name in state.selectedProviderNames.toList()) {
+                    notifier.removeSelectedProvider(name);
+                  }
+                  notifier.setGraphFocus(null);
+                },
+                child: SizedBox(
+                  width: width,
+                  height: height,
+                  child: Stack(
+                    children: [
+                      CustomPaint(
+                        size: Size(width, height),
+                        painter: _EdgePainter(
+                          layout: layout,
+                          origins: origins,
+                          selected: state.selectedProviderNames,
+                          theme: theme,
+                        ),
+                      ),
+                      for (final node in layout.nodes)
+                        Positioned(
+                          left: origins[node.name]!.dx,
+                          top: origins[node.name]!.dy,
+                          width: GraphView._nodeWidth,
+                          height: GraphView._nodeHeight,
+                          child: _GraphNode(
+                            name: node.name,
+                            info: state.providers[node.name],
+                            isSelected:
+                                state.selectedProviderNames.contains(node.name),
+                            isFlashing: state.flashingProviderName == node.name,
+                            isDimmed: query.isNotEmpty &&
+                                !node.name.toLowerCase().contains(query),
+                            onTap: () {
+                              for (final name
+                                  in state.selectedProviderNames.toList()) {
+                                notifier.removeSelectedProvider(name);
+                              }
+                              notifier.selectProvider(node.name);
+                              notifier.setGraphFocus(node.name);
+                            },
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                for (final node in layout.nodes)
-                  Positioned(
-                    left: origins[node.name]!.dx,
-                    top: origins[node.name]!.dy,
-                    width: GraphView._nodeWidth,
-                    height: GraphView._nodeHeight,
-                    child: _GraphNode(
-                      name: node.name,
-                      info: state.providers[node.name],
-                      isSelected:
-                          state.selectedProviderNames.contains(node.name),
-                      isFlashing: state.flashingProviderName == node.name,
-                      isDimmed: query.isNotEmpty &&
-                          !node.name.toLowerCase().contains(query),
-                      onTap: () {
-                        for (final name
-                            in state.selectedProviderNames.toList()) {
-                          notifier.removeSelectedProvider(name);
-                        }
-                        notifier.selectProvider(node.name);
-                        notifier.setGraphFocus(node.name);
-                      },
-                    ),
-                  ),
-              ],
+              ),
             ),
-          ),
-        ),
-        // Fixed overlay (unaffected by pan/zoom) explaining the visual
-        // encoding and the mouse interactions.
-        Positioned(
-          left: 8,
-          bottom: 8,
-          child: _GraphLegend(hasCycle: layout.hasCycle),
-        ),
-      ],
+            // Fixed overlay (unaffected by pan/zoom) explaining the visual
+            // encoding and the mouse interactions.
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: _GraphLegend(hasCycle: layout.hasCycle),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -368,11 +398,12 @@ class _GraphLegend extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Click: select & focus its sub-graph\n'
-            'Show all: back to the full graph\n'
+            'Click a node: select & focus its sub-graph\n'
+            'Click empty space: deselect\n'
             'Drag: pan\n'
             'Scroll / pinch: zoom',
-            style: labelStyle.copyWith(fontWeight: FontWeight.w600, height: 1.5),
+            style:
+                labelStyle.copyWith(fontWeight: FontWeight.w600, height: 1.5),
           ),
         ],
       ),
