@@ -7,6 +7,8 @@
 // Query parameters:
 //   ?theme=light|dark   (default dark, like DevTools)
 //   ?select=<provider>  provider to pre-select in the detail panel
+//   ?view=graph         open the dependency graph view
+//   ?focus=<provider>   focus the graph on one provider's sub-graph
 import 'package:flutter/material.dart';
 import 'package:riverpod_devtools_extension/src/models/event_type.dart';
 import 'package:riverpod_devtools_extension/src/models/provider_event.dart';
@@ -137,6 +139,13 @@ class _MockAppState extends State<_MockApp> {
       ),
     ];
 
+    DependencyDetail dep(String name, String type) => DependencyDetail(
+          providerName: name,
+          type: type,
+          file: 'lib/providers.dart',
+          line: 1,
+        );
+
     final providers = <String, ProviderInfo>{
       'counterProvider': ProviderInfo(
         id: '1',
@@ -154,6 +163,7 @@ class _MockAppState extends State<_MockApp> {
         dependencies: const ['counterProvider'],
         dependenciesSource: DependencySource.static,
         dependenciesLoadedAt: at(63),
+        dependencyDetails: [dep('counterProvider', 'watch')],
       ),
       'userProfileProvider': ProviderInfo(
         id: '3',
@@ -164,10 +174,14 @@ class _MockAppState extends State<_MockApp> {
           'string': 'AsyncError(HttpException: Failed to fetch user profile)',
         },
         status: ProviderStatus.active,
-        dependencies: const ['authTokenProvider'],
+        dependencies: const ['apiClientProvider', 'authTokenProvider'],
         dependenciesSource: DependencySource.static,
         dependenciesLoadedAt: at(63),
         lastError: error,
+        dependencyDetails: [
+          dep('apiClientProvider', 'watch'),
+          dep('authTokenProvider', 'read'),
+        ],
       ),
       'authTokenProvider': ProviderInfo(
         id: '4',
@@ -177,13 +191,38 @@ class _MockAppState extends State<_MockApp> {
         dependenciesSource: DependencySource.static,
         dependenciesLoadedAt: at(63),
       ),
+      'apiClientProvider': ProviderInfo(
+        id: '6',
+        name: 'apiClientProvider',
+        value: const {'type': 'ApiClient', 'string': 'ApiClient(baseUrl: …)'},
+        status: ProviderStatus.active,
+        dependencies: const ['authTokenProvider'],
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+        dependencyDetails: [dep('authTokenProvider', 'watch')],
+      ),
       'cartItemsProvider': ProviderInfo(
         id: '5',
         name: 'cartItemsProvider',
         value: const {'type': 'List<CartItem>', 'string': '[2 items]'},
         status: ProviderStatus.disposed,
+        dependencies: const ['apiClientProvider'],
         dependenciesSource: DependencySource.static,
         dependenciesLoadedAt: at(63),
+        dependencyDetails: [dep('apiClientProvider', 'watch')],
+      ),
+      'cartTotalProvider': ProviderInfo(
+        id: '7',
+        name: 'cartTotalProvider',
+        value: const {'type': 'double', 'value': 42.5},
+        status: ProviderStatus.active,
+        dependencies: const ['cartItemsProvider', 'counterProvider'],
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+        dependencyDetails: [
+          dep('cartItemsProvider', 'watch'),
+          dep('counterProvider', 'listen'),
+        ],
       ),
     };
 
@@ -194,6 +233,13 @@ class _MockAppState extends State<_MockApp> {
     final select = Uri.base.queryParameters['select'];
     if (select != null && providers.containsKey(select)) {
       _notifier.selectProvider(select);
+    }
+    if (Uri.base.queryParameters['view'] == 'graph') {
+      _notifier.setViewMode(InspectorViewMode.graph);
+    }
+    final focus = Uri.base.queryParameters['focus'];
+    if (focus != null && providers.containsKey(focus)) {
+      _notifier.setGraphFocus(focus);
     }
   }
 

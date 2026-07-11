@@ -172,6 +172,10 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
     _postEvent('provider_added', {
       ..._buildProviderEventData(provider, providerName),
+      // Full dependency info (kind + source location) is only attached to
+      // the rare added events; updates carry just the names.
+      'dependencyDetails': RiverpodDevToolsRegistry.instance
+          .getDependenciesWithDetails(providerName),
       'value': serializeValue(value),
     });
   }

@@ -1,5 +1,25 @@
 enum ProviderStatus { active, disposed }
 
+/// One dependency of a provider with the detail the static analyzer
+/// extracted: how it is consumed (`watch` / `read` / `listen`) and where.
+/// Sent by the observer on provider_added events.
+class DependencyDetail {
+  final String providerName;
+
+  /// `watch`, `read`, or `listen`; null when the payload predates detail
+  /// support.
+  final String? type;
+  final String? file;
+  final int? line;
+
+  const DependencyDetail({
+    required this.providerName,
+    this.type,
+    this.file,
+    this.line,
+  });
+}
+
 enum DependencySource {
   /// Dependencies detected from static analysis (CLI tool)
   static,
@@ -26,6 +46,11 @@ class ProviderInfo {
   /// when a later add/update event arrives.
   final Map<String, dynamic>? lastError;
 
+  /// Dependency kind + source location per dependency (from
+  /// provider_added events). Empty when the observer predates detail
+  /// support — fall back to [dependencies].
+  final List<DependencyDetail> dependencyDetails;
+
   ProviderInfo({
     required this.id,
     required this.name,
@@ -36,6 +61,7 @@ class ProviderInfo {
     this.dependenciesLoadedAt,
     this.dependenciesGeneratedAt,
     this.lastError,
+    this.dependencyDetails = const [],
   });
 
   String? _valueStringCache;

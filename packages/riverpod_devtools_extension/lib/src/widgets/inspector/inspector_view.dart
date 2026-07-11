@@ -3,6 +3,7 @@ import '../../providers/inspector_notifier.dart';
 import '../common/panel_ui.dart';
 import '../detail_panel/detail_panel.dart';
 import '../event_log/event_log_panel.dart';
+import '../graph/graph_view.dart';
 import '../provider_list/provider_list_panel.dart';
 
 class InspectorView extends StatefulWidget {
@@ -39,7 +40,24 @@ class _InspectorViewState extends State<InspectorView> {
           color: theme.colorScheme.surfaceContainerLowest
               .withValues(alpha: 0.5),
           padding: const EdgeInsets.all(8),
-          child: LayoutBuilder(
+          child: Column(
+            children: [
+              _ViewSwitcher(notifier: widget.notifier),
+              const SizedBox(height: 8),
+              Expanded(
+                child: state.viewMode == InspectorViewMode.graph
+                    ? GraphView(notifier: widget.notifier)
+                    : _buildInspectorPanels(state),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInspectorPanels(InspectorState state) {
+    return LayoutBuilder(
             builder: (context, constraints) {
               final totalWidth = constraints.maxWidth;
               const dividerWidth = 8.0;
@@ -102,9 +120,85 @@ class _InspectorViewState extends State<InspectorView> {
                 ],
               );
             },
+    );
+  }
+}
+
+/// Segmented control switching between the Inspector (3-panel) and
+/// Dependency Graph views.
+class _ViewSwitcher extends StatelessWidget {
+  final InspectorNotifier notifier;
+
+  const _ViewSwitcher({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final mode = notifier.state.viewMode;
+
+    Widget buildTab(InspectorViewMode value, IconData icon, String label) {
+      final isActive = mode == value;
+      return InkWell(
+        onTap: () => notifier.setViewMode(value),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isActive
+                ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
           ),
-        );
-      },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 12,
+                color: isActive
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                  color: isActive
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: theme.colorScheme.outline.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            buildTab(InspectorViewMode.inspector, Icons.view_column_outlined,
+                'Inspector'),
+            const SizedBox(width: 2),
+            buildTab(InspectorViewMode.graph, Icons.account_tree_outlined,
+                'Graph'),
+          ],
+        ),
+      ),
     );
   }
 }
