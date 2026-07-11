@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **Performance diagnostics: update frequency, async load duration, churn** ([#56](https://github.com/yutsuki3/riverpod_devtools/issues/56)):
+    - New "Stats" tab in the DevTools extension: a sortable table of per-provider update count (total and in the last 10s), async load duration (min/avg/max of observed `loading`→`data`/`error` transitions), and dispose→re-create churn count, aggregated from the event log. Click a column header to sort; click a row to jump to that provider in the Inspector view.
+    - Providers exceeding a threshold (>10 updates/sec sustained, or a load over 2s) get a warning badge in the Stats table and in the provider list.
+    - New `get_provider_stats` MCP tool (and `GET /stats` on the local HTTP endpoint) so AI tools can be asked "which provider is rebuilding excessively?" without pulling and analyzing the full event log.
 - **Interactive dependency graph view** ([#55](https://github.com/yutsuki3/riverpod_devtools/issues/55)):
     - New Inspector / Graph view switcher in the DevTools extension. The Graph view renders providers as a layered DAG (dependencies left, dependents right) with pan/zoom, edge styling per dependency kind (`watch` solid, `read` dashed, `listen` dotted), status coloring (active / disposed / failed with error badge), and dependency-cycle highlighting.
     - Clicking a node selects it (Provider Details shown alongside, including Invalidate/Refresh) and focuses the graph on its transitive dependencies and dependents in one gesture; "Show all" returns to the full graph. The provider search query dims non-matching nodes, and an on-screen legend explains the edge styles, node states, and gestures.

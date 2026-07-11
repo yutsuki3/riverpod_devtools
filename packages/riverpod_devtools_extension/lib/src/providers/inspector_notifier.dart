@@ -5,13 +5,14 @@ import 'package:vm_service/vm_service.dart';
 import '../models/event_type.dart';
 import '../models/provider_event.dart';
 import '../models/provider_info.dart';
+import '../utils/provider_stats.dart';
 
 class _Unset {
   const _Unset();
 }
 
 /// Which top-level view the extension shows.
-enum InspectorViewMode { inspector, graph }
+enum InspectorViewMode { inspector, graph, stats }
 
 class InspectorState {
   final Map<String, ProviderInfo> providers;
@@ -94,6 +95,14 @@ class InspectorNotifier extends ChangeNotifier {
   Map<String, List<String>>? _usedByIndex;
   Map<String, int>? _eventDepthsCache;
 
+  /// Cached alongside the timestamp it was computed at, since
+  /// [ProviderStats.recentUpdateCount] depends on "now" and not just the
+  /// event list — recomputed whenever the event list changes, which is
+  /// good enough to stay accurate as long as the provider stays active
+  /// (a provider that goes quiet keeps its last-known rate until the next
+  /// event anywhere triggers a recompute, rather than ticking down live).
+  List<ProviderStats>? _providerStatsCache;
+
   void _setState(InspectorState newState) {
     final old = _state;
     _state = newState;
@@ -109,6 +118,7 @@ class InspectorNotifier extends ChangeNotifier {
     }
     if (!identical(old.events, newState.events)) {
       _eventDepthsCache = null;
+      _providerStatsCache = null;
     }
   }
 
@@ -378,6 +388,13 @@ class InspectorNotifier extends ChangeNotifier {
     }
     return depthById;
   }
+
+  /// Per-provider activity/health stats (update frequency, async load
+  /// duration, dispose/re-create churn) for the Stats tab and the
+  /// provider-list warning badges. Recomputed only when the event list
+  /// changes — see [_providerStatsCache].
+  List<ProviderStats> get providerStats =>
+      _providerStatsCache ??= computeProviderStats(_state.events);
 
   /// The most recent event for [providerName], if any (O(1) lookup).
   ProviderEvent? latestEventFor(String providerName) {
