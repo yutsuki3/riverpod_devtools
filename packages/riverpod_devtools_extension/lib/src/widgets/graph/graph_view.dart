@@ -364,9 +364,11 @@ class _GraphLegend extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Click: select  ·  Double-click: focus sub-graph\n'
-            'Drag: pan  ·  Scroll / pinch: zoom',
-            style: labelStyle.copyWith(fontWeight: FontWeight.w600),
+            'Click: select\n'
+            'Double-click: focus sub-graph\n'
+            'Drag: pan\n'
+            'Scroll / pinch: zoom',
+            style: labelStyle.copyWith(fontWeight: FontWeight.w600, height: 1.5),
           ),
         ],
       ),
@@ -451,7 +453,7 @@ class _GraphNode extends StatelessWidget {
     return Opacity(
       opacity: isDimmed ? 0.25 : 1,
       child: Tooltip(
-        message: '$name\nClick: select · Double-click: focus sub-graph',
+        message: '$name\nClick: select\nDouble-click: focus sub-graph',
         waitDuration: const Duration(milliseconds: 600),
         child: GestureDetector(
           onTap: onTap,
