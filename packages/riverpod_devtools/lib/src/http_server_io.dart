@@ -26,6 +26,11 @@ class RiverpodDevToolsHttpServer {
 
   HttpServer? _server;
 
+  /// The port this server actually bound, or null if it isn't running.
+  /// May differ from [riverpodDevToolsMcpPort] when an earlier port in the
+  /// range was already taken by another debug app.
+  int? get boundPort => _server?.port;
+
   /// Executes state commands (invalidate/refresh) arriving via
   /// `POST /commands` from the MCP server. Wired up by the observer.
   Map<String, Object?> Function(String action, String provider)? commandHandler;
@@ -37,22 +42,43 @@ class RiverpodDevToolsHttpServer {
     // check on tear-down.
     if (Platform.environment['FLUTTER_TEST'] == 'true') return;
 
-    try {
-      _server = await HttpServer.bind(
-        InternetAddress.loopbackIPv4,
-        riverpodDevToolsMcpPort,
-      );
-      _server!.listen(_handleRequest, onError: (_) {});
-    } catch (error, stackTrace) {
-      developer.log(
-        'riverpod_devtools: failed to start the local HTTP server on port '
-        '$riverpodDevToolsMcpPort. The get_riverpod_logs MCP tool will not '
-        'be able to connect until this app is restarted with the port free.',
-        name: 'riverpod_devtools',
-        error: error,
-        stackTrace: stackTrace,
-      );
+    // Try each port in the range so a second debug app doesn't silently
+    // fail to expose its events — it just takes the next free port, which
+    // the MCP server discovers by probing the range.
+    for (final port in riverpodDevToolsMcpPorts) {
+      try {
+        _server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+        _server!.listen(_handleRequest, onError: (_) {});
+        if (port != riverpodDevToolsMcpPort) {
+          developer.log(
+            'riverpod_devtools: port $riverpodDevToolsMcpPort was busy; '
+            'this app is exposing its Riverpod events on port $port instead. '
+            'MCP tools discover it automatically.',
+            name: 'riverpod_devtools',
+          );
+        }
+        return;
+      } on SocketException {
+        // Port in use (likely another debug app or an unrelated process);
+        // try the next one.
+        continue;
+      } catch (error, stackTrace) {
+        developer.log(
+          'riverpod_devtools: unexpected error binding port $port.',
+          name: 'riverpod_devtools',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        return;
+      }
     }
+
+    developer.log(
+      'riverpod_devtools: no free port found in '
+      '$riverpodDevToolsMcpPort–${riverpodDevToolsMcpPort + riverpodDevToolsMcpPortCount - 1}. '
+      'MCP tools will not be able to connect to this app.',
+      name: 'riverpod_devtools',
+    );
   }
 
   void stop() {
@@ -154,7 +180,16 @@ class RiverpodDevToolsHttpServer {
 
   Future<void> _handleRequest(HttpRequest request) async {
     try {
-      if (request.method == 'GET' && request.uri.path == '/logs') {
+      if (request.method == 'GET' && request.uri.path == '/ping') {
+        // Lightweight discovery endpoint: the MCP server probes every port
+        // in the range and uses this to tell instances apart.
+        await _writeJson(request, {
+          'riverpodDevtools': true,
+          'port': _server?.port,
+          'providerCount': _providerSnapshot.length,
+          'eventCount': _buffer.length,
+        });
+      } else if (request.method == 'GET' && request.uri.path == '/logs') {
         final params = request.uri.queryParameters;
 
         int? limit;

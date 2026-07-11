@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **Infrastructure & UX** ([#57](https://github.com/yutsuki3/riverpod_devtools/issues/57)):
+    - **MCP port auto-discovery**: the in-app HTTP server now binds the first free port in `8788`–`8797` instead of failing when `8788` is taken, so two debug apps can run at once. The MCP server discovers running apps by probing the range; a new `list_riverpod_apps` tool reports each app's port / provider count / event count, and every tool accepts an optional `port` to target a specific app (auto-selected when only one is running).
 - **Performance diagnostics: update frequency, async load duration, churn** ([#56](https://github.com/yutsuki3/riverpod_devtools/issues/56)):
     - New "Stats" tab in the DevTools extension: a per-provider dashboard of update rate (with a 30s sparkline of recent update activity), total updates (with a comparative bar), async load duration (min/avg/max of observed `loading`→`data`/`error` transitions), and dispose→re-create churn count, aggregated from the event log. Rows that exceed a threshold are highlighted and sorted to the top by default (with a "needs attention" count in the header); a legend explains the thresholds. Click a column header to re-sort; click a row to jump to that provider in the Inspector view.
     - Providers exceeding a threshold (>10 updates/sec sustained, or a load over 2s) get a warning badge in the provider list too.

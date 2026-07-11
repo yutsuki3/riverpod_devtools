@@ -52,8 +52,11 @@ The `get_riverpod_logs` tool is now available and Claude Code will call it autom
 
 ## Tools
 
+Every tool below (except `list_riverpod_apps`) accepts an optional `port` parameter. When a single app is running it is selected automatically; when several are running, call `list_riverpod_apps` first and pass the chosen `port`.
+
 | Tool | Description |
 |---|---|
+| `list_riverpod_apps` | Lists the running debug apps that expose Riverpod events, with each app's `port`, provider count, and event count (each app binds the first free port in `8788`–`8797`). Use this only when more than one app is running, to pick a `port` for the other tools. |
 | `get_riverpod_logs` | Returns buffered provider lifecycle events (`provider_added`, `provider_updated`, `provider_failed`, `provider_disposed`) as JSON. Not a general app log — Riverpod state changes only. Optional parameters: `limit` (return only the most recent N events), `provider` (return only events for the provider with this exact name), and `type` (return only events of one type — pass `provider_failed` to fetch only errors, each carrying the error type, message, and a trimmed stack trace). Use them to keep responses small — the buffer holds up to 1000 events. Every event carries a monotonic `seq` number for unambiguous ordering, and `provider_updated` events may carry `triggeredBy` — the dependency update(s) that likely caused the recomputation, inferred from the static dependency graph plus temporal proximity (marked `triggerConfidence: "inferred"`) — so update cascades ("why did this provider rebuild?") can be traced. |
 | `get_provider_state` | Returns the **current** state of live providers (one snapshot entry per provider: name, status `active`/`failed`, latest value, error details when failed, last-update timestamp) — use this instead of `get_riverpod_logs` when you want current values rather than history. Disposed providers are not listed. Optional `provider` parameter to fetch a single provider. |
 | `get_dependency_graph` | Returns the provider dependency graph: nodes (providers with runtime status `active`/`failed`/`unknown`) and directed edges from dependent to dependency with the dependency kind (`watch`/`read`/`listen`) and source location. Edges come from static analysis, so the app must have loaded `riverpod_dependencies.json` (see setup step 1). Optional `provider` parameter restricts the result to that provider's transitive dependencies and dependents. |
@@ -64,7 +67,8 @@ The `get_riverpod_logs` tool is now available and Claude Code will call it autom
 ## Requirements & limitations
 
 - The HTTP server only starts in debug mode (`kDebugMode == true`) and only on native platforms (Android, iOS, macOS, Linux, Windows). Web is not supported.
-- The machine running this MCP server must be able to reach `localhost:8788` where the Flutter app is running. This holds for:
+- Each debug app binds the first free port in the range `8788`–`8797`, so two apps can run at once; the MCP server discovers them by probing the range (see `list_riverpod_apps`). Manual `adb forward` / `iproxy` for real devices should forward whichever port the app logged.
+- The machine running this MCP server must be able to reach `localhost:8788` (or the next free port) where the Flutter app is running. This holds for:
   - Desktop apps (macOS/Linux/Windows) running on the same machine
   - iOS Simulator (shares the host's network)
 - It does **not** work out of the box for:
