@@ -100,6 +100,41 @@ void main() {
       expect(notifier.state.rightSplitRatio, 0.6);
     });
 
+    group('graph selection', () {
+      test('selectAndFocusInGraph selects and focuses the given provider', () {
+        notifier.selectAndFocusInGraph('a');
+
+        expect(notifier.state.selectedProviderNames, {'a'});
+        expect(notifier.state.activeTabProviderName, 'a');
+        expect(notifier.state.graphFocusProvider, 'a');
+      });
+
+      test('selectAndFocusInGraph replaces a prior selection', () {
+        notifier.selectProvider('old');
+        notifier.selectAndFocusInGraph('new');
+
+        expect(notifier.state.selectedProviderNames, {'new'});
+        expect(notifier.state.graphFocusProvider, 'new');
+      });
+
+      test('resetGraphSelection clears selection, active tab, and focus', () {
+        notifier.selectAndFocusInGraph('a');
+        notifier.resetGraphSelection();
+
+        expect(notifier.state.selectedProviderNames, isEmpty);
+        expect(notifier.state.activeTabProviderName, isNull);
+        expect(notifier.state.graphFocusProvider, isNull);
+      });
+
+      test('resetGraphSelection is a no-op-equivalent from the neutral state',
+          () {
+        notifier.resetGraphSelection();
+
+        expect(notifier.state.selectedProviderNames, isEmpty);
+        expect(notifier.state.graphFocusProvider, isNull);
+      });
+    });
+
     test('flashProvider updates flashing state temporarily', () async {
       // Since flashProvider uses Timers, we'd need to use fake async
       // or just verify the initial state change if possible.

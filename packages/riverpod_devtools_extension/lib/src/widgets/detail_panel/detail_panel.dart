@@ -15,10 +15,16 @@ class DetailPanel extends StatelessWidget {
   final InspectorNotifier notifier;
   final VoidCallback? onProviderJump;
 
+  /// Hint shown when no provider is selected. The default matches the
+  /// Inspector view; the Graph view passes its own wording since there is
+  /// no provider list there.
+  final String noSelectionHint;
+
   const DetailPanel({
     super.key,
     required this.notifier,
     this.onProviderJump,
+    this.noSelectionHint = 'Pick a provider from the list on the left',
   });
 
   @override
@@ -121,10 +127,10 @@ class DetailPanel extends StatelessWidget {
             // Content
             Expanded(
               child: state.selectedProviderNames.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       icon: Icons.touch_app_outlined,
                       message: 'Select a provider to view details',
-                      hint: 'Pick a provider from the list on the left',
+                      hint: noSelectionHint,
                     )
                   : _buildSelectedProviderDetail(context, state, theme),
             ),

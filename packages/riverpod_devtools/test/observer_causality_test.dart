@@ -86,6 +86,15 @@ void main() {
     // The counter update itself has no dependencies, so no trigger.
     expect(counterUpdate['triggeredBy'], isNull);
 
+    // The added event carries full dependency details from the registry.
+    final doubledAdded = events.firstWhere((e) =>
+        e['type'] == 'provider_added' && e['provider'] == 'doubledProvider');
+    final details = doubledAdded['dependencyDetails'] as List;
+    expect(details, hasLength(1));
+    final detail = details.single as Map;
+    expect(detail['providerName'], 'counterProvider');
+    expect(detail['type'], 'watch');
+
     // The doubled update was caused by the counter update.
     expect(doubledUpdate['triggerConfidence'], 'inferred');
     final triggers = doubledUpdate['triggeredBy'] as List;

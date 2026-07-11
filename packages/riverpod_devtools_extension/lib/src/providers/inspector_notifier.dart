@@ -10,6 +10,9 @@ class _Unset {
   const _Unset();
 }
 
+/// Which top-level view the extension shows.
+enum InspectorViewMode { inspector, graph }
+
 class InspectorState {
   final Map<String, ProviderInfo> providers;
   final List<ProviderEvent> events;
@@ -20,6 +23,11 @@ class InspectorState {
   final String? flashingProviderName;
   final double leftSplitRatio;
   final double rightSplitRatio;
+  final InspectorViewMode viewMode;
+
+  /// When set, the graph view shows only this provider plus its
+  /// transitive dependencies and dependents.
+  final String? graphFocusProvider;
 
   InspectorState({
     this.providers = const {},
@@ -31,6 +39,8 @@ class InspectorState {
     this.flashingProviderName,
     this.leftSplitRatio = 0.2,
     this.rightSplitRatio = 0.375,
+    this.viewMode = InspectorViewMode.inspector,
+    this.graphFocusProvider,
   });
 
   InspectorState copyWith({
@@ -43,6 +53,8 @@ class InspectorState {
     Object? flashingProviderName = const _Unset(),
     double? leftSplitRatio,
     double? rightSplitRatio,
+    InspectorViewMode? viewMode,
+    Object? graphFocusProvider = const _Unset(),
   }) {
     return InspectorState(
       providers: providers ?? this.providers,
@@ -59,6 +71,10 @@ class InspectorState {
           : flashingProviderName as String?,
       leftSplitRatio: leftSplitRatio ?? this.leftSplitRatio,
       rightSplitRatio: rightSplitRatio ?? this.rightSplitRatio,
+      viewMode: viewMode ?? this.viewMode,
+      graphFocusProvider: graphFocusProvider is _Unset
+          ? this.graphFocusProvider
+          : graphFocusProvider as String?,
     );
   }
 }
@@ -88,8 +104,7 @@ class InspectorNotifier extends ChangeNotifier {
       _filteredProvidersCache = null;
     }
     if (!identical(old.events, newState.events) ||
-        !identical(
-            old.selectedProviderNames, newState.selectedProviderNames)) {
+        !identical(old.selectedProviderNames, newState.selectedProviderNames)) {
       _filteredEventsCache = null;
     }
     if (!identical(old.events, newState.events)) {
@@ -128,6 +143,40 @@ class InspectorNotifier extends ChangeNotifier {
 
   void updateSearchQuery(String query) {
     _setState(_state.copyWith(providerSearchQuery: query));
+    notifyListeners();
+  }
+
+  void setViewMode(InspectorViewMode mode) {
+    _setState(_state.copyWith(viewMode: mode));
+    notifyListeners();
+  }
+
+  void setGraphFocus(String? providerName) {
+    _setState(_state.copyWith(graphFocusProvider: providerName));
+    notifyListeners();
+  }
+
+  /// Selects [providerName] and focuses the graph on its sub-graph in one
+  /// step, replacing any prior selection — the graph view's node click
+  /// behavior.
+  void selectAndFocusInGraph(String providerName) {
+    _setState(_state.copyWith(
+      selectedProviderNames: {providerName},
+      activeTabProviderName: providerName,
+      graphFocusProvider: providerName,
+    ));
+    notifyListeners();
+  }
+
+  /// Clears the selection and exits graph focus — the graph view's "reset"
+  /// action, used both by clicking empty canvas and the "Show all" button
+  /// so the two escape hatches behave identically.
+  void resetGraphSelection() {
+    _setState(_state.copyWith(
+      selectedProviderNames: const {},
+      activeTabProviderName: null,
+      graphFocusProvider: null,
+    ));
     notifyListeners();
   }
 
@@ -372,6 +421,21 @@ class InspectorNotifier extends ChangeNotifier {
       final timestamp = data['timestamp'] as int?;
       final seq = data['seq'] is int ? data['seq'] as int : null;
 
+      var dependencyDetails = const <DependencyDetail>[];
+      final rawDetails = data['dependencyDetails'];
+      if (rawDetails is List) {
+        dependencyDetails = [
+          for (final detail in rawDetails)
+            if (detail is Map && detail['providerName'] != null)
+              DependencyDetail(
+                providerName: detail['providerName'].toString(),
+                type: detail['type']?.toString(),
+                file: detail['file']?.toString(),
+                line: detail['line'] is int ? detail['line'] as int : null,
+              ),
+        ];
+      }
+
       var triggeredBy = const <TriggerRef>[];
       final rawTriggers = data['triggeredBy'];
       if (rawTriggers is List) {
@@ -408,12 +472,14 @@ class InspectorNotifier extends ChangeNotifier {
 
         final rawLoadedAt = data['dependenciesLoadedAt'];
         if (rawLoadedAt is int) {
-          dependenciesLoadedAt = DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
+          dependenciesLoadedAt =
+              DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
         }
 
         final rawGeneratedAt = data['dependenciesGeneratedAt'];
         if (rawGeneratedAt is int) {
-          dependenciesGeneratedAt = DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
+          dependenciesGeneratedAt =
+              DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
         }
       } catch (e) {
         // Fallback or ignore if dependencies parsing fails
@@ -465,6 +531,7 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesSource: dependenciesSource,
           dependenciesLoadedAt: dependenciesLoadedAt,
           dependenciesGeneratedAt: dependenciesGeneratedAt,
+          dependencyDetails: dependencyDetails,
         );
         newEvent = ProviderEvent(
           type: EventType.added,
@@ -485,6 +552,9 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesSource: dependenciesSource,
           dependenciesLoadedAt: dependenciesLoadedAt,
           dependenciesGeneratedAt: dependenciesGeneratedAt,
+          // Updates don't carry details; keep what the added event gave us.
+          dependencyDetails:
+              _state.providers[providerName]?.dependencyDetails ?? const [],
         );
         newEvent = ProviderEvent(
           type: EventType.updated,
@@ -519,6 +589,7 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesGeneratedAt:
               existing?.dependenciesGeneratedAt ?? dependenciesGeneratedAt,
           lastError: errorMap ?? {'message': 'Unknown error'},
+          dependencyDetails: existing?.dependencyDetails ?? const [],
         );
         newEvent = ProviderEvent(
           type: EventType.failed,
@@ -540,6 +611,7 @@ class InspectorNotifier extends ChangeNotifier {
               existing?.dependenciesSource ?? DependencySource.none,
           dependenciesLoadedAt: existing?.dependenciesLoadedAt,
           dependenciesGeneratedAt: existing?.dependenciesGeneratedAt,
+          dependencyDetails: existing?.dependencyDetails ?? const [],
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,
