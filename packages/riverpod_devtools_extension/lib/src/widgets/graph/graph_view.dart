@@ -91,7 +91,10 @@ class GraphView extends StatelessWidget {
             SizedBox(
               width: 340,
               child: PanelCard(
-                child: DetailPanel(notifier: notifier),
+                child: DetailPanel(
+                  notifier: notifier,
+                  noSelectionHint: 'Click a node in the graph',
+                ),
               ),
             ),
           ],
