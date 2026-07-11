@@ -3,8 +3,10 @@ import '../../models/event_type.dart';
 import '../../models/provider_event.dart';
 import '../../providers/inspector_notifier.dart';
 import '../../utils/color_utils.dart';
+import '../../utils/json_diff.dart';
 import '../../utils/time_utils.dart';
 import '../common/error_details.dart';
+import '../common/json_diff_view.dart';
 import '../common/json_tree_view.dart';
 import '../common/panel_ui.dart';
 
@@ -43,6 +45,8 @@ class EventLogPanel extends StatelessWidget {
                 ),
               ],
             ),
+            if (state.comparedEventIds.isNotEmpty)
+              _CompareBar(notifier: notifier),
             Expanded(
               child: state.events.isEmpty
                   ? const EmptyState(
@@ -77,6 +81,8 @@ class EventLogPanel extends StatelessWidget {
                                   : null,
                               cascadeDepth:
                                   notifier.eventDepths[event.id] ?? 0,
+                              isComparing: state.comparedEventIds
+                                  .contains(event.id),
                               key: ValueKey(event.id),
                             );
                           },
@@ -98,13 +104,23 @@ class _EventTile extends StatelessWidget {
   /// (transitively) triggered it.
   final int cascadeDepth;
 
+  /// True when this event is one of the (up to two) picked for the value
+  /// diff — the tile gets an accent border and a filled compare toggle.
+  final bool isComparing;
+
   const _EventTile({
     super.key,
     required this.event,
     required this.notifier,
     this.timeDiffString,
     this.cascadeDepth = 0,
+    this.isComparing = false,
   });
+
+  /// Only events that carry a value are worth diffing (added / updated);
+  /// disposed and failed events have no value tree to compare.
+  bool get _canCompare =>
+      event.type == EventType.added || event.type == EventType.updated;
 
   @override
   Widget build(BuildContext context) {
@@ -158,11 +174,14 @@ class _EventTile extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.25),
+        color: isComparing
+            ? theme.colorScheme.primary.withValues(alpha: 0.08)
+            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
+          color: isComparing
+              ? theme.colorScheme.primary.withValues(alpha: 0.6)
+              : theme.colorScheme.outline.withValues(alpha: 0.1),
         ),
       ),
       child: Stack(
@@ -241,6 +260,14 @@ class _EventTile extends StatelessWidget {
                             color: theme.colorScheme.onSurfaceVariant
                                 .withValues(alpha: 0.5),
                           ),
+                        ),
+                      ],
+                      if (_canCompare) ...[
+                        const SizedBox(width: 2),
+                        _CompareToggle(
+                          active: isComparing,
+                          onTap: () =>
+                              notifier.toggleEventComparison(event.id),
                         ),
                       ],
                       if (isLongText) ...[
@@ -379,6 +406,219 @@ class _EventTile extends StatelessWidget {
     // JsonTreeView unwraps the metadata keys ('type', 'value', 'items',
     // 'entries', 'string', 'asyncState') itself, so pass the data through.
     return JsonTreeView(data: data, initiallyExpanded: false);
+  }
+}
+
+/// A small toggle placed on each value-carrying event tile that adds/removes
+/// the event from the two-event diff selection.
+class _CompareToggle extends StatelessWidget {
+  final bool active;
+  final VoidCallback onTap;
+
+  const _CompareToggle({required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: active ? 'Remove from diff' : 'Pick for value diff',
+      waitDuration: const Duration(milliseconds: 400),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(4),
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          child: Icon(
+            active ? Icons.difference : Icons.difference_outlined,
+            size: 14,
+            color: active
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bar shown above the event list while events are picked for diffing.
+/// Explains progress (1 of 2) and, once a pair is ready, offers to open the
+/// diff dialog.
+class _CompareBar extends StatelessWidget {
+  final InspectorNotifier notifier;
+
+  const _CompareBar({required this.notifier});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pair = notifier.comparedEventPair;
+    final count = notifier.state.comparedEventIds.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(
+            color: theme.colorScheme.primary.withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.difference, size: 13, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              pair != null
+                  ? 'Comparing two ${pair.$1.providerName} events'
+                  : 'Pick one more event to compare ($count of 2)',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w500,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+          if (pair != null)
+            HeaderActionButton(
+              label: 'View diff',
+              icon: Icons.compare_arrows,
+              onPressed: () => showEventValueDiffDialog(context, pair.$1, pair.$2),
+            ),
+          HeaderActionButton(
+            label: 'Clear',
+            icon: Icons.close,
+            onPressed: notifier.clearEventComparison,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Opens the structural value-diff of two events (A = older, B = newer).
+void showEventValueDiffDialog(
+    BuildContext context, ProviderEvent older, ProviderEvent newer) {
+  showDialog<void>(
+    context: context,
+    builder: (context) => _DiffDialog(older: older, newer: newer),
+  );
+}
+
+class _DiffDialog extends StatefulWidget {
+  final ProviderEvent older;
+  final ProviderEvent newer;
+
+  const _DiffDialog({required this.older, required this.newer});
+
+  @override
+  State<_DiffDialog> createState() => _DiffDialogState();
+}
+
+class _DiffDialogState extends State<_DiffDialog> {
+  bool _changesOnly = true;
+
+  String _time(ProviderEvent e) =>
+      '${e.timestamp.hour.toString().padLeft(2, '0')}:'
+      '${e.timestamp.minute.toString().padLeft(2, '0')}:'
+      '${e.timestamp.second.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final root = diffJson(widget.older.value, widget.newer.value);
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 560),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.difference,
+                      size: 16, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Value diff · ${widget.older.providerName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                '${_time(widget.older)}  →  ${_time(widget.newer)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 16, 2),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: _changesOnly,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize:
+                        MaterialTapTargetSize.shrinkWrap,
+                    onChanged: (v) =>
+                        setState(() => _changesOnly = v ?? true),
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    'Show changes only',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (!root.hasChange)
+                    Text(
+                      'Values are identical',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(14),
+                child: JsonDiffView(root: root, changesOnly: _changesOnly),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -23,6 +23,11 @@ class ProviderListPanel extends StatefulWidget {
 class _ProviderListPanelState extends State<ProviderListPanel> {
   final TextEditingController _searchController = TextEditingController();
 
+  /// Family names whose instances are currently collapsed (hidden). Kept
+  /// in local state — it survives the ListenableBuilder rebuilds that fire
+  /// on every provider event.
+  final Set<String> _collapsedFamilies = {};
+
   @override
   void initState() {
     super.initState();
@@ -33,6 +38,62 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Applies the click-selection rules used by both standalone tiles and
+  /// family-instance tiles (Ctrl/Cmd toggles multi-select; a plain click
+  /// selects just this one, or deselects if it was the only selection).
+  void _handleSelect(
+      InspectorState state, String name, bool isSelected, bool isCtrlOrCmd) {
+    if (isCtrlOrCmd) {
+      if (isSelected) {
+        widget.notifier.removeSelectedProvider(name);
+      } else {
+        widget.notifier.selectProvider(name);
+      }
+      return;
+    }
+    if (isSelected && state.selectedProviderNames.length == 1) {
+      widget.notifier.removeSelectedProvider(name);
+      return;
+    }
+    for (final selected in state.selectedProviderNames.toList()) {
+      widget.notifier.removeSelectedProvider(selected);
+    }
+    widget.notifier.selectProvider(name);
+  }
+
+  /// Groups [providers] into display rows: a family with 2+ instances gets
+  /// a collapsible header followed by its (optionally hidden) instances;
+  /// everything else is a plain provider row. First-appearance order is
+  /// preserved.
+  List<_ListRow> _buildRows(List<ProviderInfo> providers) {
+    final families = <String, List<ProviderInfo>>{};
+    for (final p in providers) {
+      if (p.family != null) {
+        families.putIfAbsent(p.family!, () => []).add(p);
+      }
+    }
+
+    final rows = <_ListRow>[];
+    final emitted = <String>{};
+    for (final p in providers) {
+      final family = p.family;
+      final grouped = family != null && families[family]!.length > 1;
+      if (grouped) {
+        if (!emitted.add(family)) continue; // header already emitted
+        final instances = families[family]!;
+        rows.add(_ListRow.familyHeader(family, instances));
+        if (!_collapsedFamilies.contains(family)) {
+          for (final inst in instances) {
+            rows.add(_ListRow.provider(inst, isFamilyInstance: true));
+          }
+        }
+      } else {
+        rows.add(_ListRow.provider(p, isFamilyInstance: false));
+      }
+    }
+    return rows;
   }
 
   @override
@@ -167,55 +228,52 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                               widget.notifier.removeSelectedProvider(name);
                             }
                           },
-                          child: ListView.builder(
-                            controller: widget.scrollController,
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            itemCount: filteredProviders.length,
-                            itemBuilder: (context, index) {
-                              final provider = filteredProviders[index];
-                              final isSelected = state.selectedProviderNames
-                                  .contains(provider.name);
-                              final isFlashing =
-                                  state.flashingProviderName == provider.name;
-                              return _ProviderListTile(
-                                provider: provider,
-                                stats: statsByProvider[provider.name],
-                                isSelected: isSelected,
-                                isFlashing: isFlashing,
-                                onPointerDown: (event) {
-                                  final isCtrlOrCmd =
-                                      event.kind == PointerDeviceKind.mouse &&
+                          child: Builder(
+                            builder: (context) {
+                              final rows = _buildRows(filteredProviders);
+                              return ListView.builder(
+                                controller: widget.scrollController,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 4),
+                                itemCount: rows.length,
+                                itemBuilder: (context, index) {
+                                  final row = rows[index];
+                                  if (row.familyName != null) {
+                                    return _FamilyHeaderTile(
+                                      family: row.familyName!,
+                                      instanceCount: row.instances!.length,
+                                      collapsed: _collapsedFamilies
+                                          .contains(row.familyName),
+                                      onToggle: () => setState(() {
+                                        if (!_collapsedFamilies
+                                            .remove(row.familyName)) {
+                                          _collapsedFamilies
+                                              .add(row.familyName!);
+                                        }
+                                      }),
+                                    );
+                                  }
+                                  final provider = row.provider!;
+                                  final isSelected = state.selectedProviderNames
+                                      .contains(provider.name);
+                                  return _ProviderListTile(
+                                    provider: provider,
+                                    stats: statsByProvider[provider.name],
+                                    isSelected: isSelected,
+                                    isFlashing: state.flashingProviderName ==
+                                        provider.name,
+                                    isFamilyInstance: row.isFamilyInstance,
+                                    onPointerDown: (event) {
+                                      final isCtrlOrCmd = event.kind ==
+                                              PointerDeviceKind.mouse &&
                                           (HardwareKeyboard
                                                   .instance.isMetaPressed ||
                                               HardwareKeyboard
                                                   .instance.isControlPressed);
-
-                                  if (isCtrlOrCmd) {
-                                    if (isSelected) {
-                                      widget.notifier.removeSelectedProvider(
-                                          provider.name);
-                                    } else {
-                                      widget.notifier
-                                          .selectProvider(provider.name);
-                                    }
-                                  } else {
-                                    if (isSelected &&
-                                        state.selectedProviderNames.length ==
-                                            1) {
-                                      widget.notifier.removeSelectedProvider(
-                                          provider.name);
-                                    } else {
-                                      // Reset selection and select this one
-                                      for (final name in state
-                                          .selectedProviderNames
-                                          .toList()) {
-                                        widget.notifier
-                                            .removeSelectedProvider(name);
-                                      }
-                                      widget.notifier
-                                          .selectProvider(provider.name);
-                                    }
-                                  }
+                                      _handleSelect(state, provider.name,
+                                          isSelected, isCtrlOrCmd);
+                                    },
+                                  );
                                 },
                               );
                             },
@@ -266,11 +324,84 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   }
 }
 
+/// One row of the provider list: either a plain provider, a family
+/// instance (indented under its header), or a family header.
+class _ListRow {
+  final ProviderInfo? provider;
+  final bool isFamilyInstance;
+  final String? familyName;
+  final List<ProviderInfo>? instances;
+
+  _ListRow.provider(this.provider, {required this.isFamilyInstance})
+      : familyName = null,
+        instances = null;
+
+  _ListRow.familyHeader(this.familyName, this.instances)
+      : provider = null,
+        isFamilyInstance = false;
+}
+
+/// Collapsible header for a `.family` — groups its instances and shows how
+/// many there are.
+class _FamilyHeaderTile extends StatelessWidget {
+  final String family;
+  final int instanceCount;
+  final bool collapsed;
+  final VoidCallback onToggle;
+
+  const _FamilyHeaderTile({
+    required this.family,
+    required this.instanceCount,
+    required this.collapsed,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onToggle,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        child: Row(
+          children: [
+            Icon(
+              collapsed ? Icons.chevron_right : Icons.expand_more,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 2),
+            Icon(Icons.workspaces_outline,
+                size: 12, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                family,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            CountBadge(count: instanceCount),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProviderListTile extends StatelessWidget {
   final ProviderInfo provider;
   final ProviderStats? stats;
   final bool isSelected;
   final bool isFlashing;
+  final bool isFamilyInstance;
   final void Function(PointerDownEvent event) onPointerDown;
 
   const _ProviderListTile({
@@ -279,12 +410,18 @@ class _ProviderListTile extends StatelessWidget {
     required this.isSelected,
     required this.isFlashing,
     required this.onPointerDown,
+    this.isFamilyInstance = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isActive = provider.status == ProviderStatus.active;
+    // Under a family header the base name is redundant; show just the
+    // argument (e.g. "1" for userProvider(1)).
+    final label = isFamilyInstance
+        ? '(${provider.argument ?? provider.name})'
+        : provider.name;
 
     return Listener(
       onPointerDown: onPointerDown,
@@ -292,7 +429,12 @@ class _ProviderListTile extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          margin: EdgeInsets.only(
+            left: isFamilyInstance ? 24 : 6,
+            right: 6,
+            top: 1,
+            bottom: 1,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
           decoration: BoxDecoration(
             color: isFlashing
@@ -308,7 +450,7 @@ class _ProviderListTile extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  provider.name,
+                  label,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight:

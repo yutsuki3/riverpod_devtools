@@ -17,6 +17,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
             'Exposes Riverpod provider event logs from a running Flutter app in debug mode. '
             'The Flutter app must have riverpod_devtools configured with RiverpodDevToolsObserver.',
       ) {
+    registerTool(_listRiverpodAppsTool, _listRiverpodApps);
     registerTool(_getRiverpodLogsTool, _getRiverpodLogs);
     registerTool(_getProviderStateTool, _getProviderState);
     registerTool(_getDependencyGraphTool, _getDependencyGraph);
@@ -24,6 +25,26 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     registerTool(_invalidateProviderTool, _invalidateProvider);
     registerTool(_clearRiverpodLogsTool, _clearRiverpodLogs);
   }
+
+  /// Shared optional `port` parameter: pins a tool call to one specific app
+  /// when several are running (see `list_riverpod_apps`).
+  static final _portProperty = Schema.int(
+    description:
+        'Port of the app to target (from list_riverpod_apps). Omit when only '
+        'one app is running — it is selected automatically.',
+  );
+
+  final _listRiverpodAppsTool = Tool(
+    name: 'list_riverpod_apps',
+    description:
+        'List the running Flutter apps that expose Riverpod events (each '
+        'debug app with RiverpodDevToolsObserver binds a port in the range). '
+        'Returns each app\'s port, provider count, and event count. Use this '
+        'when more than one app is running: pass the chosen "port" to the '
+        'other tools. With a single app, the other tools auto-select it and '
+        'you do not need this.',
+    inputSchema: Schema.object(properties: {}),
+  );
 
   final _getRiverpodLogsTool = Tool(
     name: 'get_riverpod_logs',
@@ -47,6 +68,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Requires the app to be running in debug mode (flutter run).',
     inputSchema: Schema.object(
       properties: {
+        'port': _portProperty,
         'limit': Schema.int(
           description:
               'Return only the most recent N events (after applying the '
@@ -81,6 +103,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Requires the app to be running in debug mode (flutter run).',
     inputSchema: Schema.object(
       properties: {
+        'port': _portProperty,
         'provider': Schema.string(
           description:
               'Return only the provider with this exact name '
@@ -106,6 +129,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'changes", or to explain update cascades from get_riverpod_logs.',
     inputSchema: Schema.object(
       properties: {
+        'port': _portProperty,
         'provider': Schema.string(
           description:
               'Focus provider name: restricts the graph to this provider '
@@ -132,6 +156,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Requires the app to be running in debug mode (flutter run).',
     inputSchema: Schema.object(
       properties: {
+        'port': _portProperty,
         'provider': Schema.string(
           description:
               'Return only the stats for the provider with this exact name '
@@ -156,6 +181,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Debug mode only.',
     inputSchema: Schema.object(
       properties: {
+        'port': _portProperty,
         'provider': Schema.string(
           description:
               'Exact name of the provider to invalidate '
@@ -177,10 +203,28 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Clear the Riverpod provider state-change event buffer. '
         'Use this before reproducing a specific bug or flow so that only '
         'the relevant events appear in the next get_riverpod_logs call.',
-    inputSchema: Schema.object(properties: {}),
+    inputSchema: Schema.object(properties: {'port': _portProperty}),
   );
 
+  FutureOr<CallToolResult> _listRiverpodApps(CallToolRequest request) async {
+    final apps = await _discoverApps();
+    return CallToolResult(
+      content: [
+        TextContent(
+          text:
+              apps.isEmpty
+                  ? 'No running Flutter apps with riverpod_devtools were found on '
+                      'ports $riverpodDevToolsMcpPort–'
+                      '${riverpodDevToolsMcpPort + riverpodDevToolsMcpPortCount - 1}.'
+                  : jsonEncode({'apps': apps}),
+        ),
+      ],
+    );
+  }
+
   FutureOr<CallToolResult> _getRiverpodLogs(CallToolRequest request) async {
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
     final arguments = request.arguments ?? const {};
     final queryParameters = <String, String>{
       // dart_mcp validates arguments against the schema before this runs,
@@ -195,6 +239,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'type': type,
     };
     return _request(
+      port!,
       'GET',
       '/logs',
       queryParameters: queryParameters,
@@ -203,7 +248,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   }
 
   FutureOr<CallToolResult> _getProviderState(CallToolRequest request) async {
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
     return _request(
+      port!,
       'GET',
       '/providers',
       queryParameters: _providerQuery(request),
@@ -212,7 +260,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   }
 
   FutureOr<CallToolResult> _getDependencyGraph(CallToolRequest request) async {
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
     return _request(
+      port!,
       'GET',
       '/graph',
       queryParameters: _providerQuery(request),
@@ -221,7 +272,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   }
 
   FutureOr<CallToolResult> _getProviderStats(CallToolRequest request) async {
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
     return _request(
+      port!,
       'GET',
       '/stats',
       queryParameters: _providerQuery(request),
@@ -244,8 +298,11 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         isError: true,
       );
     }
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
     final refresh = arguments['refresh'] == true;
     return _request(
+      port!,
       'POST',
       '/commands',
       body: jsonEncode({
@@ -257,7 +314,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   }
 
   FutureOr<CallToolResult> _clearRiverpodLogs(CallToolRequest request) async {
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
     return _request(
+      port!,
       'DELETE',
       '/logs',
       (_) =>
@@ -265,7 +325,95 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     );
   }
 
+  /// Resolves which app port to talk to. If the caller passed an explicit
+  /// `port`, that is used. Otherwise the range is probed: exactly one
+  /// running app is used automatically; zero or several return an error
+  /// result (the latter asking the caller to pass `port`).
+  ///
+  /// Returns `(port, null)` on success or `(null, errorResult)` otherwise.
+  Future<(int?, CallToolResult?)> _resolvePort(CallToolRequest request) async {
+    if ((request.arguments ?? const {})['port'] case final num port) {
+      return (port.toInt(), null);
+    }
+
+    final apps = await _discoverApps();
+    if (apps.isEmpty) {
+      return (
+        null,
+        CallToolResult(
+          content: [
+            TextContent(
+              text:
+                  'No running Flutter app with riverpod_devtools was found '
+                  'on ports $riverpodDevToolsMcpPort–'
+                  '${riverpodDevToolsMcpPort + riverpodDevToolsMcpPortCount - 1}.\n\n'
+                  'Make sure:\n'
+                  '1. The Flutter app is running in debug mode: flutter run\n'
+                  '2. riverpod_devtools is a dependency\n'
+                  '3. RiverpodDevToolsObserver() is added to ProviderScope observers',
+            ),
+          ],
+          isError: true,
+        ),
+      );
+    }
+    if (apps.length == 1) return (apps.single['port'] as int, null);
+
+    return (
+      null,
+      CallToolResult(
+        content: [
+          TextContent(
+            text:
+                'Several running apps were found. Re-run this tool with a '
+                '"port" argument to pick one:\n'
+                '${const JsonEncoder.withIndent('  ').convert(apps)}',
+          ),
+        ],
+        isError: true,
+      ),
+    );
+  }
+
+  /// Probes every port in the range and returns the `/ping` payloads of the
+  /// apps that respond.
+  Future<List<Map<String, Object?>>> _discoverApps() async {
+    final found = await Future.wait(riverpodDevToolsMcpPorts.map(_pingPort));
+    return [
+      for (final app in found)
+        if (app != null) app,
+    ];
+  }
+
+  Future<Map<String, Object?>?> _pingPort(int port) async {
+    final client = io.HttpClient();
+    try {
+      final req = await client
+          .getUrl(
+            Uri(scheme: 'http', host: 'localhost', port: port, path: '/ping'),
+          )
+          .timeout(const Duration(seconds: 1));
+      final response = await req.close().timeout(const Duration(seconds: 1));
+      if (response.statusCode != 200) return null;
+      final body = await response.transform(utf8.decoder).join();
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['riverpodDevtools'] == true) {
+        return {
+          'port': port,
+          'providerCount': decoded['providerCount'],
+          'eventCount': decoded['eventCount'],
+        };
+      }
+      return null;
+    } catch (_) {
+      return null;
+    } finally {
+      client.close();
+    }
+  }
+
   Future<CallToolResult> _request(
+    int port,
     String method,
     String path,
     CallToolResult Function(String body) onSuccess, {
@@ -281,7 +429,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
               Uri(
                 scheme: 'http',
                 host: 'localhost',
-                port: riverpodDevToolsMcpPort,
+                port: port,
                 path: path,
                 queryParameters:
                     queryParameters.isEmpty ? null : queryParameters,
@@ -303,7 +451,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         content: [
           TextContent(
             text:
-                'Error connecting to Flutter app: $e\n\n'
+                'Error connecting to the Flutter app on port $port: $e\n\n'
                 'Make sure:\n'
                 '1. The Flutter app is running in debug mode: flutter run\n'
                 '2. riverpod_devtools is listed in pubspec.yaml dependencies\n'
