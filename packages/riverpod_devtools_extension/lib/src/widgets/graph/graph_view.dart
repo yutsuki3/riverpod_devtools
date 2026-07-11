@@ -7,9 +7,10 @@ import '../common/panel_ui.dart';
 import '../detail_panel/detail_panel.dart';
 
 /// Interactive dependency-graph view: layered DAG (dependencies on the
-/// left, dependents to the right), pan/zoom, click-to-select (synced with
-/// the detail panel on the right), double-click to focus on a node's
-/// sub-graph, and cycle highlighting.
+/// left, dependents to the right), pan/zoom, and cycle highlighting.
+/// Clicking a node selects it (details shown in the panel on the right)
+/// and focuses the graph on its sub-graph in one gesture; "Show all"
+/// returns to the full graph.
 class GraphView extends StatelessWidget {
   final InspectorNotifier notifier;
 
@@ -260,8 +261,8 @@ class _GraphCanvas extends StatelessWidget {
                           notifier.removeSelectedProvider(name);
                         }
                         notifier.selectProvider(node.name);
+                        notifier.setGraphFocus(node.name);
                       },
-                      onDoubleTap: () => notifier.setGraphFocus(node.name),
                     ),
                   ),
               ],
@@ -367,8 +368,8 @@ class _GraphLegend extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Click: select\n'
-            'Double-click: focus sub-graph\n'
+            'Click: select & focus its sub-graph\n'
+            'Show all: back to the full graph\n'
             'Drag: pan\n'
             'Scroll / pinch: zoom',
             style: labelStyle.copyWith(fontWeight: FontWeight.w600, height: 1.5),
@@ -425,7 +426,6 @@ class _GraphNode extends StatelessWidget {
   final bool isFlashing;
   final bool isDimmed;
   final VoidCallback onTap;
-  final VoidCallback onDoubleTap;
 
   const _GraphNode({
     required this.name,
@@ -434,7 +434,6 @@ class _GraphNode extends StatelessWidget {
     required this.isFlashing,
     required this.isDimmed,
     required this.onTap,
-    required this.onDoubleTap,
   });
 
   @override
@@ -456,11 +455,10 @@ class _GraphNode extends StatelessWidget {
     return Opacity(
       opacity: isDimmed ? 0.25 : 1,
       child: Tooltip(
-        message: '$name\nClick: select\nDouble-click: focus sub-graph',
+        message: '$name\nClick: select & focus its sub-graph',
         waitDuration: const Duration(milliseconds: 600),
         child: GestureDetector(
           onTap: onTap,
-          onDoubleTap: onDoubleTap,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: AnimatedContainer(

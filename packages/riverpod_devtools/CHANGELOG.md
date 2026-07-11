@@ -2,7 +2,7 @@
 
 - **Interactive dependency graph view** ([#55](https://github.com/yutsuki3/riverpod_devtools/issues/55)):
     - New Inspector / Graph view switcher in the DevTools extension. The Graph view renders providers as a layered DAG (dependencies left, dependents right) with pan/zoom, edge styling per dependency kind (`watch` solid, `read` dashed, `listen` dotted), status coloring (active / disposed / failed with error badge), and dependency-cycle highlighting.
-    - Click a node to select it (Provider Details shown alongside, including Invalidate/Refresh); double-click to focus on a node's transitive dependencies and dependents; the provider search query dims non-matching nodes.
+    - Clicking a node selects it (Provider Details shown alongside, including Invalidate/Refresh) and focuses the graph on its transitive dependencies and dependents in one gesture; "Show all" returns to the full graph. The provider search query dims non-matching nodes, and an on-screen legend explains the edge styles, node states, and gestures.
     - The observer now attaches `dependencyDetails` (kind + source location per dependency, from the static-analysis registry) to `provider_added` events so the extension can style edges.
 - **State operations: invalidate / refresh from DevTools and MCP** ([#54](https://github.com/yutsuki3/riverpod_devtools/issues/54)):
     - The observer now tracks live provider instances (with their owning container) and can execute `invalidate` / `refresh` commands against them. Debug mode only.
