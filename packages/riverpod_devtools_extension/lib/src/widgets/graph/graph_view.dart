@@ -181,7 +181,7 @@ class _GraphToolbar extends StatelessWidget {
             HeaderActionButton(
               label: 'Show all',
               icon: Icons.zoom_out_map,
-              onPressed: () => notifier.setGraphFocus(null),
+              onPressed: notifier.resetGraphSelection,
             ),
         ],
       ),
@@ -248,12 +248,7 @@ class _GraphCanvas extends StatelessWidget {
                 // was no way back to a fully neutral state once a node had
                 // been clicked.
                 behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  for (final name in state.selectedProviderNames.toList()) {
-                    notifier.removeSelectedProvider(name);
-                  }
-                  notifier.setGraphFocus(null);
-                },
+                onTap: notifier.resetGraphSelection,
                 child: SizedBox(
                   width: width,
                   height: height,
@@ -282,14 +277,8 @@ class _GraphCanvas extends StatelessWidget {
                             isFlashing: state.flashingProviderName == node.name,
                             isDimmed: query.isNotEmpty &&
                                 !node.name.toLowerCase().contains(query),
-                            onTap: () {
-                              for (final name
-                                  in state.selectedProviderNames.toList()) {
-                                notifier.removeSelectedProvider(name);
-                              }
-                              notifier.selectProvider(node.name);
-                              notifier.setGraphFocus(node.name);
-                            },
+                            onTap: () =>
+                                notifier.selectAndFocusInGraph(node.name),
                           ),
                         ),
                     ],

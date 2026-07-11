@@ -104,8 +104,7 @@ class InspectorNotifier extends ChangeNotifier {
       _filteredProvidersCache = null;
     }
     if (!identical(old.events, newState.events) ||
-        !identical(
-            old.selectedProviderNames, newState.selectedProviderNames)) {
+        !identical(old.selectedProviderNames, newState.selectedProviderNames)) {
       _filteredEventsCache = null;
     }
     if (!identical(old.events, newState.events)) {
@@ -154,6 +153,30 @@ class InspectorNotifier extends ChangeNotifier {
 
   void setGraphFocus(String? providerName) {
     _setState(_state.copyWith(graphFocusProvider: providerName));
+    notifyListeners();
+  }
+
+  /// Selects [providerName] and focuses the graph on its sub-graph in one
+  /// step, replacing any prior selection — the graph view's node click
+  /// behavior.
+  void selectAndFocusInGraph(String providerName) {
+    _setState(_state.copyWith(
+      selectedProviderNames: {providerName},
+      activeTabProviderName: providerName,
+      graphFocusProvider: providerName,
+    ));
+    notifyListeners();
+  }
+
+  /// Clears the selection and exits graph focus — the graph view's "reset"
+  /// action, used both by clicking empty canvas and the "Show all" button
+  /// so the two escape hatches behave identically.
+  void resetGraphSelection() {
+    _setState(_state.copyWith(
+      selectedProviderNames: const {},
+      activeTabProviderName: null,
+      graphFocusProvider: null,
+    ));
     notifyListeners();
   }
 
@@ -449,12 +472,14 @@ class InspectorNotifier extends ChangeNotifier {
 
         final rawLoadedAt = data['dependenciesLoadedAt'];
         if (rawLoadedAt is int) {
-          dependenciesLoadedAt = DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
+          dependenciesLoadedAt =
+              DateTime.fromMillisecondsSinceEpoch(rawLoadedAt);
         }
 
         final rawGeneratedAt = data['dependenciesGeneratedAt'];
         if (rawGeneratedAt is int) {
-          dependenciesGeneratedAt = DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
+          dependenciesGeneratedAt =
+              DateTime.fromMillisecondsSinceEpoch(rawGeneratedAt);
         }
       } catch (e) {
         // Fallback or ignore if dependencies parsing fails
