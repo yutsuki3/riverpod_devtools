@@ -223,5 +223,54 @@ void main() {
       expect(stats[0].totalUpdateCount, 2);
       expect(stats[1].totalUpdateCount, 1);
     });
+
+    group('update sparkline buckets', () {
+      test('has one bucket per configured slot', () {
+        final events = [_event(EventType.updated, 'a', base)];
+        expect(computeProviderStats(events, now: base).single.updateBuckets,
+            hasLength(kSparklineBucketCount));
+      });
+
+      test('the newest update lands in the last bucket', () {
+        final events = [_event(EventType.updated, 'a', base)];
+        final buckets =
+            computeProviderStats(events, now: base).single.updateBuckets;
+        expect(buckets.last, 1);
+        expect(buckets.sublist(0, kSparklineBucketCount - 1), everyElement(0));
+      });
+
+      test('the oldest in-window update lands in the first bucket', () {
+        final events = [
+          _event(
+              EventType.updated,
+              'a',
+              base.subtract(
+                  kSparklineWindow - const Duration(milliseconds: 1))),
+        ];
+        final buckets =
+            computeProviderStats(events, now: base).single.updateBuckets;
+        expect(buckets.first, 1);
+      });
+
+      test('updates older than the window are excluded', () {
+        final events = [
+          _event(EventType.updated, 'a',
+              base.subtract(kSparklineWindow + const Duration(seconds: 5))),
+        ];
+        final buckets =
+            computeProviderStats(events, now: base).single.updateBuckets;
+        expect(buckets, everyElement(0));
+      });
+
+      test('only updates count toward buckets, not added/disposed', () {
+        final events = [
+          _event(EventType.added, 'a', base),
+          _event(EventType.disposed, 'a', base),
+        ];
+        final buckets =
+            computeProviderStats(events, now: base).single.updateBuckets;
+        expect(buckets, everyElement(0));
+      });
+    });
   });
 }

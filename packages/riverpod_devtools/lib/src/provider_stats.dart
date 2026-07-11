@@ -19,6 +19,12 @@ const kSlowLoadThreshold = Duration(seconds: 2);
 /// Width of the "recent" update-rate window.
 const kRecentUpdateWindow = Duration(seconds: 10);
 
+/// Window covered by the update-rate sparkline / histogram.
+const kSparklineWindow = Duration(seconds: 30);
+
+/// Number of buckets the sparkline window is divided into (oldest→newest).
+const kSparklineBucketCount = 24;
+
 /// Computes per-provider stats from raw event JSON maps (as produced by
 /// the observer and buffered by `RiverpodDevToolsHttpServer`). [now]
 /// anchors the "recent" window; defaults to the current time. When
@@ -52,6 +58,7 @@ Map<String, Object?> buildProviderStats(
     var addedCount = 0;
     DateTime? loadingStartedAt;
     final loadDurations = <Duration>[];
+    final buckets = List<int>.filled(kSparklineBucketCount, 0);
 
     for (final event in chronological) {
       final type = event['type'];
@@ -67,6 +74,7 @@ Map<String, Object?> buildProviderStats(
         if (effectiveNow.difference(timestamp) <= kRecentUpdateWindow) {
           recentUpdates++;
         }
+        _addToBucket(buckets, effectiveNow, timestamp);
       } else if (type == 'provider_disposed') {
         // Don't let a load that never resolved before this instance was
         // torn down get paired with a later instance's resolution — that
@@ -115,6 +123,7 @@ Map<String, Object?> buildProviderStats(
       'maxLoadMs': maxDuration?.inMilliseconds,
       'loadSampleCount': loadDurations.length,
       'churnCount': addedCount > 0 ? addedCount - 1 : 0,
+      'updateBuckets': buckets,
       'isHighFrequency': updatesPerSecond > kHighFrequencyThreshold,
       'isSlowLoading': maxDuration != null && maxDuration > kSlowLoadThreshold,
     });
@@ -124,6 +133,19 @@ Map<String, Object?> buildProviderStats(
     (a, b) => (a['provider'] as String).compareTo(b['provider'] as String),
   );
   return {'providers': stats, 'generatedAt': effectiveNow.toIso8601String()};
+}
+
+/// Increments the sparkline bucket for an update at [timestamp], mapping
+/// the newest edge of the window to the last bucket. Updates older than
+/// [kSparklineWindow] are ignored.
+void _addToBucket(List<int> buckets, DateTime now, DateTime timestamp) {
+  final ageMs = now.difference(timestamp).inMilliseconds;
+  if (ageMs < 0 || ageMs > kSparklineWindow.inMilliseconds) return;
+  final bucketMs = kSparklineWindow.inMilliseconds / kSparklineBucketCount;
+  var index = kSparklineBucketCount - 1 - (ageMs / bucketMs).floor();
+  if (index < 0) index = 0;
+  if (index >= kSparklineBucketCount) index = kSparklineBucketCount - 1;
+  buckets[index]++;
 }
 
 DateTime _timestampOf(Map<String, Object?> event) {

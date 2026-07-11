@@ -219,5 +219,36 @@ void main() {
       ];
       expect(statsFor(buildProviderStats(events, now: base)), isEmpty);
     });
+
+    group('update sparkline buckets', () {
+      List<int> bucketsFor(List<Map<String, Object?>> events) =>
+          (statsFor(
+                    buildProviderStats(events, now: base),
+                  ).single['updateBuckets']
+                  as List)
+              .cast<int>();
+
+      test('has one bucket per configured slot', () {
+        final buckets = bucketsFor([_event('provider_updated', 'a', base)]);
+        expect(buckets, hasLength(kSparklineBucketCount));
+      });
+
+      test('the newest update lands in the last bucket', () {
+        final buckets = bucketsFor([_event('provider_updated', 'a', base)]);
+        expect(buckets.last, 1);
+        expect(buckets.sublist(0, kSparklineBucketCount - 1), everyElement(0));
+      });
+
+      test('updates older than the window are excluded', () {
+        final buckets = bucketsFor([
+          _event(
+            'provider_updated',
+            'a',
+            base.subtract(kSparklineWindow + const Duration(seconds: 5)),
+          ),
+        ]);
+        expect(buckets, everyElement(0));
+      });
+    });
   });
 }

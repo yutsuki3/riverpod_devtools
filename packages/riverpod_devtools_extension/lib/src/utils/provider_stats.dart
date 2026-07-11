@@ -12,6 +12,13 @@ const kSlowLoadThreshold = Duration(seconds: 2);
 /// Width of the "recent" update-rate window.
 const kRecentUpdateWindow = Duration(seconds: 10);
 
+/// Window covered by the update-rate sparkline (a bit wider than the
+/// rate window so a recent burst's shape is visible, not just its tail).
+const kSparklineWindow = Duration(seconds: 30);
+
+/// Number of buckets the sparkline window is divided into (oldest→newest).
+const kSparklineBucketCount = 24;
+
 /// Aggregated activity/health signals for one provider, computed from its
 /// event history by [computeProviderStats]. Answers "is something wrong
 /// with this provider?" without eyeballing the raw event log.
@@ -44,9 +51,18 @@ class ProviderStats {
   /// (`provider_added` events beyond the first imply a prior dispose).
   final int churnCount;
 
+  /// Update counts bucketed over [kSparklineWindow], oldest→newest, with
+  /// [kSparklineBucketCount] entries. Drives the update-rate sparkline;
+  /// all zeros when the provider was idle over the window.
+  final List<int> updateBuckets;
+
   bool get isHighFrequency => updatesPerSecond > kHighFrequencyThreshold;
   bool get isSlowLoading =>
       maxLoadDuration != null && maxLoadDuration! > kSlowLoadThreshold;
+
+  /// True when any threshold-based warning applies — used to surface
+  /// problem rows first and highlight them.
+  bool get hasWarning => isHighFrequency || isSlowLoading;
 
   const ProviderStats({
     required this.providerName,
@@ -58,6 +74,7 @@ class ProviderStats {
     this.maxLoadDuration,
     required this.loadSampleCount,
     required this.churnCount,
+    this.updateBuckets = const [],
   });
 }
 
@@ -87,6 +104,7 @@ List<ProviderStats> computeProviderStats(
     var addedCount = 0;
     DateTime? loadingStartedAt;
     final loadDurations = <Duration>[];
+    final buckets = List<int>.filled(kSparklineBucketCount, 0);
 
     for (final event in chronological) {
       switch (event.type) {
@@ -100,6 +118,7 @@ List<ProviderStats> computeProviderStats(
           if (effectiveNow.difference(event.timestamp) <= kRecentUpdateWindow) {
             recentUpdates++;
           }
+          _addToBucket(buckets, effectiveNow, event.timestamp);
         case EventType.failed:
           break;
         case EventType.disposed:
@@ -145,9 +164,23 @@ List<ProviderStats> computeProviderStats(
       maxLoadDuration: maxDuration,
       loadSampleCount: loadDurations.length,
       churnCount: addedCount > 0 ? addedCount - 1 : 0,
+      updateBuckets: buckets,
     ));
   }
 
   stats.sort((a, b) => a.providerName.compareTo(b.providerName));
   return stats;
+}
+
+/// Increments the sparkline bucket for an update at [timestamp], mapping
+/// the newest edge of the window to the last bucket. Updates older than
+/// [kSparklineWindow] are ignored.
+void _addToBucket(List<int> buckets, DateTime now, DateTime timestamp) {
+  final ageMs = now.difference(timestamp).inMilliseconds;
+  if (ageMs < 0 || ageMs > kSparklineWindow.inMilliseconds) return;
+  final bucketMs = kSparklineWindow.inMilliseconds / kSparklineBucketCount;
+  var index = kSparklineBucketCount - 1 - (ageMs / bucketMs).floor();
+  if (index < 0) index = 0;
+  if (index >= kSparklineBucketCount) index = kSparklineBucketCount - 1;
+  buckets[index]++;
 }
