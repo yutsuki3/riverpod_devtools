@@ -43,8 +43,7 @@ class GraphView extends StatelessWidget {
           } else {
             for (final dependency in provider.dependencies) {
               nodeNames.add(dependency);
-              edges.add(
-                  GraphEdgeInput(from: provider.name, to: dependency));
+              edges.add(GraphEdgeInput(from: provider.name, to: dependency));
             }
           }
         }
@@ -149,8 +148,7 @@ class _GraphToolbar extends StatelessWidget {
             Tooltip(
               message: 'Dependency cycle detected — highlighted in red',
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.error.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
@@ -180,15 +178,6 @@ class _GraphToolbar extends StatelessWidget {
               label: 'Show all',
               icon: Icons.zoom_out_map,
               onPressed: () => notifier.setGraphFocus(null),
-            ),
-          if (focus == null)
-            Text(
-              'Double-click a node to focus its sub-graph',
-              style: TextStyle(
-                fontSize: 9,
-                color:
-                    theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-              ),
             ),
         ],
       ),
@@ -227,54 +216,201 @@ class _GraphCanvas extends StatelessWidget {
 
     final query = state.providerSearchQuery.toLowerCase();
 
-    return InteractiveViewer(
-      constrained: false,
-      minScale: 0.25,
-      maxScale: 2.5,
-      boundaryMargin: const EdgeInsets.all(200),
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Stack(
+    return Stack(
+      children: [
+        InteractiveViewer(
+          constrained: false,
+          minScale: 0.25,
+          maxScale: 2.5,
+          boundaryMargin: const EdgeInsets.all(200),
+          child: SizedBox(
+            width: width,
+            height: height,
+            child: Stack(
+              children: [
+                CustomPaint(
+                  size: Size(width, height),
+                  painter: _EdgePainter(
+                    layout: layout,
+                    origins: origins,
+                    selected: state.selectedProviderNames,
+                    theme: theme,
+                  ),
+                ),
+                for (final node in layout.nodes)
+                  Positioned(
+                    left: origins[node.name]!.dx,
+                    top: origins[node.name]!.dy,
+                    width: GraphView._nodeWidth,
+                    height: GraphView._nodeHeight,
+                    child: _GraphNode(
+                      name: node.name,
+                      info: state.providers[node.name],
+                      isSelected:
+                          state.selectedProviderNames.contains(node.name),
+                      isFlashing: state.flashingProviderName == node.name,
+                      isDimmed: query.isNotEmpty &&
+                          !node.name.toLowerCase().contains(query),
+                      onTap: () {
+                        for (final name
+                            in state.selectedProviderNames.toList()) {
+                          notifier.removeSelectedProvider(name);
+                        }
+                        notifier.selectProvider(node.name);
+                      },
+                      onDoubleTap: () => notifier.setGraphFocus(node.name),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        // Fixed overlay (unaffected by pan/zoom) explaining the visual
+        // encoding and the mouse interactions.
+        Positioned(
+          left: 8,
+          bottom: 8,
+          child: _GraphLegend(hasCycle: layout.hasCycle),
+        ),
+      ],
+    );
+  }
+}
+
+/// Always-visible legend: what the edge line styles, node states, and
+/// mouse gestures mean.
+class _GraphLegend extends StatelessWidget {
+  final bool hasCycle;
+
+  const _GraphLegend({required this.hasCycle});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle = TextStyle(
+      fontSize: 9,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final lineColor = theme.colorScheme.onSurfaceVariant;
+
+    Widget edgeRow(String label, List<double>? dashPattern, {Color? color}) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1.5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             CustomPaint(
-              size: Size(width, height),
-              painter: _EdgePainter(
-                layout: layout,
-                origins: origins,
-                selected: state.selectedProviderNames,
-                theme: theme,
+              size: const Size(26, 8),
+              painter: _LegendLinePainter(
+                color: color ?? lineColor,
+                dashPattern: dashPattern,
               ),
             ),
-            for (final node in layout.nodes)
-              Positioned(
-                left: origins[node.name]!.dx,
-                top: origins[node.name]!.dy,
-                width: GraphView._nodeWidth,
-                height: GraphView._nodeHeight,
-                child: _GraphNode(
-                  name: node.name,
-                  info: state.providers[node.name],
-                  isSelected:
-                      state.selectedProviderNames.contains(node.name),
-                  isFlashing: state.flashingProviderName == node.name,
-                  isDimmed: query.isNotEmpty &&
-                      !node.name.toLowerCase().contains(query),
-                  onTap: () {
-                    for (final name
-                        in state.selectedProviderNames.toList()) {
-                      notifier.removeSelectedProvider(name);
-                    }
-                    notifier.selectProvider(node.name);
-                  },
-                  onDoubleTap: () => notifier.setGraphFocus(node.name),
-                ),
-              ),
+            const SizedBox(width: 6),
+            Text(label, style: labelStyle),
           ],
         ),
+      );
+    }
+
+    Widget statusRow(Widget marker, String label) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1.5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(width: 26, child: Center(child: marker)),
+            const SizedBox(width: 6),
+            Text(label, style: labelStyle),
+          ],
+        ),
+      );
+    }
+
+    final errorColor = theme.brightness == Brightness.dark
+        ? const Color(0xFFE57373)
+        : const Color(0xFFD32F2F);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          edgeRow('watch — rebuilds on change', null),
+          edgeRow('read — one-time read', const [6, 4]),
+          edgeRow('listen — side-effect listener', const [2, 3]),
+          if (hasCycle)
+            edgeRow('dependency cycle', null, color: theme.colorScheme.error),
+          const SizedBox(height: 4),
+          statusRow(const StatusDot(isActive: true, size: 7), 'active'),
+          statusRow(const StatusDot(isActive: false, size: 7),
+              'disposed / not seen yet'),
+          statusRow(Icon(Icons.error, size: 10, color: errorColor), 'failed'),
+          const SizedBox(height: 6),
+          Text(
+            'Arrows point from a provider to the providers\n'
+            'that consume it (the direction data flows).',
+            style: labelStyle.copyWith(
+              fontSize: 8.5,
+              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Click: select  ·  Double-click: focus sub-graph\n'
+            'Drag: pan  ·  Scroll / pinch: zoom',
+            style: labelStyle.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _LegendLinePainter extends CustomPainter {
+  final Color color;
+  final List<double>? dashPattern;
+
+  _LegendLinePainter({required this.color, this.dashPattern});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+    final y = size.height / 2;
+
+    final pattern = dashPattern;
+    if (pattern == null) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    } else {
+      var x = 0.0;
+      var draw = true;
+      var index = 0;
+      while (x < size.width) {
+        final length = pattern[index % pattern.length];
+        if (draw) {
+          final end = (x + length).clamp(0.0, size.width);
+          canvas.drawLine(Offset(x, y), Offset(end, y), paint);
+        }
+        x += length;
+        draw = !draw;
+        index++;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LegendLinePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.dashPattern != dashPattern;
 }
 
 class _GraphNode extends StatelessWidget {
@@ -314,53 +450,55 @@ class _GraphNode extends StatelessWidget {
 
     return Opacity(
       opacity: isDimmed ? 0.25 : 1,
-      child: GestureDetector(
-        onTap: onTap,
-        onDoubleTap: onDoubleTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: isFlashing
-                  ? theme.colorScheme.primary.withValues(alpha: 0.3)
-                  : isSelected
-                      ? theme.colorScheme.primary.withValues(alpha: 0.12)
-                      : theme.colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: borderColor,
-                width: isSelected ? 1.5 : 1,
+      child: Tooltip(
+        message: '$name\nClick: select · Double-click: focus sub-graph',
+        waitDuration: const Duration(milliseconds: 600),
+        child: GestureDetector(
+          onTap: onTap,
+          onDoubleTap: onDoubleTap,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isFlashing
+                    ? theme.colorScheme.primary.withValues(alpha: 0.3)
+                    : isSelected
+                        ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                        : theme.colorScheme.surfaceContainerHighest
+                            .withValues(alpha: 0.6),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: borderColor,
+                  width: isSelected ? 1.5 : 1,
+                ),
               ),
-            ),
-            child: Row(
-              children: [
-                // Unknown status (statically-known but never observed at
-                // runtime) renders as a hollow dot, like disposed.
-                StatusDot(isActive: isActive, size: 7),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w500,
-                      color: info == null
-                          ? theme.colorScheme.onSurfaceVariant
-                              .withValues(alpha: 0.7)
-                          : theme.colorScheme.onSurface,
+              child: Row(
+                children: [
+                  // Unknown status (statically-known but never observed at
+                  // runtime) renders as a hollow dot, like disposed.
+                  StatusDot(isActive: isActive, size: 7),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.w500,
+                        color: info == null
+                            ? theme.colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.7)
+                            : theme.colorScheme.onSurface,
+                      ),
                     ),
                   ),
-                ),
-                if (hasError)
-                  Icon(Icons.error, size: 11, color: errorColor),
-              ],
+                  if (hasError) Icon(Icons.error, size: 11, color: errorColor),
+                ],
+              ),
             ),
           ),
         ),
