@@ -51,6 +51,15 @@ class ProviderInfo {
   /// support — fall back to [dependencies].
   final List<DependencyDetail> dependencyDetails;
 
+  /// For a `.family` instance, the base family name shared across
+  /// instances (e.g. `userProvider`); null for ordinary providers. Used
+  /// to group family instances in the provider list.
+  final String? family;
+
+  /// For a `.family` instance, the string form of its argument (e.g.
+  /// `1`); null for ordinary providers.
+  final String? argument;
+
   ProviderInfo({
     required this.id,
     required this.name,
@@ -62,6 +71,8 @@ class ProviderInfo {
     this.dependenciesGeneratedAt,
     this.lastError,
     this.dependencyDetails = const [],
+    this.family,
+    this.argument,
   });
 
   String? _valueStringCache;

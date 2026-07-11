@@ -162,20 +162,20 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   ]) {
     if (!_hasConsumer) return;
     final provider = _getProvider(context);
-    final providerName = _getProviderName(provider);
+    final id = _identify(provider);
 
     final container = _getContainer(context, arg3);
     if (container != null && provider != null) {
-      _aliveProviders[providerName] =
+      _aliveProviders[id.displayName] =
           (container: container, provider: provider as Object);
     }
 
     _postEvent('provider_added', {
-      ..._buildProviderEventData(provider, providerName),
+      ..._buildProviderEventData(provider, id),
       // Full dependency info (kind + source location) is only attached to
       // the rare added events; updates carry just the names.
       'dependencyDetails': RiverpodDevToolsRegistry.instance
-          .getDependenciesWithDetails(providerName),
+          .getDependenciesWithDetails(id.base),
       'value': serializeValue(value),
     });
   }
@@ -189,13 +189,13 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   ]) {
     if (!_hasConsumer) return;
     final provider = _getProvider(context);
-    final providerName = _getProviderName(provider);
+    final id = _identify(provider);
 
-    final data = _buildProviderEventData(provider, providerName);
+    final data = _buildProviderEventData(provider, id);
     final seq = data['seq'] as int;
     final nowMs = data['timestamp'] as int;
     final triggers = _triggerTracker.triggersFor(
-      providerName,
+      id.displayName,
       data['dependencies'] as List<String>,
       nowMs,
     );
@@ -203,7 +203,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       data['triggeredBy'] = triggers;
       data['triggerConfidence'] = 'inferred';
     }
-    _triggerTracker.recordUpdate(providerName, seq, nowMs);
+    _triggerTracker.recordUpdate(id.displayName, seq, nowMs);
 
     _postEvent('provider_updated', {
       ...data,
@@ -221,10 +221,10 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   ]) {
     if (!_hasConsumer) return;
     final provider = _getProvider(context);
-    final providerName = _getProviderName(provider);
+    final id = _identify(provider);
 
     _postEvent('provider_failed', {
-      ..._buildProviderEventData(provider, providerName),
+      ..._buildProviderEventData(provider, id),
       'error': {
         'type': error.runtimeType.toString(),
         'message': truncateErrorMessage(error.toString()),
@@ -240,12 +240,12 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   ]) {
     if (!_hasConsumer) return;
     final provider = _getProvider(context);
-    final providerName = _getProviderName(provider);
+    final id = _identify(provider);
 
-    _aliveProviders.remove(providerName);
+    _aliveProviders.remove(id.displayName);
 
     _postEvent('provider_disposed', {
-      ..._buildProviderEventData(provider, providerName),
+      ..._buildProviderEventData(provider, id),
     });
   }
 
@@ -292,7 +292,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     return legacyContainer;
   }
 
-  /// Gets the provider name safely
+  /// Gets the provider's base name safely (the family name for family
+  /// instances — shared across a family's instances).
   String _getProviderName(dynamic provider) {
     if (provider == null) return 'Unknown';
 
@@ -305,6 +306,40 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     }
 
     return provider.runtimeType.toString();
+  }
+
+  /// Identifies a provider for the DevTools UI, distinguishing family
+  /// instances (which share a base [name] but differ by [argument]) so they
+  /// no longer collapse into a single entry.
+  ///
+  /// - [displayName]: unique per instance (`family(argument)` for family
+  ///   instances, the base name otherwise) — used as the event/UI identity.
+  /// - [base]: the base name — used for static-dependency lookups, which are
+  ///   keyed on the provider *definition*, not the instance.
+  /// - [family] / [argument]: set only for family instances, letting the UI
+  ///   group instances under their family.
+  ({String displayName, String base, String? family, String? argument})
+      _identify(dynamic provider) {
+    final base = _getProviderName(provider);
+    try {
+      // A non-null `from` marks a `.family` instance on both Riverpod 2.x
+      // and 3.x.
+      // ignore: avoid_dynamic_calls
+      final from = provider.from;
+      if (from != null) {
+        // ignore: avoid_dynamic_calls
+        final argument = provider.argument?.toString() ?? '';
+        return (
+          displayName: '$base($argument)',
+          base: base,
+          family: base,
+          argument: argument,
+        );
+      }
+    } catch (_) {
+      // Not a family (or the API differs); fall through to the plain name.
+    }
+    return (displayName: base, base: base, family: null, argument: null);
   }
 
   /// Get dependencies from static analysis only
@@ -327,13 +362,18 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   }
 
   Map<String, Object?> _buildProviderEventData(
-      dynamic provider, String providerName) {
+    dynamic provider,
+    ({String displayName, String base, String? family, String? argument}) id,
+  ) {
     return {
       'seq': ++_eventSeq,
       'providerId': identityHashCode(provider).toString(),
-      'provider': providerName,
-      'dependencies': _getDependencies(providerName),
-      'dependenciesSource': _getDependencySource(providerName),
+      'provider': id.displayName,
+      if (id.family != null) 'family': id.family,
+      if (id.argument != null) 'argument': id.argument,
+      // Dependencies are per definition, so look them up by base name.
+      'dependencies': _getDependencies(id.base),
+      'dependenciesSource': _getDependencySource(id.base),
       'dependenciesLoadedAt': RiverpodDevToolsRegistry
           .instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
       'dependenciesGeneratedAt': RiverpodDevToolsRegistry

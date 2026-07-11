@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../providers/inspector_notifier.dart';
+import '../../utils/session_file_io.dart';
+import '../../utils/session_io.dart';
 import '../common/panel_ui.dart';
 import '../detail_panel/detail_panel.dart';
 import '../event_log/event_log_panel.dart';
@@ -43,7 +46,13 @@ class _InspectorViewState extends State<InspectorView> {
           padding: const EdgeInsets.all(8),
           child: Column(
             children: [
-              _ViewSwitcher(notifier: widget.notifier),
+              Row(
+                children: [
+                  _ViewSwitcher(notifier: widget.notifier),
+                  const Spacer(),
+                  _SessionActions(notifier: widget.notifier),
+                ],
+              ),
               const SizedBox(height: 8),
               Expanded(
                 child: switch (state.viewMode) {
@@ -198,6 +207,143 @@ class _ViewSwitcher extends StatelessWidget {
             const SizedBox(width: 2),
             buildTab(InspectorViewMode.stats, Icons.speed_outlined, 'Stats'),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Export / import buttons for the current session. Export downloads the
+/// full session (providers + event log) as a JSON file; import replaces the
+/// live view with a previously exported one for offline inspection.
+class _SessionActions extends StatelessWidget {
+  final InspectorNotifier notifier;
+
+  const _SessionActions({required this.notifier});
+
+  void _export() {
+    final json = const JsonEncoder.withIndent('  ').convert(
+      notifier.exportSession(),
+    );
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .split('.')
+        .first;
+    downloadTextFile('riverpod-session-$stamp.json', json);
+  }
+
+  Future<void> _import(BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final text = await pickTextFile();
+    if (text == null) return;
+    try {
+      final decoded = decodeSession(
+        jsonDecode(text) as Map<String, dynamic>,
+      );
+      notifier.loadSession(decoded);
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Imported ${decoded.providers.length} providers, '
+            '${decoded.events.length} events',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      final message = e is SessionDecodeException
+          ? e.message
+          : 'Could not read session file: not valid JSON.';
+      messenger?.showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 4)),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasData = notifier.state.providers.isNotEmpty ||
+        notifier.state.events.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SessionActionButton(
+            icon: Icons.download_outlined,
+            label: 'Export',
+            tooltip: hasData
+                ? 'Download the session (providers + events) as JSON'
+                : 'Nothing to export yet',
+            onTap: hasData ? _export : null,
+          ),
+          const SizedBox(width: 2),
+          _SessionActionButton(
+            icon: Icons.upload_outlined,
+            label: 'Import',
+            tooltip: 'Load a previously exported session file',
+            onTap: () => _import(context),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SessionActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  const _SessionActionButton({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabled = onTap != null;
+    final color = enabled
+        ? theme.colorScheme.onSurfaceVariant
+        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.4);
+
+    return Tooltip(
+      message: tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.normal,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

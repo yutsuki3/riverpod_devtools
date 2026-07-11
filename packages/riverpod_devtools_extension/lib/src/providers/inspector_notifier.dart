@@ -6,6 +6,7 @@ import '../models/event_type.dart';
 import '../models/provider_event.dart';
 import '../models/provider_info.dart';
 import '../utils/provider_stats.dart';
+import '../utils/session_io.dart';
 
 class _Unset {
   const _Unset();
@@ -30,6 +31,10 @@ class InspectorState {
   /// transitive dependencies and dependents.
   final String? graphFocusProvider;
 
+  /// Event IDs picked for the two-event value diff (at most two, and always
+  /// for the same provider). Empty when the diff picker is idle.
+  final List<String> comparedEventIds;
+
   InspectorState({
     this.providers = const {},
     this.events = const [],
@@ -42,6 +47,7 @@ class InspectorState {
     this.rightSplitRatio = 0.375,
     this.viewMode = InspectorViewMode.inspector,
     this.graphFocusProvider,
+    this.comparedEventIds = const [],
   });
 
   InspectorState copyWith({
@@ -56,6 +62,7 @@ class InspectorState {
     double? rightSplitRatio,
     InspectorViewMode? viewMode,
     Object? graphFocusProvider = const _Unset(),
+    List<String>? comparedEventIds,
   }) {
     return InspectorState(
       providers: providers ?? this.providers,
@@ -76,6 +83,7 @@ class InspectorState {
       graphFocusProvider: graphFocusProvider is _Unset
           ? this.graphFocusProvider
           : graphFocusProvider as String?,
+      comparedEventIds: comparedEventIds ?? this.comparedEventIds,
     );
   }
 }
@@ -196,6 +204,7 @@ class InspectorNotifier extends ChangeNotifier {
     _setState(_state.copyWith(
       events: const [],
       expandedEventIds: const {},
+      comparedEventIds: const [],
     ));
     notifyListeners();
   }
@@ -209,6 +218,54 @@ class InspectorNotifier extends ChangeNotifier {
     }
     _setState(_state.copyWith(expandedEventIds: newExpanded));
     notifyListeners();
+  }
+
+  /// Toggles [eventId] in the two-event diff selection. Picking an event
+  /// from a different provider than the current pick starts a fresh pair
+  /// (only same-provider events are comparable); a third pick drops the
+  /// oldest so at most two are ever selected.
+  void toggleEventComparison(String eventId) {
+    final current = List<String>.from(_state.comparedEventIds);
+    if (current.remove(eventId)) {
+      _setState(_state.copyWith(comparedEventIds: current));
+      notifyListeners();
+      return;
+    }
+    final event = _eventById(eventId);
+    if (event == null) return;
+    if (current.isNotEmpty) {
+      final first = _eventById(current.first);
+      if (first == null || first.providerName != event.providerName) {
+        current.clear();
+      }
+    }
+    current.add(eventId);
+    if (current.length > 2) current.removeAt(0);
+    _setState(_state.copyWith(comparedEventIds: current));
+    notifyListeners();
+  }
+
+  void clearEventComparison() {
+    if (_state.comparedEventIds.isEmpty) return;
+    _setState(_state.copyWith(comparedEventIds: const []));
+    notifyListeners();
+  }
+
+  ProviderEvent? _eventById(String id) {
+    for (final event in _state.events) {
+      if (event.id == id) return event;
+    }
+    return null;
+  }
+
+  /// The two events chosen for the value diff, oldest first (A → B), or null
+  /// when fewer than two are selected (or one has since been evicted).
+  (ProviderEvent, ProviderEvent)? get comparedEventPair {
+    if (_state.comparedEventIds.length != 2) return null;
+    final a = _eventById(_state.comparedEventIds[0]);
+    final b = _eventById(_state.comparedEventIds[1]);
+    if (a == null || b == null) return null;
+    return a.timestamp.isAfter(b.timestamp) ? (b, a) : (a, b);
   }
 
   void selectProvider(String providerName) {
@@ -358,6 +415,32 @@ class InspectorNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Serializes the current session (all providers + the full event log)
+  /// to a JSON-encodable map for export. See [session_io.encodeSession].
+  Map<String, dynamic> exportSession() =>
+      encodeSession(providers: _state.providers, events: _state.events);
+
+  /// Replaces the live session with an imported one, rebuilding the
+  /// per-provider event index so filtering/selection keep working. The
+  /// previous selection is cleared since its providers may be gone.
+  void loadSession(DecodedSession session) {
+    _eventsByProvider.clear();
+    _processedEventKeys.clear();
+    _disposedProviderTimestamps.clear();
+    for (final event in session.events) {
+      _eventsByProvider.putIfAbsent(event.providerName, () => []).add(event);
+    }
+    _setState(_state.copyWith(
+      providers: session.providers,
+      events: session.events,
+      selectedProviderNames: const {},
+      activeTabProviderName: null,
+      expandedEventIds: const {},
+      comparedEventIds: const [],
+    ));
+    notifyListeners();
+  }
+
   /// Cascade depth per event ID: 0 for root updates, 1+ for updates that
   /// were (transitively) triggered by another update in the log. Used by
   /// the event log to indent cascades. Rebuilt only when the event list
@@ -437,6 +520,8 @@ class InspectorNotifier extends ChangeNotifier {
       final rawPreviousValue = data['previousValue'];
       final timestamp = data['timestamp'] as int?;
       final seq = data['seq'] is int ? data['seq'] as int : null;
+      final family = data['family'] as String?;
+      final argument = data['argument'] as String?;
 
       var dependencyDetails = const <DependencyDetail>[];
       final rawDetails = data['dependencyDetails'];
@@ -549,6 +634,8 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesLoadedAt: dependenciesLoadedAt,
           dependenciesGeneratedAt: dependenciesGeneratedAt,
           dependencyDetails: dependencyDetails,
+          family: family,
+          argument: argument,
         );
         newEvent = ProviderEvent(
           type: EventType.added,
@@ -572,6 +659,8 @@ class InspectorNotifier extends ChangeNotifier {
           // Updates don't carry details; keep what the added event gave us.
           dependencyDetails:
               _state.providers[providerName]?.dependencyDetails ?? const [],
+          family: family,
+          argument: argument,
         );
         newEvent = ProviderEvent(
           type: EventType.updated,
@@ -607,6 +696,8 @@ class InspectorNotifier extends ChangeNotifier {
               existing?.dependenciesGeneratedAt ?? dependenciesGeneratedAt,
           lastError: errorMap ?? {'message': 'Unknown error'},
           dependencyDetails: existing?.dependencyDetails ?? const [],
+          family: family ?? existing?.family,
+          argument: argument ?? existing?.argument,
         );
         newEvent = ProviderEvent(
           type: EventType.failed,
@@ -629,6 +720,8 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesLoadedAt: existing?.dependenciesLoadedAt,
           dependenciesGeneratedAt: existing?.dependenciesGeneratedAt,
           dependencyDetails: existing?.dependencyDetails ?? const [],
+          family: family ?? existing?.family,
+          argument: argument ?? existing?.argument,
         );
         newEvent = ProviderEvent(
           type: EventType.disposed,
@@ -650,6 +743,7 @@ class InspectorNotifier extends ChangeNotifier {
         // evicting. Evict in place on the copy we just made instead of
         // copying the whole list a second time.
         Set<String>? newExpanded;
+        List<String>? newCompared;
         if (newEvents.length > _maxEventCount) {
           final removed = newEvents.removeLast();
 
@@ -666,12 +760,19 @@ class InspectorNotifier extends ChangeNotifier {
             newExpanded = Set<String>.from(_state.expandedEventIds)
               ..remove(removed.id);
           }
+
+          // Drop an evicted event from the diff selection so it can't dangle.
+          if (_state.comparedEventIds.contains(removed.id)) {
+            newCompared = List<String>.from(_state.comparedEventIds)
+              ..remove(removed.id);
+          }
         }
 
         _setState(_state.copyWith(
           providers: newProviders,
           events: newEvents,
           expandedEventIds: newExpanded,
+          comparedEventIds: newCompared,
         ));
         _cleanupDisposedProviders();
         notifyListeners();

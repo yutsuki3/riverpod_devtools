@@ -17,6 +17,9 @@ dependencies:
   # vm_service 15.0.0); keep 14.x allowed for older Flutter SDKs.
   vm_service: '>=14.0.0 <16.0.0'
   url_launcher: ^6.3.1
+  # Session import/export uses the browser download/upload APIs directly
+  # (the extension only ever runs on web, inside DevTools).
+  web: ^1.0.0
 
 dev_dependencies:
   flutter_test:

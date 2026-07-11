@@ -14,6 +14,7 @@ import 'package:riverpod_devtools_extension/src/models/event_type.dart';
 import 'package:riverpod_devtools_extension/src/models/provider_event.dart';
 import 'package:riverpod_devtools_extension/src/models/provider_info.dart';
 import 'package:riverpod_devtools_extension/src/providers/inspector_notifier.dart';
+import 'package:riverpod_devtools_extension/src/widgets/event_log/event_log_panel.dart';
 import 'package:riverpod_devtools_extension/src/widgets/inspector/inspector_view.dart';
 
 void main() {
@@ -29,6 +30,9 @@ class _MockApp extends StatefulWidget {
 
 class _MockAppState extends State<_MockApp> {
   late final InspectorNotifier _notifier;
+
+  /// When `?compare=open`, the value-diff pair to auto-open on first frame.
+  (ProviderEvent, ProviderEvent)? _autoOpenDiff;
 
   @override
   void initState() {
@@ -58,6 +62,43 @@ class _MockAppState extends State<_MockApp> {
           '(package:my_app/providers/user_providers.dart:18:31)\n'
           '#2      main (package:my_app/main.dart:12:3)',
     };
+
+    // Two updates of a structured value, used to demo the event value diff
+    // (#57): items 2->3, total changes, a coupon appears. Kept as locals so
+    // `?compare` can pick this exact pair.
+    final cartUpdateA = ProviderEvent(
+      type: EventType.updated,
+      providerId: '14',
+      providerName: 'cartProvider',
+      previousValue: const {'type': 'Cart', 'itemCount': 1, 'total': 19.0},
+      value: const {
+        'type': 'Cart',
+        'itemCount': 2,
+        'total': 42.5,
+        'coupon': null,
+      },
+      timestamp: at(30),
+      seq: 150,
+    );
+    final cartUpdateB = ProviderEvent(
+      type: EventType.updated,
+      providerId: '14',
+      providerName: 'cartProvider',
+      previousValue: const {
+        'type': 'Cart',
+        'itemCount': 2,
+        'total': 42.5,
+        'coupon': null,
+      },
+      value: const {
+        'type': 'Cart',
+        'itemCount': 3,
+        'total': 63.0,
+        'coupon': 'SAVE10',
+      },
+      timestamp: at(8),
+      seq: 151,
+    );
 
     final events = <ProviderEvent>[
       ProviderEvent(
@@ -218,6 +259,46 @@ class _MockAppState extends State<_MockApp> {
         timestamp: at(50),
         seq: 129,
       ),
+
+      // --- Family instances (#57): one `.family` provider read with three
+      // different arguments, so the provider list groups them under a
+      // collapsible `userProvider` header.
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '11',
+        providerName: 'userProvider(1)',
+        value: const {'type': 'User', 'string': 'User(id: 1, Alice)'},
+        timestamp: at(60),
+        seq: 140,
+      ),
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '12',
+        providerName: 'userProvider(2)',
+        value: const {'type': 'User', 'string': 'User(id: 2, Bob)'},
+        timestamp: at(58),
+        seq: 141,
+      ),
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '13',
+        providerName: 'userProvider(7)',
+        value: const {'type': 'User', 'string': 'User(id: 7, Carol)'},
+        timestamp: at(12),
+        seq: 142,
+      ),
+
+      // Event value diff (#57) demo pair, plus the provider's birth event.
+      cartUpdateB,
+      cartUpdateA,
+      ProviderEvent(
+        type: EventType.added,
+        providerId: '14',
+        providerName: 'cartProvider',
+        value: const {'type': 'Cart', 'itemCount': 1, 'total': 19.0},
+        timestamp: at(70),
+        seq: 149,
+      ),
     ];
 
     DependencyDetail dep(String name, String type) => DependencyDetail(
@@ -333,6 +414,49 @@ class _MockAppState extends State<_MockApp> {
         dependenciesSource: DependencySource.static,
         dependenciesLoadedAt: at(63),
       ),
+      'userProvider(1)': ProviderInfo(
+        id: '11',
+        name: 'userProvider(1)',
+        value: const {'type': 'User', 'string': 'User(id: 1, Alice)'},
+        status: ProviderStatus.active,
+        family: 'userProvider',
+        argument: '1',
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
+      'userProvider(2)': ProviderInfo(
+        id: '12',
+        name: 'userProvider(2)',
+        value: const {'type': 'User', 'string': 'User(id: 2, Bob)'},
+        status: ProviderStatus.active,
+        family: 'userProvider',
+        argument: '2',
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
+      'userProvider(7)': ProviderInfo(
+        id: '13',
+        name: 'userProvider(7)',
+        value: const {'type': 'User', 'string': 'User(id: 7, Carol)'},
+        status: ProviderStatus.active,
+        family: 'userProvider',
+        argument: '7',
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
+      'cartProvider': ProviderInfo(
+        id: '14',
+        name: 'cartProvider',
+        value: const {
+          'type': 'Cart',
+          'itemCount': 3,
+          'total': 63.0,
+          'coupon': 'SAVE10',
+        },
+        status: ProviderStatus.active,
+        dependenciesSource: DependencySource.static,
+        dependenciesLoadedAt: at(63),
+      ),
     };
 
     // The mock harness is the one legitimate non-test consumer.
@@ -353,6 +477,18 @@ class _MockAppState extends State<_MockApp> {
     if (focus != null && providers.containsKey(focus)) {
       _notifier.setGraphFocus(focus);
     }
+
+    // `?compare` selects cartProvider and picks its two updates for the
+    // value diff; `?compare=open` also opens the diff dialog on first frame.
+    final compare = Uri.base.queryParameters['compare'];
+    if (compare != null) {
+      _notifier.selectProvider('cartProvider');
+      _notifier.toggleEventComparison(cartUpdateA.id);
+      _notifier.toggleEventComparison(cartUpdateB.id);
+      if (compare == 'open') {
+        _autoOpenDiff = (cartUpdateA, cartUpdateB);
+      }
+    }
   }
 
   @override
@@ -369,7 +505,18 @@ class _MockAppState extends State<_MockApp> {
         fontFamily: 'packages/devtools_app_shared/Roboto',
       ),
       home: Scaffold(
-        body: InspectorView(notifier: _notifier),
+        body: Builder(
+          builder: (context) {
+            final pair = _autoOpenDiff;
+            if (pair != null) {
+              _autoOpenDiff = null;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                showEventValueDiffDialog(context, pair.$1, pair.$2);
+              });
+            }
+            return InspectorView(notifier: _notifier);
+          },
+        ),
       ),
     );
   }
