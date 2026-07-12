@@ -169,26 +169,36 @@ class RiverpodDevToolsHttpServer {
     _buffer.clear();
   }
 
-  /// Returns buffered events, optionally filtered by provider name and/or
-  /// event [type] (e.g. `provider_failed`), truncated to the most recent
-  /// [limit] entries (chronological order is preserved). A negative
+  /// Returns buffered events, optionally filtered by provider name, event
+  /// [type] (e.g. `provider_failed`), and/or a timestamp window ([since] /
+  /// [until], inclusive, in milliseconds since epoch), truncated to the most
+  /// recent [limit] entries (chronological order is preserved). A negative
   /// [limit] is treated as 0 (empty result).
   List<Map<String, Object?>> eventsFor({
     String? provider,
     String? type,
     int? limit,
+    int? since,
+    int? until,
   }) {
     if (limit != null && limit < 0) limit = 0;
     final hasProvider = provider != null && provider.isNotEmpty;
     final hasType = type != null && type.isNotEmpty;
-    if (hasProvider || hasType) {
-      final list = _buffer
-          .where(
-            (event) =>
-                (!hasProvider || event['provider'] == provider) &&
-                (!hasType || event['type'] == type),
-          )
-          .toList(growable: false);
+    final hasWindow = since != null || until != null;
+    if (hasProvider || hasType || hasWindow) {
+      bool matches(Map<String, Object?> event) {
+        if (hasProvider && event['provider'] != provider) return false;
+        if (hasType && event['type'] != type) return false;
+        if (hasWindow) {
+          final ts = event['timestamp'];
+          final tsMs = ts is int ? ts : null;
+          if (since != null && (tsMs == null || tsMs < since)) return false;
+          if (until != null && (tsMs == null || tsMs > until)) return false;
+        }
+        return true;
+      }
+
+      final list = _buffer.where(matches).toList(growable: false);
       if (limit == null || list.length <= limit) return list;
       return list.sublist(list.length - limit);
     }
@@ -230,10 +240,31 @@ class RiverpodDevToolsHttpServer {
           }
         }
 
+        int? since, until;
+        for (final name in const ['since', 'until']) {
+          final raw = params[name];
+          if (raw == null) continue;
+          final parsed = int.tryParse(raw) ?? num.tryParse(raw)?.toInt();
+          if (parsed == null) {
+            request.response
+              ..statusCode = 400
+              ..write('Invalid "$name": expected epoch milliseconds.');
+            await request.response.close();
+            return;
+          }
+          if (name == 'since') {
+            since = parsed;
+          } else {
+            until = parsed;
+          }
+        }
+
         final events = eventsFor(
           provider: params['provider'],
           type: params['type'],
           limit: limit,
+          since: since,
+          until: until,
         );
         await _writeJson(request, events);
       } else if (request.method == 'GET' && request.uri.path == '/providers') {

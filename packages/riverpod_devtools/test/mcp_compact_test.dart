@@ -249,6 +249,109 @@ void main() {
     });
   });
 
+  group('compactGraph', () {
+    test('keeps topology, drops source locations and bookkeeping', () {
+      final raw = {
+        'nodes': [
+          {'name': 'a', 'status': 'active', 'hasStaticMetadata': true},
+          {'name': 'b', 'status': 'unknown', 'hasStaticMetadata': false},
+        ],
+        'edges': [
+          {
+            'from': 'a',
+            'to': 'b',
+            'type': 'watch',
+            'file': 'lib/a.dart',
+            'line': 12,
+            'column': 5,
+          },
+        ],
+        'generatedAt': '2026-01-01T00:00:00.000',
+      };
+      final compact = compactGraph(raw);
+      expect(compact['nodes'], [
+        {'name': 'a', 'status': 'active'},
+        {'name': 'b'}, // unknown status dropped
+      ]);
+      expect(compact['edges'], [
+        {'from': 'a', 'to': 'b', 'type': 'watch'},
+      ]);
+      expect(compact.containsKey('generatedAt'), isFalse);
+    });
+  });
+
+  group('compactStats', () {
+    test('drops the sparkline buckets and near-zero fields', () {
+      final raw = {
+        'providers': [
+          {
+            'provider': 'a',
+            'totalUpdateCount': 5,
+            'recentUpdateCount': 3,
+            'updatesPerSecond': 0.3333333,
+            'minLoadMs': null,
+            'avgLoadMs': null,
+            'maxLoadMs': null,
+            'loadSampleCount': 0,
+            'churnCount': 0,
+            'updateBuckets': List.filled(24, 0),
+            'isHighFrequency': false,
+            'isSlowLoading': false,
+          },
+        ],
+      };
+      final entry = (compactStats(raw)['providers'] as List).single as Map;
+      expect(entry, {'provider': 'a', 'updates': 5, 'rate': 0.33});
+      expect(entry.containsKey('updateBuckets'), isFalse);
+      expect(entry.containsKey('churn'), isFalse);
+      expect(entry.containsKey('load'), isFalse);
+    });
+
+    test('keeps load stats and flags when present', () {
+      final raw = {
+        'providers': [
+          {
+            'provider': 'slow',
+            'totalUpdateCount': 1,
+            'updatesPerSecond': 0.1,
+            'minLoadMs': 100,
+            'avgLoadMs': 2500,
+            'maxLoadMs': 3000,
+            'loadSampleCount': 2,
+            'churnCount': 3,
+            'updateBuckets': List.filled(24, 0),
+            'isHighFrequency': false,
+            'isSlowLoading': true,
+          },
+        ],
+      };
+      final entry = (compactStats(raw)['providers'] as List).single as Map;
+      expect(entry['load'], {'minMs': 100, 'avgMs': 2500, 'maxMs': 3000, 'n': 2});
+      expect(entry['churn'], 3);
+      expect(entry['slowLoading'], true);
+      expect(entry.containsKey('highFrequency'), isFalse);
+    });
+
+    test('orders flagged and high-rate providers first', () {
+      final raw = {
+        'providers': [
+          {'provider': 'quiet', 'totalUpdateCount': 1, 'updatesPerSecond': 0.1},
+          {
+            'provider': 'busy',
+            'totalUpdateCount': 200,
+            'updatesPerSecond': 20.0,
+            'isHighFrequency': true,
+          },
+          {'provider': 'medium', 'totalUpdateCount': 5, 'updatesPerSecond': 0.5},
+        ],
+      };
+      final order = (compactStats(raw)['providers'] as List)
+          .map((e) => (e as Map)['provider'])
+          .toList();
+      expect(order, ['busy', 'medium', 'quiet']);
+    });
+  });
+
   test('compact output is dramatically smaller than the raw payload', () {
     // A realistic updated event with all the metadata the observer attaches.
     final rawEvent = {

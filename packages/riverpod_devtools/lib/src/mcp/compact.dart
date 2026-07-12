@@ -269,3 +269,94 @@ List<Map<String, Object?>> compactState(List<Object?> entries) => [
       for (final e in entries)
         if (e is Map) compactStateEntry(e.cast<Object?, Object?>()),
     ];
+
+/// Slims the `/graph` payload to the topology an AI reasons over: node
+/// names with their status (dropped when `unknown`), and edges as
+/// dependent → dependency + kind. The per-edge source location
+/// (file/line/column) and the `hasStaticMetadata`/`generatedAt` bookkeeping
+/// are dropped — they are available in the `full` view.
+Map<String, Object?> compactGraph(Map<Object?, Object?> graph) {
+  final rawNodes = graph['nodes'];
+  final rawEdges = graph['edges'];
+  return {
+    'nodes': [
+      if (rawNodes is List)
+        for (final n in rawNodes)
+          if (n is Map)
+            {
+              'name': n['name'],
+              if (n['status'] != null && n['status'] != 'unknown')
+                'status': n['status'],
+            },
+    ],
+    'edges': [
+      if (rawEdges is List)
+        for (final e in rawEdges)
+          if (e is Map)
+            {
+              'from': e['from'],
+              'to': e['to'],
+              if (e['type'] != null) 'type': e['type'],
+            },
+    ],
+  };
+}
+
+/// Rounds an updates-per-second rate to 2 decimals, as a plain number.
+num _round2(Object? rate) {
+  final value = rate is num ? rate : 0;
+  return num.parse(value.toStringAsFixed(2));
+}
+
+/// Slims the `/stats` payload: drops the 24-bucket sparkline array (a GUI
+/// concern) and the redundant/near-zero fields, keeping the health signals
+/// (update volume + rate, churn, load min/avg/max, and the warning flags).
+/// Providers are ordered most-interesting-first: flagged, then by rate,
+/// then by name — so "which provider is misbehaving?" is answered from the
+/// top of the list.
+Map<String, Object?> compactStats(Map<Object?, Object?> stats) {
+  final rawProviders = stats['providers'];
+  final providers = <Map<String, Object?>>[
+    if (rawProviders is List)
+      for (final p in rawProviders)
+        if (p is Map) _compactStatEntry(p.cast<Object?, Object?>()),
+  ]..sort(_compareStatInterest);
+  return {'providers': providers};
+}
+
+Map<String, Object?> _compactStatEntry(Map<Object?, Object?> p) {
+  final highFrequency = p['isHighFrequency'] == true;
+  final slowLoading = p['isSlowLoading'] == true;
+  final total = p['totalUpdateCount'];
+  final churn = p['churnCount'];
+  final loadSamples = p['loadSampleCount'];
+  return {
+    'provider': p['provider'],
+    if (total is int && total > 0) 'updates': total,
+    if (p['updatesPerSecond'] is num && (p['updatesPerSecond'] as num) > 0)
+      'rate': _round2(p['updatesPerSecond']),
+    if (churn is int && churn > 0) 'churn': churn,
+    if (loadSamples is int && loadSamples > 0)
+      'load': {
+        'minMs': p['minLoadMs'],
+        'avgMs': p['avgLoadMs'],
+        'maxMs': p['maxLoadMs'],
+        'n': loadSamples,
+      },
+    if (highFrequency) 'highFrequency': true,
+    if (slowLoading) 'slowLoading': true,
+  };
+}
+
+/// Orders compact stat entries most-interesting-first: any warning flag,
+/// then higher rate, then name.
+int _compareStatInterest(Map<String, Object?> a, Map<String, Object?> b) {
+  int warnRank(Map<String, Object?> e) =>
+      (e['highFrequency'] == true || e['slowLoading'] == true) ? 0 : 1;
+  final byWarn = warnRank(a).compareTo(warnRank(b));
+  if (byWarn != 0) return byWarn;
+  final byRate =
+      ((b['rate'] as num?) ?? 0).compareTo((a['rate'] as num?) ?? 0);
+  if (byRate != 0) return byRate;
+  return '${a['provider']}'.compareTo('${b['provider']}');
+}
