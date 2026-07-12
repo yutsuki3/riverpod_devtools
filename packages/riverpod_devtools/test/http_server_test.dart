@@ -102,6 +102,56 @@ void main() {
       expect(events.map((e) => e['newValue']), [2]);
     });
 
+    test('eventsFor filters by a since/until timestamp window', () {
+      final server = RiverpodDevToolsHttpServer();
+      for (var ms = 100; ms <= 500; ms += 100) {
+        server.addEvent({
+          'type': 'provider_updated',
+          'provider': 'a',
+          'newValue': ms,
+          'timestamp': ms,
+        });
+      }
+
+      // since is inclusive.
+      expect(server.eventsFor(since: 300).map((e) => e['timestamp']),
+          [300, 400, 500]);
+      // until is inclusive.
+      expect(server.eventsFor(until: 200).map((e) => e['timestamp']),
+          [100, 200]);
+      // A window combines both bounds.
+      expect(
+          server.eventsFor(since: 200, until: 400).map((e) => e['timestamp']),
+          [200, 300, 400]);
+    });
+
+    test('the time window composes with limit and provider filters', () {
+      final server = RiverpodDevToolsHttpServer();
+      for (var ms = 100; ms <= 500; ms += 100) {
+        server.addEvent({
+          'type': 'provider_updated',
+          'provider': ms <= 300 ? 'a' : 'b',
+          'newValue': ms,
+          'timestamp': ms,
+        });
+      }
+
+      final events =
+          server.eventsFor(provider: 'a', since: 200, limit: 1);
+      // provider a within [200, ∞): timestamps 200, 300 → most recent 1 = 300.
+      expect(events.map((e) => e['timestamp']), [300]);
+    });
+
+    test('events without a timestamp are excluded by any time window', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(event('a', 0)); // no timestamp
+      server.addEvent(
+          {'type': 'provider_updated', 'provider': 'a', 'timestamp': 100});
+
+      expect(server.eventsFor(since: 0), hasLength(1));
+      expect(server.eventsFor().length, 2, reason: 'no window keeps both');
+    });
+
     test('clearEvents empties the buffer', () {
       final server = RiverpodDevToolsHttpServer();
       server.addEvent(event('a', 0));
