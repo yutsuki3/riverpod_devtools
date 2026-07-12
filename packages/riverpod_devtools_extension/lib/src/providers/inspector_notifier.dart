@@ -27,10 +27,6 @@ class InspectorState {
   final double rightSplitRatio;
   final InspectorViewMode viewMode;
 
-  /// When set, the graph view shows only this provider plus its
-  /// transitive dependencies and dependents.
-  final String? graphFocusProvider;
-
   /// Event IDs picked for the two-event value diff (at most two, and always
   /// for the same provider). Empty when the diff picker is idle.
   final List<String> comparedEventIds;
@@ -46,7 +42,6 @@ class InspectorState {
     this.leftSplitRatio = 0.2,
     this.rightSplitRatio = 0.375,
     this.viewMode = InspectorViewMode.inspector,
-    this.graphFocusProvider,
     this.comparedEventIds = const [],
   });
 
@@ -61,7 +56,6 @@ class InspectorState {
     double? leftSplitRatio,
     double? rightSplitRatio,
     InspectorViewMode? viewMode,
-    Object? graphFocusProvider = const _Unset(),
     List<String>? comparedEventIds,
   }) {
     return InspectorState(
@@ -80,9 +74,6 @@ class InspectorState {
       leftSplitRatio: leftSplitRatio ?? this.leftSplitRatio,
       rightSplitRatio: rightSplitRatio ?? this.rightSplitRatio,
       viewMode: viewMode ?? this.viewMode,
-      graphFocusProvider: graphFocusProvider is _Unset
-          ? this.graphFocusProvider
-          : graphFocusProvider as String?,
       comparedEventIds: comparedEventIds ?? this.comparedEventIds,
     );
   }
@@ -169,34 +160,13 @@ class InspectorNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setGraphFocus(String? providerName) {
-    _setState(_state.copyWith(graphFocusProvider: providerName));
-    notifyListeners();
-  }
-
-  /// Selects [providerName] and focuses the graph on its sub-graph in one
-  /// step, replacing any prior selection — the graph view's node click
-  /// behavior.
-  void selectAndFocusInGraph(String providerName) {
-    _setState(_state.copyWith(
-      selectedProviderNames: {providerName},
-      activeTabProviderName: providerName,
-      graphFocusProvider: providerName,
-    ));
-    notifyListeners();
-  }
-
-  /// Clears the selection and exits graph focus — the graph view's "reset"
-  /// action, used both by clicking empty canvas and the "Show all" button
-  /// so the two escape hatches behave identically.
-  void resetGraphSelection() {
-    _setState(_state.copyWith(
-      selectedProviderNames: const {},
-      activeTabProviderName: null,
-      graphFocusProvider: null,
-    ));
-    notifyListeners();
-  }
+  // Selection is a single shared concept ([selectedProviderNames] +
+  // [activeTabProviderName]) used by every view, so it persists across tab
+  // switches. The graph derives its focus (which sub-graph to highlight)
+  // from the selection — see `reachableFromSelection` — instead of keeping a
+  // separate focus field that could drift out of sync. All views therefore
+  // reuse [selectProvider] / [removeSelectedProvider] / [selectOnly] /
+  // [clearSelection] below; there are no graph-specific selection methods.
 
   void clearEvents() {
     _eventsByProvider.clear();

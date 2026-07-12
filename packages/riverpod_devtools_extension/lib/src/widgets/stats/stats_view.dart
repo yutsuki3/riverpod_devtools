@@ -122,7 +122,9 @@ class _StatsViewState extends State<StatsView> {
                     onSort: _setSort,
                     providers: widget.notifier.state.providers,
                     onRowTap: (name) {
-                      widget.notifier.selectProvider(name);
+                      // Jump to the Inspector focused on just this provider,
+                      // replacing any prior (possibly multi-) selection.
+                      widget.notifier.selectOnly(name);
                       widget.notifier.setViewMode(InspectorViewMode.inspector);
                     },
                   ),

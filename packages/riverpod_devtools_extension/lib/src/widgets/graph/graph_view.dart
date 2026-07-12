@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../models/provider_info.dart';
 import '../../providers/inspector_notifier.dart';
@@ -9,8 +10,9 @@ import '../detail_panel/detail_panel.dart';
 /// Interactive dependency-graph view: layered DAG (dependencies on the
 /// left, dependents to the right), pan/zoom, and cycle highlighting.
 /// Clicking a node selects it (details shown in the panel on the right)
-/// and focuses the graph on its sub-graph in one gesture; "Show all"
-/// returns to the full graph.
+/// and focuses the graph on its sub-graph in one gesture; clicking the
+/// focused node again (or "Show all", or empty canvas) returns to the
+/// full graph.
 class GraphView extends StatelessWidget {
   final InspectorNotifier notifier;
 
@@ -54,11 +56,13 @@ class GraphView extends StatelessWidget {
         // Focusing is a render-time filter (dim unrelated nodes, hide
         // unrelated edges), not a layout change — node positions stay
         // fixed regardless of focus so the graph doesn't reshuffle on
-        // every click. Null means "nothing focused, show everything".
-        final focus = state.graphFocusProvider;
-        final focusedSet = focus != null && nodeNames.contains(focus)
-            ? reachableFromFocus(focus, edges)
-            : null;
+        // every click. The focused set is derived from the shared selection
+        // (the union of each selected provider's sub-graph), so selecting
+        // in any view focuses the graph and vice-versa. Null / empty means
+        // "nothing selected, show everything".
+        final selectionInGraph =
+            state.selectedProviderNames.where(nodeNames.contains);
+        final focusedSet = reachableFromSelection(selectionInGraph, edges);
 
         // layout.hasCycle reflects the whole graph, but an edge outside
         // the focused sub-graph is hidden by _EdgePainter — computed once
@@ -130,7 +134,7 @@ class _GraphToolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final state = notifier.state;
-    final focus = state.graphFocusProvider;
+    final hasFocus = state.selectedProviderNames.isNotEmpty;
 
     return Container(
       // Fixed height, matching PanelHeader: the "Show all" action (and the
@@ -210,11 +214,11 @@ class _GraphToolbar extends StatelessWidget {
               ],
             ),
           ),
-          if (focus != null)
+          if (hasFocus)
             HeaderActionButton(
               label: 'Show all',
               icon: Icons.zoom_out_map,
-              onPressed: notifier.resetGraphSelection,
+              onPressed: notifier.clearSelection,
             ),
         ],
       ),
@@ -247,6 +251,22 @@ class _GraphCanvas extends StatelessWidget {
         GraphView._padding +
             node.row * (GraphView._nodeHeight + GraphView._vGap),
       );
+
+  /// Node-click selection, identical to the provider list: Ctrl/Cmd toggles
+  /// the node in a multi-selection; a plain click selects only it (or
+  /// deselects when it was the sole selection). Reads the notifier's current
+  /// state so the result never depends on how long ago this built.
+  void _handleNodeSelect(String name, bool isCtrlOrCmd) {
+    if (isCtrlOrCmd) {
+      if (notifier.state.selectedProviderNames.contains(name)) {
+        notifier.removeSelectedProvider(name);
+      } else {
+        notifier.selectProvider(name);
+      }
+      return;
+    }
+    notifier.selectOnly(name);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +312,7 @@ class _GraphCanvas extends StatelessWidget {
                 // was no way back to a fully neutral state once a node had
                 // been clicked.
                 behavior: HitTestBehavior.opaque,
-                onTap: notifier.resetGraphSelection,
+                onTap: notifier.clearSelection,
                 child: SizedBox(
                   width: width,
                   height: height,
@@ -325,8 +345,8 @@ class _GraphCanvas extends StatelessWidget {
                               searchQuery: state.providerSearchQuery,
                               focusedSet: focusedSet,
                             ),
-                            onTap: () =>
-                                notifier.selectAndFocusInGraph(node.name),
+                            onSelect: (isCtrlOrCmd) =>
+                                _handleNodeSelect(node.name, isCtrlOrCmd),
                           ),
                         ),
                     ],
@@ -335,9 +355,11 @@ class _GraphCanvas extends StatelessWidget {
               ),
             ),
             // Fixed overlay (unaffected by pan/zoom) explaining the visual
-            // encoding and the mouse interactions.
+            // encoding and the mouse interactions. Anchored bottom-right so
+            // it doesn't overlap the nodes, which are laid out from the
+            // left edge.
             Positioned(
-              left: 8,
+              right: 8,
               bottom: 8,
               child: _GraphLegend(hasCycle: hasVisibleCycle),
             ),
@@ -436,9 +458,9 @@ class _GraphLegend extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Click a node: select & focus its sub-graph\n'
-            'Click empty space: deselect\n'
-            'Drag: pan\n'
-            'Scroll / pinch: zoom',
+            'Click it again / empty space: deselect\n'
+            'Ctrl/Cmd+Click: multi-select\n'
+            'Drag: pan · Scroll / pinch: zoom',
             style:
                 labelStyle.copyWith(fontWeight: FontWeight.w600, height: 1.5),
           ),
@@ -487,13 +509,15 @@ class _LegendLinePainter extends CustomPainter {
       oldDelegate.color != color || oldDelegate.dashPattern != dashPattern;
 }
 
-class _GraphNode extends StatelessWidget {
+class _GraphNode extends StatefulWidget {
   final String name;
   final ProviderInfo? info;
   final bool isSelected;
   final bool isFlashing;
   final bool isDimmed;
-  final VoidCallback onTap;
+
+  /// Called on tap with whether Ctrl/Cmd was held when the press started.
+  final void Function(bool isCtrlOrCmd) onSelect;
 
   const _GraphNode({
     required this.name,
@@ -501,8 +525,23 @@ class _GraphNode extends StatelessWidget {
     required this.isSelected,
     required this.isFlashing,
     required this.isDimmed,
-    required this.onTap,
+    required this.onSelect,
   });
+
+  @override
+  State<_GraphNode> createState() => _GraphNodeState();
+}
+
+class _GraphNodeState extends State<_GraphNode> {
+  /// Modifier state captured at pointer-down: by the time onTap fires the
+  /// user may already have released Ctrl/Cmd.
+  bool _ctrlOrCmdAtPress = false;
+
+  String get name => widget.name;
+  ProviderInfo? get info => widget.info;
+  bool get isSelected => widget.isSelected;
+  bool get isFlashing => widget.isFlashing;
+  bool get isDimmed => widget.isDimmed;
 
   @override
   Widget build(BuildContext context) {
@@ -523,10 +562,15 @@ class _GraphNode extends StatelessWidget {
     return Opacity(
       opacity: isDimmed ? 0.25 : 1,
       child: Tooltip(
-        message: '$name\nClick: select & focus its sub-graph',
+        message: '$name\nClick: select & focus (click again to deselect)\n'
+            'Ctrl/Cmd+Click: add to selection',
         waitDuration: const Duration(milliseconds: 600),
         child: GestureDetector(
-          onTap: onTap,
+          onTapDown: (_) {
+            _ctrlOrCmdAtPress = HardwareKeyboard.instance.isMetaPressed ||
+                HardwareKeyboard.instance.isControlPressed;
+          },
+          onTap: () => widget.onSelect(_ctrlOrCmdAtPress),
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: AnimatedContainer(

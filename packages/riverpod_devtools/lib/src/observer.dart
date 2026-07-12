@@ -84,11 +84,37 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     }
   }
 
-  /// Live provider instances (with the container that owns them) by name,
-  /// so state commands can target them. Filled in [didAddProvider],
-  /// cleared in [didDisposeProvider].
-  final Map<String, ({Object container, Object provider})> _aliveProviders =
+  /// Command targets: the provider *definition* (and its owning container)
+  /// by display name. A provider definition is stable and can be
+  /// invalidated / read at any time, so — unlike a snapshot of "what is
+  /// live right now" — this is kept across dispose. That is what makes a
+  /// second invalidate/refresh work: invalidate itself disposes the
+  /// provider, and its rebuild is not always reported back before the next
+  /// command, so a liveness snapshot would spuriously report the still-in-
+  /// use provider as gone. Bounded by [_maxCommandTargets] with FIFO
+  /// eviction so long-lived apps with high family-instance churn don't grow
+  /// this without limit.
+  final Map<String, ({Object container, Object provider})> _commandTargets =
       {};
+
+  static const int _maxCommandTargets = 2048;
+
+  /// Remembers [provider] (and its owning container) under its display name
+  /// as a command target. No-op when the container or provider can't be
+  /// resolved.
+  void _trackCommandTarget(
+      Object context, dynamic provider, String displayName, Object? legacyArg) {
+    final container = _getContainer(context, legacyArg);
+    if (container == null || provider == null) return;
+    // Refresh recency: re-insert so the most recently seen providers are
+    // the last to be evicted.
+    _commandTargets.remove(displayName);
+    _commandTargets[displayName] =
+        (container: container, provider: provider as Object);
+    if (_commandTargets.length > _maxCommandTargets) {
+      _commandTargets.remove(_commandTargets.keys.first);
+    }
+  }
 
   /// Executes a state command coming from DevTools (service extension) or
   /// MCP (`POST /commands`). Supported actions: `invalidate` (mark the
@@ -104,12 +130,12 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
             'Unknown action "$action". Supported: invalidate, refresh.',
       };
     }
-    final target = _aliveProviders[providerName];
+    final target = _commandTargets[providerName];
     if (target == null) {
       return {
         'status': 'error',
-        'message': 'Provider "$providerName" is not alive '
-            '(unknown name or already disposed).',
+        'message': 'Provider "$providerName" is unknown '
+            '(never observed by this app).',
       };
     }
     try {
@@ -164,11 +190,7 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     final provider = _getProvider(context);
     final id = _identify(provider);
 
-    final container = _getContainer(context, arg3);
-    if (container != null && provider != null) {
-      _aliveProviders[id.displayName] =
-          (container: container, provider: provider as Object);
-    }
+    _trackCommandTarget(context, provider, id.displayName, arg3);
 
     _postEvent('provider_added', {
       ..._buildProviderEventData(provider, id),
@@ -190,6 +212,10 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     if (!_hasConsumer) return;
     final provider = _getProvider(context);
     final id = _identify(provider);
+
+    // Keep the command target's container reference fresh on updates too,
+    // not just on the initial add.
+    _trackCommandTarget(context, provider, id.displayName, arg4);
 
     final data = _buildProviderEventData(provider, id);
     final seq = data['seq'] as int;
@@ -242,7 +268,11 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     final provider = _getProvider(context);
     final id = _identify(provider);
 
-    _aliveProviders.remove(id.displayName);
+    // Intentionally NOT removing from _commandTargets: the definition stays
+    // a valid invalidate/refresh target (invalidate disposes then rebuilds
+    // the very provider being commanded). Disposed state is still conveyed
+    // to the extension via the event below, which disables the buttons for
+    // genuinely-disposed providers.
 
     _postEvent('provider_disposed', {
       ..._buildProviderEventData(provider, id),

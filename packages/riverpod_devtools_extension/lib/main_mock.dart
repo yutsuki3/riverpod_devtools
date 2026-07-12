@@ -473,9 +473,11 @@ class _MockAppState extends State<_MockApp> {
       case 'stats':
         _notifier.setViewMode(InspectorViewMode.stats);
     }
+    // Graph focus is derived from the selection, so `?focus=` just selects
+    // the provider (which focuses its sub-graph in the graph view).
     final focus = Uri.base.queryParameters['focus'];
     if (focus != null && providers.containsKey(focus)) {
-      _notifier.setGraphFocus(focus);
+      _notifier.selectOnly(focus);
     }
 
     // `?compare` selects cartProvider and picks its two updates for the
