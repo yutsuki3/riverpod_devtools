@@ -147,5 +147,27 @@ void main() {
 
       expect(prevEntry['value'], '<Cyclic Reference>');
     });
+
+    test('a shared object beyond the depth limit is not later mislabeled '
+        'as a cyclic reference', () {
+      // `shared` sits at depth 11 down one path (past the limit) and depth
+      // 1 down another. The deep path is serialized first; it must not leave
+      // `shared` marked as "seen", which would make the shallow, genuinely
+      // non-cyclic occurrence report a false cycle.
+      final shared = <String, dynamic>{'leaf': 1};
+      Map<String, dynamic> deep = shared;
+      for (var i = 0; i < 10; i++) {
+        deep = {'n': deep};
+      }
+      final root = <String, dynamic>{'deep': deep, 'shallow': shared};
+
+      final entries = serializeValue(root)['entries'] as List;
+      final shallow =
+          entries.firstWhere((e) => e['key'] == 'shallow')['value'] as Map;
+
+      expect(shallow['value'], isNot('<Cyclic Reference>'));
+      final leafEntries = shallow['entries'] as List;
+      expect(leafEntries.single['key'], 'leaf');
+    });
   });
 }

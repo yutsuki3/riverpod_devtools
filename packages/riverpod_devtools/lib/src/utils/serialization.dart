@@ -13,6 +13,17 @@ Map<String, Object?> serializeValue(
     };
   }
 
+  // Depth limit. Checked before cycle tracking so the early return can't
+  // leave `value` in `visited` — a leak that would make a later,
+  // non-cyclic occurrence of the same object be misreported as a cycle.
+  // A depth-exceeded value is not recursed into, so it needs no tracking.
+  if (depth > maxDepth) {
+    return {
+      'type': value.runtimeType.toString(),
+      'value': '<Max Depth Exceeded>',
+    };
+  }
+
   // Cycle detection. Identity-based on purpose: cycles are a property of the
   // object graph, and identity checks avoid invoking potentially deep (or
   // even cyclic) user-defined ==/hashCode implementations on every event.
@@ -26,14 +37,6 @@ Map<String, Object?> serializeValue(
       };
     }
     visited.add(value);
-  }
-
-  // Depth limit
-  if (depth > maxDepth) {
-    return {
-      'type': value.runtimeType.toString(),
-      'value': '<Max Depth Exceeded>',
-    };
   }
 
   // Helper to continue serialization
