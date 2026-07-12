@@ -119,11 +119,15 @@ void main() {
       Object? newValue,
       Object? error,
       int? seq,
+      String? instanceId,
+      bool? nameIsUnique,
     }) =>
         {
           'type': type,
           'provider': provider,
           'providerId': '1',
+          if (instanceId != null) 'instanceId': instanceId,
+          if (nameIsUnique != null) 'nameIsUnique': nameIsUnique,
           if (value != null) 'value': value,
           if (newValue != null) 'newValue': newValue,
           if (error != null) 'error': error,
@@ -183,6 +187,38 @@ void main() {
 
       expect(server.eventsFor(), isEmpty);
       expect(server.providerSnapshot(), hasLength(1));
+    });
+
+    test('keeps distinct entries for providers that share a display name', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'dupe',
+          value: 1, instanceId: 'p0', nameIsUnique: false));
+      server.addEvent(lifecycleEvent('provider_added', 'dupe',
+          value: 2, instanceId: 'p1', nameIsUnique: false));
+
+      final all = server.providerSnapshot();
+      expect(all, hasLength(2), reason: 'same name must not collapse');
+      expect(all.map((e) => e['value']).toSet(), {1, 2});
+
+      // Filtering by the shared name returns both; by instanceId, exactly one.
+      expect(server.providerSnapshot(provider: 'dupe'), hasLength(2));
+      final byId = server.providerSnapshot(provider: 'p1');
+      expect(byId.single['value'], 2);
+      expect(byId.single['instanceId'], 'p1');
+    });
+
+    test('disposing one same-named instance leaves the other intact', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'dupe',
+          value: 1, instanceId: 'p0'));
+      server.addEvent(lifecycleEvent('provider_added', 'dupe',
+          value: 2, instanceId: 'p1'));
+      server
+          .addEvent(lifecycleEvent('provider_disposed', 'dupe', instanceId: 'p0'));
+
+      final remaining = server.providerSnapshot();
+      expect(remaining.single['instanceId'], 'p1');
+      expect(remaining.single['value'], 2);
     });
   });
 }

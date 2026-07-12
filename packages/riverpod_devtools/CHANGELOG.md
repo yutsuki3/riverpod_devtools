@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **MCP: robust provider identity**:
+    - Every provider now gets a stable, session-unique `instanceId`, and each event / state snapshot carries it plus a `nameIsUnique` flag. Previously providers were tracked purely by display name, so two unnamed providers of the same type (both `Provider<int>`) or two providers sharing an explicit `name:` collided: one silently overwrote the other in the state snapshot and the command target map, so `get_provider_state` hid one of them and `invalidate_provider` could hit the wrong one. Distinct providers are now kept distinct and individually addressable.
+    - `invalidate_provider` (and the `POST /commands` endpoint / DevTools command extension) accept either a provider name or an exact `instanceId`. When a name is shared by more than one provider the command is rejected with `ambiguous: true` and the list of candidate `instanceId`s, instead of silently acting on an arbitrary one. A successful command echoes back the resolved `provider` name and `instanceId`.
+    - `GET /providers` keeps a separate entry per instance for same-named providers and can be filtered by `instanceId` as well as by name; the dependency-graph runtime status merges same-named instances with "active" winning over "failed".
+
 - **Fixes**:
     - Value serialization no longer misreports a genuinely non-cyclic value as a `<Cyclic Reference>`. The recursion-depth guard ran after a value was added to the cycle-detection set but returned without removing it, so an object first reached past the depth limit stayed marked as "seen" and a later, shallower occurrence of the same object was wrongly flagged as a cycle. The depth check now runs before cycle tracking.
 - **Invalidate / Refresh reliability**:
