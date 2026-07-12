@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **MCP: token-efficient responses**:
+    - `get_riverpod_logs` and `get_provider_state` now return a **compact** representation by default — slim events/entries with summarized values, dropping the repeated static-dependency metadata, `providerId`, and the verbose nested `{type, string, items/entries}` value trees that the GUI needs but an AI does not. In a realistic case the compact log payload is about a quarter the size of the raw one, so far more history fits in an AI's context per call.
+    - New `view` parameter: `get_riverpod_logs` accepts `compact` (default), `summary` (per-provider counts by kind plus each provider's latest value — "what happened" without the full stream), and `full` (the complete raw events, for when you need a value the compact form summarized). `get_provider_state` accepts `compact` (default) and `full`.
+
 - **MCP: robust provider identity**:
     - Every provider now gets a stable, session-unique `instanceId`, and each event / state snapshot carries it plus a `nameIsUnique` flag. Previously providers were tracked purely by display name, so two unnamed providers of the same type (both `Provider<int>`) or two providers sharing an explicit `name:` collided: one silently overwrote the other in the state snapshot and the command target map, so `get_provider_state` hid one of them and `invalidate_provider` could hit the wrong one. Distinct providers are now kept distinct and individually addressable.
     - `invalidate_provider` (and the `POST /commands` endpoint / DevTools command extension) accept either a provider name or an exact `instanceId`. When a name is shared by more than one provider the command is rejected with `ambiguous: true` and the list of candidate `instanceId`s, instead of silently acting on an arbitrary one. A successful command echoes back the resolved `provider` name and `instanceId`.

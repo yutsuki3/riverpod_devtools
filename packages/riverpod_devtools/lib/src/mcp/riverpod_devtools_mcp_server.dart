@@ -5,6 +5,7 @@ import 'dart:io' as io;
 import 'package:dart_mcp/server.dart';
 
 import '../mcp_constants.dart';
+import 'compact.dart';
 
 base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   RiverpodDevToolsMcpServer(super.channel)
@@ -32,6 +33,28 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     description:
         'Port of the app to target (from list_riverpod_apps). Omit when only '
         'one app is running — it is selected automatically.',
+  );
+
+  /// Response verbosity. Compact (the default) is much smaller — prefer it,
+  /// and only reach for `full` when you specifically need a value that the
+  /// compact form summarized.
+  static final _logsViewProperty = Schema.string(
+    description:
+        'Response detail: "compact" (default) — slim events (seq, kind, '
+        'provider, ts, prev/value summaries, trigger names); "summary" — '
+        'per-provider counts by kind plus each provider\'s latest value, '
+        'no per-event stream; "full" — the complete raw events including the '
+        'full nested value trees, stack traces, and static-dependency '
+        'metadata. Start compact/summary; escalate to full only when needed.',
+    enumValues: ['compact', 'summary', 'full'],
+  );
+
+  static final _stateViewProperty = Schema.string(
+    description:
+        'Response detail: "compact" (default) — provider, status, a compact '
+        'value, and last-update time; "full" — the complete raw snapshot '
+        'including providerId and the static dependency list.',
+    enumValues: ['compact', 'full'],
   );
 
   final _listRiverpodAppsTool = Tool(
@@ -62,13 +85,16 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'update(s) that likely caused this recomputation, inferred from the '
         'static dependency graph plus temporal proximity — which lets you '
         'trace update cascades ("why did this provider rebuild?"). '
-        'The buffer can hold up to 1000 events; prefer passing "limit" (and '
-        '"provider" when you know which provider you are investigating) to '
-        'keep the response small. '
+        'Responses are COMPACT by default (small events with summarized '
+        'values); pass view="summary" for a per-provider overview, or '
+        'view="full" only when you need a complete value. '
+        'The buffer holds up to 1000 events; also pass "limit"/"provider"/'
+        '"type" to narrow it. '
         'Requires the app to be running in debug mode (flutter run).',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
+        'view': _logsViewProperty,
         'limit': Schema.int(
           description:
               'Return only the most recent N events (after applying the '
@@ -102,11 +128,14 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'target a specific one (e.g. with invalidate_provider). '
         'Prefer this over get_riverpod_logs when you need current values '
         'rather than the event history — no need to replay the log. '
+        'Responses are COMPACT by default; pass view="full" for the complete '
+        'snapshot. '
         'Disposed providers are not listed. '
         'Requires the app to be running in debug mode (flutter run).',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
+        'view': _stateViewProperty,
         'provider': Schema.string(
           description:
               'Return only providers matching this exact name '
@@ -246,24 +275,55 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
       if (arguments['type'] case final String type when type.isNotEmpty)
         'type': type,
     };
+    final view = arguments['view'] as String? ?? 'compact';
     return _request(
       port!,
       'GET',
       '/logs',
       queryParameters: queryParameters,
-      (body) => CallToolResult(content: [TextContent(text: body)]),
+      (body) => _reshaped(body, (decoded) {
+        if (decoded is! List) return decoded; // error/unknown shape
+        return switch (view) {
+          'summary' => summarizeEvents(decoded),
+          'full' => decoded,
+          _ => compactEvents(decoded),
+        };
+      }),
     );
   }
 
   FutureOr<CallToolResult> _getProviderState(CallToolRequest request) async {
     final (port, err) = await _resolvePort(request);
     if (err != null) return err;
+    final view = (request.arguments ?? const {})['view'] as String? ?? 'compact';
     return _request(
       port!,
       'GET',
       '/providers',
       queryParameters: _providerQuery(request),
-      (body) => CallToolResult(content: [TextContent(text: body)]),
+      (body) => _reshaped(body, (decoded) {
+        if (decoded is! List) return decoded;
+        return view == 'full' ? decoded : compactState(decoded);
+      }),
+    );
+  }
+
+  /// Parses [body], applies [transform] to the decoded JSON, and returns the
+  /// re-encoded result. If the body isn't JSON (e.g. a plain-text error), it
+  /// is passed through untouched so error messages still reach the caller.
+  CallToolResult _reshaped(
+    String body,
+    Object? Function(Object? decoded) transform,
+  ) {
+    Object? decoded;
+    try {
+      decoded = jsonDecode(body);
+    } catch (_) {
+      return CallToolResult(content: [TextContent(text: body)]);
+    }
+    final reshaped = transform(decoded);
+    return CallToolResult(
+      content: [TextContent(text: jsonEncode(reshaped))],
     );
   }
 
