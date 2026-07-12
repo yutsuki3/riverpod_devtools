@@ -27,6 +27,12 @@ class DetailPanel extends StatelessWidget {
     this.noSelectionHint = 'Pick a provider from the list on the left',
   });
 
+  /// Test seam: when set, Invalidate/Refresh route here instead of the real
+  /// `ext.riverpod_devtools.command` service extension, so the command bar
+  /// can be driven without a live VM service.
+  @visibleForTesting
+  static CommandSender? debugCommandSender;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -183,28 +189,9 @@ class DetailPanel extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    StatusBadge(
-                      isActive: provider.status == ProviderStatus.active,
-                    ),
-                    const SizedBox(width: 8),
-                    // The panel is user-resizable: at narrow widths the
-                    // command buttons scale down instead of overflowing.
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: _CommandButtons(
-                            providerName: provider.name,
-                            enabled:
-                                provider.status == ProviderStatus.active,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                _ProviderCommandBar(
+                  providerName: provider.name,
+                  isActive: provider.status == ProviderStatus.active,
                 ),
               ],
             ),
@@ -1367,24 +1354,36 @@ class _UpdateInfoDropdownState extends State<_UpdateInfoDropdown> {
   }
 }
 
-/// Invalidate / Refresh actions for the selected provider, executed inside
-/// the running app via the `ext.riverpod_devtools.command` service
-/// extension registered by RiverpodDevToolsObserver. Shows a short inline
-/// result label instead of a snackbar (the extension has no Scaffold).
-class _CommandButtons extends StatefulWidget {
-  final String providerName;
-  final bool enabled;
+/// Outcome of a command sent to the running app: whether it succeeded and,
+/// when it didn't, the error message to surface.
+typedef CommandResult = ({bool ok, String? message});
 
-  const _CommandButtons({
+/// Sends a state command (`invalidate` / `refresh`) for a provider and
+/// resolves to its result. Injectable so tests can drive success/error
+/// without a live VM service.
+typedef CommandSender = Future<CommandResult> Function(
+    String action, String provider);
+
+/// The provider status badge plus Invalidate / Refresh actions, executed
+/// inside the running app via the `ext.riverpod_devtools.command` service
+/// extension registered by RiverpodDevToolsObserver. The command result is
+/// shown inline (the extension has no Scaffold for a snackbar) on its own
+/// full-width line below the buttons, so a long error message is readable
+/// rather than clipped to a sliver.
+class _ProviderCommandBar extends StatefulWidget {
+  final String providerName;
+  final bool isActive;
+
+  const _ProviderCommandBar({
     required this.providerName,
-    required this.enabled,
+    required this.isActive,
   });
 
   @override
-  State<_CommandButtons> createState() => _CommandButtonsState();
+  State<_ProviderCommandBar> createState() => _ProviderCommandBarState();
 }
 
-class _CommandButtonsState extends State<_CommandButtons> {
+class _ProviderCommandBarState extends State<_ProviderCommandBar> {
   static const _commandExtension = 'ext.riverpod_devtools.command';
 
   String? _feedback;
@@ -1393,33 +1392,57 @@ class _CommandButtonsState extends State<_CommandButtons> {
   Timer? _feedbackTimer;
 
   @override
+  void didUpdateWidget(_ProviderCommandBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Switching to a different provider must not carry over the previous
+    // one's result label.
+    if (oldWidget.providerName != widget.providerName) {
+      _feedbackTimer?.cancel();
+      _feedback = null;
+    }
+  }
+
+  @override
   void dispose() {
     _feedbackTimer?.cancel();
     super.dispose();
   }
 
+  Future<CommandResult> _defaultSend(String action, String provider) async {
+    final service = serviceManager.service;
+    final isolateId = serviceManager.isolateManager.mainIsolate.value?.id;
+    if (service == null || isolateId == null) {
+      return (ok: false, message: 'App not connected');
+    }
+    final response = await service.callServiceExtension(
+      _commandExtension,
+      isolateId: isolateId,
+      args: {'action': action, 'provider': provider},
+    );
+    final json = response.json ?? const {};
+    if (json['status'] == 'ok') return (ok: true, message: null);
+    return (
+      ok: false,
+      message: json['message']?.toString() ?? 'Command failed',
+    );
+  }
+
   Future<void> _send(String action) async {
+    // Re-entrancy guard: a fast second click can arrive before the
+    // disabled state from the first click has rebuilt the buttons, so the
+    // in-flight flag — not just the disabled `onPressed` — is what
+    // prevents a double command.
+    if (_busy) return;
     setState(() => _busy = true);
     try {
-      final service = serviceManager.service;
-      final isolateId = serviceManager.isolateManager.mainIsolate.value?.id;
-      if (service == null || isolateId == null) {
-        _showFeedback('App not connected', isError: true);
-        return;
-      }
-      final response = await service.callServiceExtension(
-        _commandExtension,
-        isolateId: isolateId,
-        args: {'action': action, 'provider': widget.providerName},
+      final result = await (DetailPanel.debugCommandSender ?? _defaultSend)(
+        action,
+        widget.providerName,
       );
-      final json = response.json ?? const {};
-      if (json['status'] == 'ok') {
+      if (result.ok) {
         _showFeedback(action == 'refresh' ? 'Refreshed' : 'Invalidated');
       } else {
-        _showFeedback(
-          json['message']?.toString() ?? 'Command failed',
-          isError: true,
-        );
+        _showFeedback(result.message ?? 'Command failed', isError: true);
       }
     } catch (error) {
       // Typically: the app runs an older riverpod_devtools without the
@@ -1438,54 +1461,114 @@ class _CommandButtonsState extends State<_CommandButtons> {
       _feedback = message;
       _feedbackIsError = isError;
     });
-    _feedbackTimer = Timer(const Duration(seconds: 3), () {
+    _feedbackTimer = Timer(const Duration(seconds: 4), () {
       if (mounted) setState(() => _feedback = null);
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_feedback != null) ...[
-          // A fixed cap instead of Flexible: this row now renders inside a
-          // FittedBox, whose unbounded constraints are incompatible with
-          // flex children.
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 140),
-            child: Text(
-              _feedback!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 9,
-                color: _feedbackIsError
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.primary,
+        Row(
+          children: [
+            StatusBadge(isActive: widget.isActive),
+            const SizedBox(width: 8),
+            // The panel is user-resizable: at narrow widths the buttons
+            // scale down (right-aligned) instead of overflowing.
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _CommandButton(
+                        icon: Icons.restart_alt,
+                        label: 'Invalidate',
+                        tooltip: 'Mark this provider for rebuild '
+                            '(rebuilds on next read/listen)',
+                        onPressed: widget.isActive && !_busy
+                            ? () => _send('invalidate')
+                            : null,
+                      ),
+                      const SizedBox(width: 4),
+                      _CommandButton(
+                        icon: Icons.refresh,
+                        label: 'Refresh',
+                        tooltip:
+                            'Invalidate and rebuild this provider immediately',
+                        onPressed: widget.isActive && !_busy
+                            ? () => _send('refresh')
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_feedback != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: _CommandFeedback(
+              message: _feedback!,
+              isError: _feedbackIsError,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The inline result of a command: an icon plus the message on a full-width
+/// line, ellipsized to two lines with the complete text available on hover.
+class _CommandFeedback extends StatelessWidget {
+  final String message;
+  final bool isError;
+
+  const _CommandFeedback({required this.message, required this.isError});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color =
+        isError ? theme.colorScheme.error : theme.colorScheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.check_circle_outline,
+            size: 13,
+            color: color,
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Tooltip(
+              message: message,
+              waitDuration: const Duration(milliseconds: 400),
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10, height: 1.3, color: color),
               ),
             ),
           ),
-          const SizedBox(width: 6),
         ],
-        _CommandButton(
-          icon: Icons.restart_alt,
-          label: 'Invalidate',
-          tooltip: 'Mark this provider for rebuild '
-              '(rebuilds on next read/listen)',
-          onPressed:
-              widget.enabled && !_busy ? () => _send('invalidate') : null,
-        ),
-        const SizedBox(width: 4),
-        _CommandButton(
-          icon: Icons.refresh,
-          label: 'Refresh',
-          tooltip: 'Invalidate and rebuild this provider immediately',
-          onPressed: widget.enabled && !_busy ? () => _send('refresh') : null,
-        ),
-      ],
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 ## Unreleased
 
 - **Extension UI fixes**:
+    - Invalidate / Refresh in Provider Details: a fast double-click no longer fires a second command while the first is still in flight (an in-flight guard, not just the disabled button state, now blocks it), and the command result — success or a long error — is shown on its own full-width line below the buttons (icon + up to two lines, full text on hover) instead of being clipped to an unreadable sliver. Switching to another provider clears the previous provider's result label.
     - Unified selection across the Inspector, Graph, and Stats views: the graph now derives its focus from the shared selection instead of a separate focus field, so selecting provider(s) in one view carries over to the others (including multi-selections). Ctrl/Cmd+Click multi-selects in the graph just like the provider list; a plain click still selects only that node (and re-clicking it deselects). Selecting a row in the Stats view jumps to the Inspector with just that provider selected, replacing any prior multi-selection.
     - The dependency-graph legend moved to the bottom-right corner so it no longer overlaps the provider nodes, which are laid out from the left edge.
     - Dependency graph: clicking the already-selected node now deselects it (clears selection and focus), matching the provider list where re-clicking the selected provider deselects it. Previously a re-click was a no-op.
