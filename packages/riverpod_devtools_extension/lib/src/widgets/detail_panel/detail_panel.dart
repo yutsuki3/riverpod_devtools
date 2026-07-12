@@ -188,10 +188,21 @@ class DetailPanel extends StatelessWidget {
                     StatusBadge(
                       isActive: provider.status == ProviderStatus.active,
                     ),
-                    const Spacer(),
-                    _CommandButtons(
-                      providerName: provider.name,
-                      enabled: provider.status == ProviderStatus.active,
+                    const SizedBox(width: 8),
+                    // The panel is user-resizable: at narrow widths the
+                    // command buttons scale down instead of overflowing.
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: _CommandButtons(
+                            providerName: provider.name,
+                            enabled:
+                                provider.status == ProviderStatus.active,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1440,7 +1451,11 @@ class _CommandButtonsState extends State<_CommandButtons> {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (_feedback != null) ...[
-          Flexible(
+          // A fixed cap instead of Flexible: this row now renders inside a
+          // FittedBox, whose unbounded constraints are incompatible with
+          // flex children.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
             child: Text(
               _feedback!,
               maxLines: 1,

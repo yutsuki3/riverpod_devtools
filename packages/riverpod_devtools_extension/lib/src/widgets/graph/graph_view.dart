@@ -133,7 +133,11 @@ class _GraphToolbar extends StatelessWidget {
     final focus = state.graphFocusProvider;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      // Fixed height, matching PanelHeader: the "Show all" action (and the
+      // cycle badge) come and go, and without a fixed height their
+      // appearance would resize the toolbar and shift the canvas below.
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
@@ -146,52 +150,66 @@ class _GraphToolbar extends StatelessWidget {
           Icon(Icons.account_tree_outlined,
               size: 14, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 6),
-          Text(
-            'Dependency Graph',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${layout.nodes.length} providers',
-            style: TextStyle(
-              fontSize: 9.5,
-              color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
-          ),
-          if (hasVisibleCycle) ...[
-            const SizedBox(width: 8),
-            Tooltip(
-              message: 'Dependency cycle detected — highlighted in red',
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.error.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
+          // The title group owns exactly the space the action doesn't use,
+          // keeping "Show all" flush right (see PanelHeader for the layout
+          // rationale) while the title still ellipsizes when tight.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    'Dependency Graph',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.sync_problem,
-                        size: 11, color: theme.colorScheme.error),
-                    const SizedBox(width: 3),
-                    Text(
-                      'cycle',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.error,
+                const SizedBox(width: 8),
+                Text(
+                  '${layout.nodes.length} providers',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    color: theme.colorScheme.onSurfaceVariant
+                        .withValues(alpha: 0.7),
+                  ),
+                ),
+                if (hasVisibleCycle) ...[
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Dependency cycle detected — highlighted in red',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.sync_problem,
+                              size: 11, color: theme.colorScheme.error),
+                          const SizedBox(width: 3),
+                          Text(
+                            'cycle',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.error,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                ],
+              ],
             ),
-          ],
-          const Spacer(),
+          ),
           if (focus != null)
             HeaderActionButton(
               label: 'Show all',

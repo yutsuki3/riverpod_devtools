@@ -294,6 +294,38 @@ class InspectorNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears the whole selection in one step (one state change, one
+  /// notification) — used by "tap empty area" and the header's Clear
+  /// button. Removing providers one by one would rebuild the UI once per
+  /// selected provider.
+  void clearSelection() {
+    if (_state.selectedProviderNames.isEmpty &&
+        _state.activeTabProviderName == null) {
+      return;
+    }
+    _setState(_state.copyWith(
+      selectedProviderNames: const {},
+      activeTabProviderName: null,
+    ));
+    notifyListeners();
+  }
+
+  /// Replaces the selection with just [providerName] in one step, or clears
+  /// it when the provider was already the only selection (plain-click
+  /// toggle semantics).
+  void selectOnly(String providerName) {
+    final current = _state.selectedProviderNames;
+    if (current.length == 1 && current.contains(providerName)) {
+      clearSelection();
+      return;
+    }
+    _setState(_state.copyWith(
+      selectedProviderNames: {providerName},
+      activeTabProviderName: providerName,
+    ));
+    notifyListeners();
+  }
+
   void setActiveTab(String providerName) {
     _setState(_state.copyWith(activeTabProviderName: providerName));
     notifyListeners();

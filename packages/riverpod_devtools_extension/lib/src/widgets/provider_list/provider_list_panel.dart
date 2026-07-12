@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/provider_info.dart';
@@ -43,24 +42,18 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   /// Applies the click-selection rules used by both standalone tiles and
   /// family-instance tiles (Ctrl/Cmd toggles multi-select; a plain click
   /// selects just this one, or deselects if it was the only selection).
-  void _handleSelect(
-      InspectorState state, String name, bool isSelected, bool isCtrlOrCmd) {
+  /// Reads the notifier's *current* state so the outcome cannot depend on
+  /// how long ago the surrounding widget was built.
+  void _handleSelect(String name, bool isCtrlOrCmd) {
     if (isCtrlOrCmd) {
-      if (isSelected) {
+      if (widget.notifier.state.selectedProviderNames.contains(name)) {
         widget.notifier.removeSelectedProvider(name);
       } else {
         widget.notifier.selectProvider(name);
       }
       return;
     }
-    if (isSelected && state.selectedProviderNames.length == 1) {
-      widget.notifier.removeSelectedProvider(name);
-      return;
-    }
-    for (final selected in state.selectedProviderNames.toList()) {
-      widget.notifier.removeSelectedProvider(selected);
-    }
-    widget.notifier.selectProvider(name);
+    widget.notifier.selectOnly(name);
   }
 
   /// Groups [providers] into display rows: a family with 2+ instances gets
@@ -122,11 +115,7 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                   HeaderActionButton(
                     label: 'Clear',
                     icon: Icons.close,
-                    onPressed: () {
-                      for (final name in state.selectedProviderNames.toList()) {
-                        widget.notifier.removeSelectedProvider(name);
-                      }
-                    },
+                    onPressed: widget.notifier.clearSelection,
                   ),
               ],
             ),
@@ -221,13 +210,11 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                         )
                       : GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            // Tapping empty area deselects all
-                            for (final name
-                                in state.selectedProviderNames.toList()) {
-                              widget.notifier.removeSelectedProvider(name);
-                            }
-                          },
+                          // Tapping empty area deselects all. Tile taps
+                          // never reach this: each tile has its own tap
+                          // recognizer, which wins the gesture arena as
+                          // the deeper node.
+                          onTap: widget.notifier.clearSelection,
                           child: Builder(
                             builder: (context) {
                               final rows = _buildRows(filteredProviders);
@@ -263,16 +250,8 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                                     isFlashing: state.flashingProviderName ==
                                         provider.name,
                                     isFamilyInstance: row.isFamilyInstance,
-                                    onPointerDown: (event) {
-                                      final isCtrlOrCmd = event.kind ==
-                                              PointerDeviceKind.mouse &&
-                                          (HardwareKeyboard
-                                                  .instance.isMetaPressed ||
-                                              HardwareKeyboard
-                                                  .instance.isControlPressed);
-                                      _handleSelect(state, provider.name,
-                                          isSelected, isCtrlOrCmd);
-                                    },
+                                    onSelect: (isCtrlOrCmd) => _handleSelect(
+                                        provider.name, isCtrlOrCmd),
                                   );
                                 },
                               );
@@ -396,22 +375,39 @@ class _FamilyHeaderTile extends StatelessWidget {
   }
 }
 
-class _ProviderListTile extends StatelessWidget {
+class _ProviderListTile extends StatefulWidget {
   final ProviderInfo provider;
   final ProviderStats? stats;
   final bool isSelected;
   final bool isFlashing;
   final bool isFamilyInstance;
-  final void Function(PointerDownEvent event) onPointerDown;
+
+  /// Called on tap with whether Ctrl/Cmd was held when the press started.
+  final void Function(bool isCtrlOrCmd) onSelect;
 
   const _ProviderListTile({
     required this.provider,
     required this.stats,
     required this.isSelected,
     required this.isFlashing,
-    required this.onPointerDown,
+    required this.onSelect,
     this.isFamilyInstance = false,
   });
+
+  @override
+  State<_ProviderListTile> createState() => _ProviderListTileState();
+}
+
+class _ProviderListTileState extends State<_ProviderListTile> {
+  /// Modifier state captured at pointer-down: by the time onTap fires (on
+  /// pointer-up) the user may already have released Ctrl/Cmd.
+  bool _ctrlOrCmdAtPress = false;
+
+  ProviderInfo get provider => widget.provider;
+  ProviderStats? get stats => widget.stats;
+  bool get isSelected => widget.isSelected;
+  bool get isFlashing => widget.isFlashing;
+  bool get isFamilyInstance => widget.isFamilyInstance;
 
   @override
   Widget build(BuildContext context) {
@@ -423,8 +419,18 @@ class _ProviderListTile extends StatelessWidget {
         ? '(${provider.argument ?? provider.name})'
         : provider.name;
 
-    return Listener(
-      onPointerDown: onPointerDown,
+    // A real tap gesture (not a raw pointer listener): the tile enters the
+    // gesture arena and, as the deeper node, beats the surrounding
+    // "tap empty area to deselect" GestureDetector. With the old
+    // Listener.onPointerDown approach both fired on every click, so
+    // whether a selection survived depended on frame timing.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) {
+        _ctrlOrCmdAtPress = HardwareKeyboard.instance.isMetaPressed ||
+            HardwareKeyboard.instance.isControlPressed;
+      },
+      onTap: () => widget.onSelect(_ctrlOrCmdAtPress),
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: AnimatedContainer(
