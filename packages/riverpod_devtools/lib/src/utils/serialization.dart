@@ -21,6 +21,7 @@ Map<String, Object?> serializeValue(
     return {
       'type': value.runtimeType.toString(),
       'value': '<Max Depth Exceeded>',
+      'lossy': true,
     };
   }
 
@@ -34,6 +35,7 @@ Map<String, Object?> serializeValue(
       return {
         'type': value.runtimeType.toString(),
         'value': '<Cyclic Reference>',
+        'lossy': true,
       };
     }
     visited.add(value);

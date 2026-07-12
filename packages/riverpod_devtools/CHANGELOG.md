@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **MCP: flag lossy/approximate serialized values**: cyclic references and values truncated by the depth limit now carry `lossy: true` in both the raw and compact serialized forms, so an AI reading the value can tell it's a placeholder rather than an accurate reading.
+
 - **MCP: token-efficient responses**:
     - `get_riverpod_logs` and `get_provider_state` now return a **compact** representation by default — slim events/entries with summarized values, dropping the repeated static-dependency metadata, `providerId`, and the verbose nested `{type, string, items/entries}` value trees that the GUI needs but an AI does not. In a realistic case the compact log payload is about a quarter the size of the raw one, so far more history fits in an AI's context per call.
     - New `view` parameter: `get_riverpod_logs` accepts `compact` (default), `summary` (per-provider counts by kind plus each provider's latest value — "what happened" without the full stream), and `full` (the complete raw events, for when you need a value the compact form summarized). `get_provider_state` accepts `compact` (default) and `full`.
