@@ -100,38 +100,49 @@ void main() {
       expect(notifier.state.rightSplitRatio, 0.6);
     });
 
-    group('graph selection', () {
-      test('selectAndFocusInGraph selects and focuses the given provider', () {
-        notifier.selectAndFocusInGraph('a');
+    group('shared selection', () {
+      test('selectOnly replaces any prior selection with a single provider',
+          () {
+        notifier.selectProvider('a');
+        notifier.selectProvider('b');
+        notifier.selectOnly('c');
 
-        expect(notifier.state.selectedProviderNames, {'a'});
-        expect(notifier.state.activeTabProviderName, 'a');
-        expect(notifier.state.graphFocusProvider, 'a');
+        expect(notifier.state.selectedProviderNames, {'c'});
+        expect(notifier.state.activeTabProviderName, 'c');
       });
 
-      test('selectAndFocusInGraph replaces a prior selection', () {
-        notifier.selectProvider('old');
-        notifier.selectAndFocusInGraph('new');
-
-        expect(notifier.state.selectedProviderNames, {'new'});
-        expect(notifier.state.graphFocusProvider, 'new');
-      });
-
-      test('resetGraphSelection clears selection, active tab, and focus', () {
-        notifier.selectAndFocusInGraph('a');
-        notifier.resetGraphSelection();
+      test('selectOnly on the sole selection deselects it', () {
+        notifier.selectOnly('a');
+        notifier.selectOnly('a');
 
         expect(notifier.state.selectedProviderNames, isEmpty);
         expect(notifier.state.activeTabProviderName, isNull);
-        expect(notifier.state.graphFocusProvider, isNull);
       });
 
-      test('resetGraphSelection is a no-op-equivalent from the neutral state',
-          () {
-        notifier.resetGraphSelection();
+      test('clearSelection clears selection and active tab', () {
+        notifier.selectProvider('a');
+        notifier.selectProvider('b');
+        notifier.clearSelection();
 
         expect(notifier.state.selectedProviderNames, isEmpty);
-        expect(notifier.state.graphFocusProvider, isNull);
+        expect(notifier.state.activeTabProviderName, isNull);
+      });
+
+      test('selection survives a view-mode switch (single and multi)', () {
+        // Single selection persists Inspector -> Graph -> Inspector.
+        notifier.selectOnly('a');
+        notifier.setViewMode(InspectorViewMode.graph);
+        expect(notifier.state.selectedProviderNames, {'a'});
+        notifier.setViewMode(InspectorViewMode.inspector);
+        expect(notifier.state.selectedProviderNames, {'a'});
+
+        // Multi-selection persists too.
+        notifier.selectProvider('b');
+        expect(notifier.state.selectedProviderNames, {'a', 'b'});
+        notifier.setViewMode(InspectorViewMode.graph);
+        expect(notifier.state.selectedProviderNames, {'a', 'b'});
+        notifier.setViewMode(InspectorViewMode.stats);
+        expect(notifier.state.selectedProviderNames, {'a', 'b'});
       });
     });
 

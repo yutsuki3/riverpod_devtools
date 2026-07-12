@@ -1,6 +1,8 @@
 ## Unreleased
 
 - **Extension UI fixes**:
+    - Unified selection across the Inspector, Graph, and Stats views: the graph now derives its focus from the shared selection instead of a separate focus field, so selecting provider(s) in one view carries over to the others (including multi-selections). Ctrl/Cmd+Click multi-selects in the graph just like the provider list; a plain click still selects only that node (and re-clicking it deselects). Selecting a row in the Stats view jumps to the Inspector with just that provider selected, replacing any prior multi-selection.
+    - The dependency-graph legend moved to the bottom-right corner so it no longer overlaps the provider nodes, which are laid out from the left edge.
     - Dependency graph: clicking the already-selected node now deselects it (clears selection and focus), matching the provider list where re-clicking the selected provider deselects it. Previously a re-click was a no-op.
     - Provider list clicks are reliable again: tiles now use a real tap gesture instead of a raw pointer listener, so the surrounding "tap empty area to deselect" handler no longer fires on every tile click. Previously a selection only survived if the click was released fast enough — slow clicks were silently undone.
     - Clearing the selection (empty-area tap or the Clear button) is now a single atomic state change instead of one rebuild per selected provider.

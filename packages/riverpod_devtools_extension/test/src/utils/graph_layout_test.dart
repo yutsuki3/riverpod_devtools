@@ -141,6 +141,22 @@ void main() {
     });
   });
 
+  group('reachableFromSelection', () {
+    final edges = [_edge('b', 'a'), _edge('y', 'x')];
+
+    test('is null when the selection is empty', () {
+      expect(reachableFromSelection(const [], edges), isNull);
+    });
+
+    test('equals the single sub-graph for a one-item selection', () {
+      expect(reachableFromSelection(['b'], edges), {'a', 'b'});
+    });
+
+    test('is the union of each selected sub-graph', () {
+      expect(reachableFromSelection(['b', 'y'], edges), {'a', 'b', 'x', 'y'});
+    });
+  });
+
   group('isEdgeVisible', () {
     test('every edge is visible when nothing is focused', () {
       expect(isEdgeVisible(from: 'a', to: 'b', focusedSet: null), isTrue);

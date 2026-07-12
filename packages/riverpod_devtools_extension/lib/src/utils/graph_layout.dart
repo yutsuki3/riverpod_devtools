@@ -249,6 +249,20 @@ Set<String> reachableFromFocus(String focus, List<GraphEdgeInput> edges) {
   return {..._closure(focus, forward), ..._closure(focus, backward)};
 }
 
+/// The union of [reachableFromFocus] over every entry in [selection] — the
+/// set of nodes related to *any* selected provider. Returns null when
+/// [selection] is empty (nothing focused, show the whole graph).
+Set<String>? reachableFromSelection(
+  Iterable<String> selection,
+  List<GraphEdgeInput> edges,
+) {
+  Set<String>? related;
+  for (final focus in selection) {
+    (related ??= <String>{}).addAll(reachableFromFocus(focus, edges));
+  }
+  return related;
+}
+
 Set<String> _closure(String start, Map<String, List<String>> adjacency) {
   final visited = <String>{start};
   final queue = [start];
