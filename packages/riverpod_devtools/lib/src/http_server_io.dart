@@ -97,9 +97,19 @@ class RiverpodDevToolsHttpServer {
   void _updateSnapshot(Map<String, Object?> event) {
     final provider = event['provider'];
     if (provider is! String) return;
+    // Key the snapshot by the stable, session-unique instanceId — NOT the
+    // display name, which can be shared by several providers (unnamed, or a
+    // duplicated `name:`). Keying by name silently dropped all but one of
+    // them. Fall back to the name only for payloads from older observers
+    // that predate instanceId.
+    final key = event['instanceId'] is String
+        ? event['instanceId'] as String
+        : provider;
 
     Map<String, Object?> entry(String status, Object? value) => {
       'provider': provider,
+      if (event['instanceId'] != null) 'instanceId': event['instanceId'],
+      if (event['nameIsUnique'] == false) 'nameIsUnique': false,
       'providerId': event['providerId'],
       'status': status,
       'value': value,
@@ -110,38 +120,50 @@ class RiverpodDevToolsHttpServer {
 
     switch (event['type']) {
       case 'provider_added':
-        _providerSnapshot[provider] = entry('active', event['value']);
+        _providerSnapshot[key] = entry('active', event['value']);
       case 'provider_updated':
-        _providerSnapshot[provider] = entry('active', event['newValue']);
+        _providerSnapshot[key] = entry('active', event['newValue']);
       case 'provider_failed':
         // The element still exists and holds its previous value; record the
         // failure alongside it.
-        _providerSnapshot[provider] = entry(
+        _providerSnapshot[key] = entry(
           'failed',
-          _providerSnapshot[provider]?['value'],
+          _providerSnapshot[key]?['value'],
         )..['error'] = event['error'];
       case 'provider_disposed':
-        _providerSnapshot.remove(provider);
+        _providerSnapshot.remove(key);
     }
   }
 
-  /// Current state of live providers (sorted by name), or just [provider]'s
-  /// entry when given — empty if it does not exist / was disposed.
+  /// Current state of live providers (sorted by name), or just those
+  /// matching [provider] when given — [provider] matches either a display
+  /// name (may return several entries when the name is shared) or an exact
+  /// instanceId. Empty if nothing matches / was disposed.
   List<Map<String, Object?>> providerSnapshot({String? provider}) {
+    Iterable<Map<String, Object?>> entries = _providerSnapshot.values;
     if (provider != null && provider.isNotEmpty) {
-      final entry = _providerSnapshot[provider];
-      return entry == null ? const [] : [entry];
+      entries = entries.where(
+        (e) => e['provider'] == provider || e['instanceId'] == provider,
+      );
     }
-    return _providerSnapshot.values.toList(growable: false)..sort(
+    return entries.toList(growable: false)..sort(
       (a, b) => (a['provider'] as String).compareTo(b['provider'] as String),
     );
   }
 
-  /// Runtime status per live provider, merged into the dependency graph.
-  Map<String, String> get _runtimeStatuses => {
-    for (final entry in _providerSnapshot.entries)
-      entry.key: entry.value['status'] as String,
-  };
+  /// Runtime status per live provider (by display name), merged into the
+  /// dependency graph — which is keyed on definition names. When several
+  /// instances share a name, "active" wins over "failed" so the graph node
+  /// isn't marked failed just because one same-named instance failed.
+  Map<String, String> get _runtimeStatuses {
+    final byName = <String, String>{};
+    for (final entry in _providerSnapshot.values) {
+      final name = entry['provider'] as String;
+      final status = entry['status'] as String;
+      if (byName[name] != 'active') byName[name] = status;
+    }
+    return byName;
+  }
 
   void clearEvents() {
     _buffer.clear();

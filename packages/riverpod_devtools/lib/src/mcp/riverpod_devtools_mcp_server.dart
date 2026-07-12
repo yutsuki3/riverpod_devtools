@@ -94,9 +94,12 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     name: 'get_provider_state',
     description:
         'Get the CURRENT state of Riverpod providers in the running Flutter '
-        'app: one snapshot entry per live provider with its name, status '
-        '(active or failed), latest value, error details when failed, and '
-        'last-update timestamp. '
+        'app: one snapshot entry per live provider with its name, a stable '
+        'instanceId, status (active or failed), latest value, error details '
+        'when failed, and last-update timestamp. '
+        'Each entry carries an instanceId; when "nameIsUnique" is false the '
+        'name is shared by several providers, so use the instanceId to '
+        'target a specific one (e.g. with invalidate_provider). '
         'Prefer this over get_riverpod_logs when you need current values '
         'rather than the event history — no need to replay the log. '
         'Disposed providers are not listed. '
@@ -106,9 +109,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'port': _portProperty,
         'provider': Schema.string(
           description:
-              'Return only the provider with this exact name '
-              '(e.g. "counterProvider"). Empty result if it does not exist '
-              'or has been disposed.',
+              'Return only providers matching this exact name '
+              '(e.g. "counterProvider") or this exact instanceId (e.g. '
+              '"p3"). A shared name may return several entries. Empty result '
+              'if nothing matches or it has been disposed.',
         ),
       },
     ),
@@ -177,15 +181,19 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'Use this to reproduce flows during debugging (e.g. '
         'clear_riverpod_logs → invalidate_provider → trigger the flow → '
         'get_riverpod_logs) or to test how the UI reacts to a state reset. '
-        'The provider must be currently alive (see get_provider_state). '
-        'Debug mode only.',
+        'The provider must have been observed by the app (see '
+        'get_provider_state). If several providers share the same name the '
+        'call is rejected with the list of candidate instanceIds — pass the '
+        'exact one. Debug mode only.',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
         'provider': Schema.string(
           description:
-              'Exact name of the provider to invalidate '
-              '(e.g. "counterProvider").',
+              'The provider to invalidate: either its exact name '
+              '(e.g. "counterProvider") when unique, or its instanceId '
+              '(e.g. "p3") — required when a name is shared by more than one '
+              'provider. get_provider_state lists both.',
         ),
         'refresh': Schema.bool(
           description:
