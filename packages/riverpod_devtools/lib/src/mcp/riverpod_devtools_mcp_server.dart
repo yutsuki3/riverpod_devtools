@@ -15,8 +15,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
           version: '0.1.0',
         ),
         instructions:
-            'Exposes Riverpod provider event logs from a running Flutter app in debug mode. '
-            'The Flutter app must have riverpod_devtools configured with RiverpodDevToolsObserver.',
+            'Inspect Riverpod state in a running Flutter app (debug mode, '
+            'with RiverpodDevToolsObserver). Read tools (logs/state/graph/'
+            'stats) return a COMPACT view by default; pass view="full" for '
+            'the raw data. With one app running, "port" is auto-selected.',
       ) {
     registerTool(_listRiverpodAppsTool, _listRiverpodApps);
     registerTool(_getRiverpodLogsTool, _getRiverpodLogs);
@@ -30,116 +32,77 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   /// Shared optional `port` parameter: pins a tool call to one specific app
   /// when several are running (see `list_riverpod_apps`).
   static final _portProperty = Schema.int(
-    description:
-        'Port of the app to target (from list_riverpod_apps). Omit when only '
-        'one app is running — it is selected automatically.',
+    description: 'App port (from list_riverpod_apps). Omit if only one app.',
   );
 
-  /// Response verbosity. Compact (the default) is much smaller — prefer it,
-  /// and only reach for `full` when you specifically need a value that the
-  /// compact form summarized.
   static final _logsViewProperty = Schema.string(
     description:
-        'Response detail: "compact" (default) — slim events (seq, kind, '
-        'provider, ts, prev/value summaries, trigger names); "summary" — '
-        'per-provider counts by kind plus each provider\'s latest value, '
-        'no per-event stream; "full" — the complete raw events including the '
-        'full nested value trees, stack traces, and static-dependency '
-        'metadata. Start compact/summary; escalate to full only when needed.',
+        'compact (default): slim events. summary: per-provider counts + '
+        'latest value, no stream. full: raw events (full value trees, stack '
+        'traces, dep metadata).',
     enumValues: ['compact', 'summary', 'full'],
   );
 
   static final _stateViewProperty = Schema.string(
     description:
-        'Response detail: "compact" (default) — provider, status, a compact '
-        'value, and last-update time; "full" — the complete raw snapshot '
-        'including providerId and the static dependency list.',
+        'compact (default): provider, status, value, lastUpdated. full: raw '
+        '(adds providerId, dependency list).',
     enumValues: ['compact', 'full'],
   );
 
   static final _graphViewProperty = Schema.string(
     description:
-        'Response detail: "compact" (default) — nodes (name + non-trivial '
-        'status) and edges (from → to + kind), i.e. the topology; "full" — '
-        'also includes each edge\'s source location (file/line/column) and '
-        'per-node metadata.',
+        'compact (default): topology only. full: adds edge source locations '
+        'and per-node metadata.',
     enumValues: ['compact', 'full'],
   );
 
   static final _statsViewProperty = Schema.string(
     description:
-        'Response detail: "compact" (default) — per-provider health signals '
-        '(update volume + rate, churn, load min/avg/max, warning flags), '
-        'ordered most-interesting-first, without the 24-bucket sparkline; '
-        '"full" — the complete raw stats including updateBuckets.',
+        'compact (default): health signals, most-interesting-first, no '
+        'sparkline. full: raw (adds updateBuckets).',
     enumValues: ['compact', 'full'],
   );
 
   final _listRiverpodAppsTool = Tool(
     name: 'list_riverpod_apps',
     description:
-        'List the running Flutter apps that expose Riverpod events (each '
-        'debug app with RiverpodDevToolsObserver binds a port in the range). '
-        'Returns each app\'s port, provider count, and event count. Use this '
-        'when more than one app is running: pass the chosen "port" to the '
-        'other tools. With a single app, the other tools auto-select it and '
-        'you do not need this.',
+        'List running debug apps exposing Riverpod (port, provider count, '
+        'event count). Only needed when several apps run — pass the chosen '
+        '"port" to the other tools. A single app is auto-selected.',
     inputSchema: Schema.object(properties: {}),
   );
 
   final _getRiverpodLogsTool = Tool(
     name: 'get_riverpod_logs',
     description:
-        'Get Riverpod provider state-change events from the running Flutter app. '
-        'This is NOT a general app log or console output — it captures only Riverpod '
-        'provider lifecycle events: provider_added (initial value), provider_updated '
-        '(previous/new value diff), provider_failed (error type, message, and stack '
-        'trace when a provider throws or an async provider emits an error), and '
-        'provider_disposed. '
-        'Use this when investigating Riverpod state bugs, unexpected re-builds, '
-        'or provider lifecycle issues. '
-        'Each event carries a monotonic "seq" number for unambiguous ordering. '
-        'provider_updated events may carry "triggeredBy" — the dependency '
-        'update(s) that likely caused this recomputation, inferred from the '
-        'static dependency graph plus temporal proximity — which lets you '
-        'trace update cascades ("why did this provider rebuild?"). '
-        'Responses are COMPACT by default (small events with summarized '
-        'values); pass view="summary" for a per-provider overview, or '
-        'view="full" only when you need a complete value. '
-        'The buffer holds up to 1000 events; also pass "limit"/"provider"/'
-        '"type" to narrow it. '
-        'Requires the app to be running in debug mode (flutter run).',
+        'Riverpod provider lifecycle events (added / updated / failed / '
+        'disposed) — state changes only, not console output. For debugging '
+        'state bugs, unexpected rebuilds, or provider errors. Each event has '
+        'a monotonic "seq"; updated events may carry "triggeredBy" (the '
+        'inferred dependency change that caused the rebuild). Buffer holds '
+        'up to 1000 events — narrow with the filters below.',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
         'view': _logsViewProperty,
         'limit': Schema.int(
-          description:
-              'Return only the most recent N events (after applying the '
-              'provider filter). Omit to return the full buffer.',
+          description: 'Most recent N events (after other filters).',
           minimum: 1,
         ),
         'provider': Schema.string(
-          description:
-              'Return only events for the provider with this exact name '
-              '(e.g. "counterProvider").',
+          description: 'Only this provider name (e.g. "counterProvider").',
         ),
         'type': Schema.string(
           description:
-              'Return only events of this type: provider_added, '
-              'provider_updated, provider_failed, or provider_disposed. '
-              'Use "provider_failed" to fetch only errors.',
+              'Only this kind: provider_added / provider_updated / '
+              'provider_failed / provider_disposed (failed = errors only).',
         ),
         'since': Schema.int(
-          description:
-              'Return only events at or after this time (epoch '
-              'milliseconds). Narrows the response to a recent window '
-              'without clearing the buffer. Event timestamps are epoch ms.',
+          description: 'Only events at/after this epoch-ms time.',
         ),
         'until': Schema.int(
-          description:
-              'Return only events at or before this time (epoch '
-              'milliseconds).',
+          description: 'Only events at/before this epoch-ms time.',
         ),
       },
     ),
@@ -148,29 +111,20 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   final _getProviderStateTool = Tool(
     name: 'get_provider_state',
     description:
-        'Get the CURRENT state of Riverpod providers in the running Flutter '
-        'app: one snapshot entry per live provider with its name, a stable '
-        'instanceId, status (active or failed), latest value, error details '
-        'when failed, and last-update timestamp. '
-        'Each entry carries an instanceId; when "nameIsUnique" is false the '
-        'name is shared by several providers, so use the instanceId to '
-        'target a specific one (e.g. with invalidate_provider). '
-        'Prefer this over get_riverpod_logs when you need current values '
-        'rather than the event history — no need to replay the log. '
-        'Responses are COMPACT by default; pass view="full" for the complete '
-        'snapshot. '
-        'Disposed providers are not listed. '
-        'Requires the app to be running in debug mode (flutter run).',
+        'Current state of live providers: name, instanceId, status '
+        '(active/failed), latest value, error, last-update time. Prefer this '
+        'over get_riverpod_logs when you want current values, not history. '
+        'When "nameIsUnique" is false, target a specific one by its '
+        'instanceId. Disposed providers are omitted.',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
         'view': _stateViewProperty,
         'provider': Schema.string(
           description:
-              'Return only providers matching this exact name '
-              '(e.g. "counterProvider") or this exact instanceId (e.g. '
-              '"p3"). A shared name may return several entries. Empty result '
-              'if nothing matches or it has been disposed.',
+              'Only providers matching this name or exact instanceId '
+              '(e.g. "counterProvider" or "p3"). A shared name may match '
+              'several.',
         ),
       },
     ),
@@ -179,26 +133,20 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   final _getDependencyGraphTool = Tool(
     name: 'get_dependency_graph',
     description:
-        'Get the Riverpod provider dependency graph of the running Flutter '
-        'app: nodes are providers (with runtime status: active, failed, or '
-        'unknown when not yet seen by the observer) and directed edges go '
-        'from dependent to dependency with the dependency kind (watch, read, '
-        'listen) and its source location. '
-        'Edges come from static analysis, so the app must have loaded the '
-        'riverpod_dependencies.json generated by '
-        '"dart run riverpod_devtools:analyze". '
-        'Use this to answer "what does X depend on", "what rebuilds when X '
-        'changes", or to explain update cascades from get_riverpod_logs. '
-        'Compact by default (topology only); pass view="full" for edge '
-        'source locations.',
+        'Provider dependency graph: nodes (with runtime status) and directed '
+        'edges dependent → dependency, each with its kind (watch/read/'
+        'listen). Answers "what does X depend on" / "what rebuilds when X '
+        'changes". Edges come from static analysis, so the app must have '
+        'loaded riverpod_dependencies.json (dart run riverpod_devtools:'
+        'analyze).',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
         'view': _graphViewProperty,
         'provider': Schema.string(
           description:
-              'Focus provider name: restricts the graph to this provider '
-              'plus its transitive dependencies and dependents.',
+              'Focus: restrict to this provider plus its transitive '
+              'dependencies and dependents.',
         ),
       },
     ),
@@ -207,28 +155,17 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   final _getProviderStatsTool = Tool(
     name: 'get_provider_stats',
     description:
-        'Get aggregated activity/health stats per provider, computed from '
-        'the event log: update count (total and in the last 10s, plus a '
-        'rate), async load duration (min/avg/max of observed loading→data '
-        'or loading→error transitions), and dispose→re-create churn count. '
-        'Each entry also carries "isHighFrequency" (recent rate above '
-        '10 updates/sec) and "isSlowLoading" (a load took over 2s) flags, '
-        'plus "updateBuckets" — update counts bucketed over the last 30s '
-        '(oldest→newest) to spot bursts. '
-        'Use this to answer "which provider is rebuilding excessively?" or '
-        '"is anything loading unusually slowly?" without pulling and '
-        'analyzing the full event log yourself. '
-        'Compact by default (most-interesting-first, no sparkline buckets); '
-        'pass view="full" for the raw stats. '
-        'Requires the app to be running in debug mode (flutter run).',
+        'Aggregated per-provider health from the event log: update count + '
+        'rate, async load duration (min/avg/max), dispose→recreate churn, '
+        'and high-frequency / slow-loading warning flags. Answers "which '
+        'provider rebuilds too much?" or "is anything loading slowly?" '
+        'without scanning the log yourself.',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
         'view': _statsViewProperty,
         'provider': Schema.string(
-          description:
-              'Return only the stats for the provider with this exact name '
-              '(e.g. "counterProvider").',
+          description: 'Only this provider name (e.g. "counterProvider").',
         ),
       },
     ),
@@ -237,32 +174,23 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   final _invalidateProviderTool = Tool(
     name: 'invalidate_provider',
     description:
-        'MUTATES APP STATE: invalidate a Riverpod provider in the running '
-        'Flutter app, forcing it to recompute — its state resets to what '
-        'build() produces. '
-        'By default the rebuild happens when the provider is next read or '
-        'has active listeners; pass refresh=true to re-read it immediately. '
-        'Use this to reproduce flows during debugging (e.g. '
-        'clear_riverpod_logs → invalidate_provider → trigger the flow → '
-        'get_riverpod_logs) or to test how the UI reacts to a state reset. '
-        'The provider must have been observed by the app (see '
-        'get_provider_state). If several providers share the same name the '
-        'call is rejected with the list of candidate instanceIds — pass the '
-        'exact one. Debug mode only.',
+        'MUTATES APP STATE: invalidate a provider so it recomputes (state '
+        'resets to what build() produces). By default it rebuilds on next '
+        'read/listen; refresh=true rebuilds immediately. Useful to reproduce '
+        'flows (clear_riverpod_logs → invalidate → trigger → get logs). The '
+        'provider must have been observed; if a name is shared the call is '
+        'rejected with the candidate instanceIds.',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
         'provider': Schema.string(
           description:
-              'The provider to invalidate: either its exact name '
-              '(e.g. "counterProvider") when unique, or its instanceId '
-              '(e.g. "p3") — required when a name is shared by more than one '
-              'provider. get_provider_state lists both.',
+              'Provider name (when unique) or exact instanceId (e.g. "p3", '
+              'required when the name is shared). Both are in '
+              'get_provider_state.',
         ),
         'refresh': Schema.bool(
-          description:
-              'Also re-read the provider immediately so it rebuilds even '
-              'without active listeners. Defaults to false.',
+          description: 'Rebuild immediately, not on next read. Default false.',
         ),
       },
       required: ['provider'],
@@ -272,9 +200,8 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   final _clearRiverpodLogsTool = Tool(
     name: 'clear_riverpod_logs',
     description:
-        'Clear the Riverpod provider state-change event buffer. '
-        'Use this before reproducing a specific bug or flow so that only '
-        'the relevant events appear in the next get_riverpod_logs call.',
+        'Clear the event buffer so only events after this appear next. Does '
+        'not affect get_provider_state (current state is unchanged).',
     inputSchema: Schema.object(properties: {'port': _portProperty}),
   );
 
