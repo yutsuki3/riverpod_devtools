@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Extension UI fixes**:
+    - Provider list clicks are reliable again: tiles now use a real tap gesture instead of a raw pointer listener, so the surrounding "tap empty area to deselect" handler no longer fires on every tile click. Previously a selection only survived if the click was released fast enough — slow clicks were silently undone.
+    - Clearing the selection (empty-area tap or the Clear button) is now a single atomic state change instead of one rebuild per selected provider.
+    - The dependency graph toolbar has a fixed height, so the "Show all" button appearing/disappearing no longer resizes the toolbar and shifts the canvas.
+    - Panel-header action buttons ("Clear", "Show all") now sit flush against the panel's right edge — a `Flexible` title competing with a `Spacer` used to leave a dead gap after the actions at wide layouts.
+    - The Provider Details status row (badge + Invalidate/Refresh) scales down gracefully at narrow panel widths instead of overflowing.
 - **Infrastructure & UX** ([#57](https://github.com/yutsuki3/riverpod_devtools/issues/57)):
     - **MCP port auto-discovery**: the in-app HTTP server now binds the first free port in `8788`–`8797` instead of failing when `8788` is taken, so two debug apps can run at once. The MCP server discovers running apps by probing the range; a new `list_riverpod_apps` tool reports each app's port / provider count / event count, and every tool accepts an optional `port` to target a specific app (auto-selected when only one is running).
 - **Performance diagnostics: update frequency, async load duration, churn** ([#56](https://github.com/yutsuki3/riverpod_devtools/issues/56)):

@@ -69,24 +69,33 @@ class PanelHeader extends StatelessWidget {
             color: theme.colorScheme.primary,
           ),
           const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
-                letterSpacing: 0.2,
-                color: theme.colorScheme.onSurface,
-              ),
+          // The title group owns exactly the space the actions don't use, so
+          // the actions sit flush right. (A Flexible title next to a Spacer
+          // would split the free space with it and leave a dead gap after
+          // the actions.)
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      letterSpacing: 0.2,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (count != null) ...[
+                  const SizedBox(width: 6),
+                  CountBadge(count: count!),
+                ],
+              ],
             ),
           ),
-          if (count != null) ...[
-            const SizedBox(width: 6),
-            CountBadge(count: count!),
-          ],
-          const Spacer(),
           ...actions,
         ],
       ),
