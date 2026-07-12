@@ -1,0 +1,38 @@
+name: Riverpod compatibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # Keep running the other version even if one fails, so we see both results.
+      fail-fast: false
+      matrix:
+        riverpod:
+          - "^2.6.0"   # 2.x line
+          - "^3.0.0"   # 3.x line
+    defaults:
+      run:
+        working-directory: packages/riverpod_devtools
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Pin flutter_riverpod to ${{ matrix.riverpod }}
+        run: dart run tool/set_riverpod_version.dart "${{ matrix.riverpod }}"
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Print resolved version (for the logs)
+        run: flutter pub deps --no-dev | grep -i riverpod || true
+
+      - name: Run tests
+        run: flutter test
