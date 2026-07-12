@@ -146,6 +146,36 @@ void main() {
           nextEntries.firstWhere((e) => e['key'] == 'prev')['value'];
 
       expect(prevEntry['value'], '<Cyclic Reference>');
+      expect(prevEntry['lossy'], true);
+    });
+
+    test('marks a max-depth-exceeded value as lossy', () {
+      dynamic deepList = [];
+      for (var i = 0; i < 15; i++) {
+        deepList = [deepList];
+      }
+
+      final result = serializeValue(deepList);
+
+      dynamic current = result;
+      var foundLossy = false;
+      while (current is Map) {
+        if (current['value'] == '<Max Depth Exceeded>') {
+          foundLossy = current['lossy'] == true;
+          break;
+        }
+        if (current['items'] != null && (current['items'] as List).isNotEmpty) {
+          current = (current['items'] as List)[0];
+        } else {
+          break;
+        }
+      }
+      expect(foundLossy, isTrue);
+    });
+
+    test('a normal value is not marked lossy', () {
+      expect(serializeValue(5).containsKey('lossy'), isFalse);
+      expect(serializeValue('hi').containsKey('lossy'), isFalse);
     });
 
     test('a shared object beyond the depth limit is not later mislabeled '

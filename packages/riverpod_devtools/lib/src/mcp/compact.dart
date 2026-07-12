@@ -24,9 +24,14 @@ Object? compactValue(Object? value) {
   if (value is! Map) return value;
 
   final asyncState = value['asyncState'];
+  final lossy = value['lossy'] == true;
   final core = _compactCore(value);
-  if (asyncState is String) {
-    return {'asyncState': asyncState, 'value': core};
+  if (asyncState is String || lossy) {
+    return {
+      if (asyncState is String) 'asyncState': asyncState,
+      if (lossy) 'lossy': true,
+      'value': core,
+    };
   }
   return core;
 }

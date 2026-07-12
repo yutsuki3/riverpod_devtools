@@ -50,6 +50,16 @@ void main() {
       expect(compactValue(42), 42);
       expect(compactValue('raw'), 'raw');
     });
+
+    test('preserves the lossy flag as a wrapper', () {
+      final compact = compactValue({
+        'type': 'Foo',
+        'value': '<Cyclic Reference>',
+        'lossy': true,
+      }) as Map;
+      expect(compact['lossy'], true);
+      expect(compact['value'], '<Cyclic Reference>');
+    });
   });
 
   group('compactEvent', () {
