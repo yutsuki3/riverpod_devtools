@@ -186,6 +186,18 @@ class InspectorNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The graph view's node-click behavior: selects and focuses
+  /// [providerName], or clears the selection/focus when it is already the
+  /// focused node — mirroring the provider list, where re-clicking the
+  /// selected provider deselects it.
+  void toggleFocusInGraph(String providerName) {
+    if (_state.graphFocusProvider == providerName) {
+      resetGraphSelection();
+    } else {
+      selectAndFocusInGraph(providerName);
+    }
+  }
+
   /// Clears the selection and exits graph focus — the graph view's "reset"
   /// action, used both by clicking empty canvas and the "Show all" button
   /// so the two escape hatches behave identically.

@@ -9,8 +9,9 @@ import '../detail_panel/detail_panel.dart';
 /// Interactive dependency-graph view: layered DAG (dependencies on the
 /// left, dependents to the right), pan/zoom, and cycle highlighting.
 /// Clicking a node selects it (details shown in the panel on the right)
-/// and focuses the graph on its sub-graph in one gesture; "Show all"
-/// returns to the full graph.
+/// and focuses the graph on its sub-graph in one gesture; clicking the
+/// focused node again (or "Show all", or empty canvas) returns to the
+/// full graph.
 class GraphView extends StatelessWidget {
   final InspectorNotifier notifier;
 
@@ -326,7 +327,7 @@ class _GraphCanvas extends StatelessWidget {
                               focusedSet: focusedSet,
                             ),
                             onTap: () =>
-                                notifier.selectAndFocusInGraph(node.name),
+                                notifier.toggleFocusInGraph(node.name),
                           ),
                         ),
                     ],
@@ -436,7 +437,7 @@ class _GraphLegend extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Click a node: select & focus its sub-graph\n'
-            'Click empty space: deselect\n'
+            'Click it again / empty space: deselect\n'
             'Drag: pan\n'
             'Scroll / pinch: zoom',
             style:
@@ -523,7 +524,7 @@ class _GraphNode extends StatelessWidget {
     return Opacity(
       opacity: isDimmed ? 0.25 : 1,
       child: Tooltip(
-        message: '$name\nClick: select & focus its sub-graph',
+        message: '$name\nClick: select & focus (click again to deselect)',
         waitDuration: const Duration(milliseconds: 600),
         child: GestureDetector(
           onTap: onTap,

@@ -1,6 +1,7 @@
 ## Unreleased
 
 - **Extension UI fixes**:
+    - Dependency graph: clicking the already-selected node now deselects it (clears selection and focus), matching the provider list where re-clicking the selected provider deselects it. Previously a re-click was a no-op.
     - Provider list clicks are reliable again: tiles now use a real tap gesture instead of a raw pointer listener, so the surrounding "tap empty area to deselect" handler no longer fires on every tile click. Previously a selection only survived if the click was released fast enough — slow clicks were silently undone.
     - Clearing the selection (empty-area tap or the Clear button) is now a single atomic state change instead of one rebuild per selected provider.
     - The dependency graph toolbar has a fixed height, so the "Show all" button appearing/disappearing no longer resizes the toolbar and shifts the canvas.

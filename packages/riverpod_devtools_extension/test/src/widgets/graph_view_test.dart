@@ -103,4 +103,68 @@ void main() {
     expect(notifier.state.selectedProviderNames, isEmpty);
     expect(find.text('Show all'), findsNothing);
   });
+
+  testWidgets(
+      'clicking a node selects it, clicking the same node again deselects '
+      '(consistency with the provider list)', (tester) async {
+    await pumpGraph(tester);
+
+    // Node positions are fixed regardless of focus, so the same on-screen
+    // point addresses the node before and after selection (the detail
+    // panel also renders the name once selected, so tap by coordinate).
+    final nodeCenter = tester.getCenter(find.text('aProvider'));
+
+    await tester.tapAt(nodeCenter);
+    await tester.pump();
+    expect(notifier.state.selectedProviderNames, {'aProvider'});
+    expect(notifier.state.graphFocusProvider, 'aProvider');
+
+    await tester.tapAt(nodeCenter);
+    await tester.pump();
+    expect(notifier.state.selectedProviderNames, isEmpty);
+    expect(notifier.state.graphFocusProvider, isNull);
+  });
+
+  testWidgets(
+      'clicking a different node switches selection instead of deselecting',
+      (tester) async {
+    await pumpGraph(tester);
+
+    // Capture the node's on-screen point before selecting anything — once
+    // aProvider is focused its detail panel also lists bProvider (a
+    // dependency), so the text is no longer unique. Node positions are
+    // fixed, so the coordinate stays valid.
+    final bNodeCenter = tester.getCenter(find.text('bProvider'));
+
+    notifier.selectAndFocusInGraph('aProvider');
+    await tester.pump();
+
+    await tester.tapAt(bNodeCenter);
+    await tester.pump();
+
+    expect(notifier.state.selectedProviderNames, {'bProvider'});
+    expect(notifier.state.graphFocusProvider, 'bProvider');
+  });
+
+  group('toggleFocusInGraph', () {
+    test('selects when nothing is focused', () {
+      notifier.toggleFocusInGraph('aProvider');
+      expect(notifier.state.graphFocusProvider, 'aProvider');
+      expect(notifier.state.selectedProviderNames, {'aProvider'});
+    });
+
+    test('deselects when the same node is already focused', () {
+      notifier.toggleFocusInGraph('aProvider');
+      notifier.toggleFocusInGraph('aProvider');
+      expect(notifier.state.graphFocusProvider, isNull);
+      expect(notifier.state.selectedProviderNames, isEmpty);
+    });
+
+    test('switches focus when a different node is clicked', () {
+      notifier.toggleFocusInGraph('aProvider');
+      notifier.toggleFocusInGraph('bProvider');
+      expect(notifier.state.graphFocusProvider, 'bProvider');
+      expect(notifier.state.selectedProviderNames, {'bProvider'});
+    });
+  });
 }
