@@ -2,7 +2,7 @@ name: riverpod_devtools_extension
 description: DevTools extension UI for riverpod_devtools
 publish_to: 'none'
 
-version: 0.6.1
+version: 1.0.0
 
 environment:
   sdk: ^3.5.0
@@ -28,6 +28,16 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Bundle a monospace font so JSON value trees / state render reliably even
+  # when the DevTools session can't reach the font CDN (offline or restricted
+  # networks). CanvasKit otherwise leaves `fontFamily: 'monospace'` text blank.
+  fonts:
+    - family: monospace
+      fonts:
+        - asset: fonts/RobotoMono-Regular.ttf
+        - asset: fonts/RobotoMono-Bold.ttf
+          weight: 700
 
 
 

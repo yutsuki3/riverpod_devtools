@@ -1,6 +1,6 @@
 # MCP Integration
 
-`riverpod_devtools` ships an optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI tools like Claude Code read live Riverpod provider event logs from your running Flutter app.
+`riverpod_devtools` ships an optional [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that lets AI tools like Claude Code read live Riverpod provider state from your running Flutter app — event logs, current values, the dependency graph, and health stats — and drive it (invalidate/refresh a provider, or set its value).
 
 With this set up, you can ask Claude Code things like:
 
@@ -8,9 +8,9 @@ With this set up, you can ask Claude Code things like:
 
 ## How it works
 
-1. `RiverpodDevToolsObserver` (already required for the DevTools extension — see [README](README.md#getting-started)) starts a local HTTP server on `localhost:8788` whenever your Flutter app runs in debug mode.
+1. `RiverpodDevToolsObserver` (already required for the DevTools extension — see [README](README.md#getting-started)) starts a local HTTP server on `localhost` (the first free port in `8788`–`8797`) whenever your Flutter app runs in debug mode.
 2. The bundled `riverpod_devtools_mcp` executable runs as a separate process (started by your AI tool over stdio) and relays requests to that HTTP server.
-3. It exposes two tools: `get_riverpod_logs` and `clear_riverpod_logs`.
+3. It exposes a set of tools for **reading** state (logs, current state, dependency graph, stats) and **acting** on it (invalidate/refresh a provider, set a value) — see [Tools](#tools) below.
 
 ## Setup
 

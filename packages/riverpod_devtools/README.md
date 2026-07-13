@@ -5,22 +5,35 @@
 
 A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time. **Now meets [MCP](https://modelcontextprotocol.io/)**, so AI coding tools can read that same live provider state too.
 
-<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_044.png" width="100%" alt="Riverpod DevTools Demo" />
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_044.png" width="100%" alt="Interactive Riverpod dependency graph in Flutter DevTools" />
 
 ## Features
 
-- **AI Tool Integration (MCP)**: Let AI coding tools like Claude Code read live provider event logs via an optional bundled MCP server.
+- **AI Tool Integration (MCP)**: Let AI coding tools like Claude Code read live provider state, event logs, the dependency graph, and health stats — and drive state (invalidate/refresh a provider, or set its value) — via an optional bundled MCP server. See [MCP.md](MCP.md).
+- **Provider Graph**: Interactive dependency graph — `watch`/`read`/`listen` edges, dependency-cycle highlighting, and click-to-focus with pan/zoom — built from precise static analysis.
+- **State Inspector**: View the current state of your providers with type labels and optimized display, and invalidate/refresh them from the panel.
+- **Performance Stats**: Per-provider update rate (with sparkline), async load duration, and dispose→re-create churn, with warning badges for hot or slow providers.
+- **Event Log**: Track provider lifecycle events with hierarchical grouping, sub-events, and value diffs.
 - **Static Dependency Analysis**: Accurate provider dependency detection using CLI-based code analysis.
-- **Provider Graph**: Visualize the relationships between your providers with precise dependency data.
-- **State Inspector**: View the current state of your providers with type labels and optimized display.
-- **Event Log**: Track provider lifecycle events with hierarchical grouping and sub-events.
-- **Light Mode Support**: Seamlessly switch between light and dark themes.
+- **Light & Dark themes**: Seamlessly switch between light and dark modes.
+
+## Screenshots
+
+**State Inspector** — the provider list (with family grouping), provider details with one-click Invalidate / Refresh, and the live event log:
+
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_inspector.png" width="100%" alt="Riverpod DevTools State Inspector" />
+
+**Performance Stats** — per-provider update rate, async load time, and dispose→re-create churn, with hot/slow providers flagged:
+
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_stats.png" width="100%" alt="Riverpod DevTools Performance Stats" />
 
 ## 🤖 riverpod_devtools meets MCP
 
-Your AI coding tool normally only sees your source code — not what's actually happening while your app runs. This package bundles an optional [MCP](https://modelcontextprotocol.io/) server so tools like Claude Code can read **live** Riverpod provider event logs straight from your running app, and act on them:
+Your AI coding tool normally only sees your source code — not what's actually happening while your app runs. This package bundles an optional [MCP](https://modelcontextprotocol.io/) server so tools like Claude Code can read **live** Riverpod state straight from your running app, and act on it:
 
 > "Look at the current provider logs and fix any behavior that differs from the spec."
+
+The AI can inspect provider event logs, current state, the dependency graph, and per-provider health stats, and can drive state — invalidate/refresh a provider, or set it to a specific value to reproduce an edge case. Responses are compact by default to stay token-efficient.
 
 See [MCP.md](MCP.md) for setup — it takes one `.mcp.json` entry.
 
@@ -38,7 +51,7 @@ See [MCP.md](MCP.md) for setup — it takes one `.mcp.json` entry.
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^0.5.0
+      riverpod_devtools: ^1.0.0
       flutter_riverpod: '>=2.3.0 <4.0.0'
     ```
 

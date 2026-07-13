@@ -8,7 +8,8 @@ This example showcases:
 - Provider lifecycle tracking (init/dispose)
 - Complex state management with lists
 - Async state handling
-- **Static dependency analysis** with dependency graph visualization
+- **Static dependency analysis** with interactive dependency graph visualization
+- **Performance stats** (update rate, async load duration, churn)
 - Stress testing with large event logs
 
 ## Supported Platforms

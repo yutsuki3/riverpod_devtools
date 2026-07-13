@@ -32,10 +32,11 @@ flutter run -d chrome
 
 The extension UI provides:
 
-- **Provider List**: Real-time list of all active providers with search and filtering
-- **State Inspector**: JSON tree view of provider values with syntax highlighting
-- **Event Log**: Timeline of provider lifecycle events (add, update, dispose)
-- **Dependencies View**: Visualize provider dependencies via static analysis
+- **Provider List**: Real-time list of all active providers with search and family grouping
+- **State Inspector**: Provider values with type labels, plus one-click Invalidate / Refresh
+- **Dependency Graph**: Interactive graph — `watch`/`read`/`listen` edges, cycle highlighting, click-to-focus, pan/zoom
+- **Performance Stats**: Per-provider update rate, async load duration, and dispose→re-create churn, flagging hot/slow providers
+- **Event Log**: Timeline of provider lifecycle events (add, update, dispose) with value diffs
 - **Theme Support**: Automatic light/dark mode based on DevTools theme
 
 ## Architecture

@@ -14,8 +14,8 @@ import 'utils/stack_trace_utils.dart';
 ///
 /// This observer monitors the lifecycle of all providers (add, update, dispose)
 /// and posts events to the developer log, which the Riverpod DevTools extension listens to.
-/// In debug mode on native platforms, it also starts a local HTTP server on port 8788
-/// so that MCP tools can read the event log.
+/// In debug mode on native platforms, it also starts a local HTTP server
+/// (the first free port in 8788–8797) so that MCP tools can read the event log.
 ///
 /// **Important**: This observer requires static dependency analysis via the CLI tool.
 /// Run `dart run riverpod_devtools:analyze` to generate dependency metadata.
