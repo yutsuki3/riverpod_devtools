@@ -24,7 +24,7 @@ flutter pub add riverpod_devtools
 
 ## 🤖 Optional: AI Tool Integration via MCP
 
-`riverpod_devtools` bundles an optional MCP server that lets AI tools like Claude Code read live Riverpod provider event logs from your running Flutter app — so you can ask things like "look at the current provider logs and fix any behavior that differs from the spec."
+`riverpod_devtools` bundles an optional MCP server that lets AI tools like Claude Code read live Riverpod provider state — event logs, current values, the dependency graph, and health stats — from your running Flutter app, and drive it (invalidate/refresh a provider, or set its value). So you can ask things like "look at the current provider logs and fix any behavior that differs from the spec."
 
 See [packages/riverpod_devtools/MCP.md](./packages/riverpod_devtools/MCP.md) for setup instructions.
 
@@ -145,6 +145,7 @@ Please use the [GitHub issue tracker](https://github.com/yutsuki3/riverpod_devto
 
 | riverpod_devtools | flutter_riverpod | Flutter  |
 |-------------------|------------------|----------|
+| 1.0.x             | >=2.3.0 <4.0.0   | >=3.32.0 |
 | 0.6.x             | >=2.3.0 <4.0.0   | >=3.32.0 |
 | 0.5.x             | >=2.3.0 <4.0.0   | >=3.0.0  |
 | 0.4.x             | >=2.3.0 <4.0.0   | >=3.0.0  |
