@@ -33,7 +33,8 @@ class RiverpodDevToolsHttpServer {
 
   /// Executes state commands (invalidate/refresh) arriving via
   /// `POST /commands` from the MCP server. Wired up by the observer.
-  Map<String, Object?> Function(String action, String provider)? commandHandler;
+  Map<String, Object?> Function(String action, String provider, Object? value)?
+      commandHandler;
 
   Future<void> start() async {
     // Avoid binding a real socket during `flutter test` runs — consumers
@@ -302,9 +303,9 @@ class RiverpodDevToolsHttpServer {
     }
   }
 
-  /// `POST /commands` with `{"action": "invalidate"|"refresh",
-  /// "provider": name}`. Always answers 200 with a JSON body carrying
-  /// `status: ok | error` — the MCP server relays the body as-is.
+  /// `POST /commands` with `{"action": "invalidate"|"refresh"|"set",
+  /// "provider": name, "value"?: }`. Always answers 200 with a JSON body
+  /// carrying `status: ok | error` — the MCP server relays the body as-is.
   Future<void> _handleCommand(HttpRequest request) async {
     final handler = commandHandler;
     if (handler == null) {
@@ -327,15 +328,27 @@ class RiverpodDevToolsHttpServer {
       await _writeJson(request, {
         'status': 'error',
         'message':
-            'Expected JSON body '
-            '{"action": "invalidate"|"refresh", "provider": "<name>"}.',
+            'Expected JSON body {"action": "invalidate"|"refresh"|"set", '
+            '"provider": "<name>", "value"?: }.',
+      });
+      return;
+    }
+
+    final action = payload['action'] as String;
+    // The "set" action carries the new value; require the key so an omitted
+    // value is a clear error rather than a silent set-to-null.
+    if (action == 'set' && !payload.containsKey('value')) {
+      await _writeJson(request, {
+        'status': 'error',
+        'message': 'The "set" action requires a "value" field '
+            '(a primitive: number, boolean, string, or null).',
       });
       return;
     }
 
     await _writeJson(
       request,
-      handler(payload['action'] as String, payload['provider'] as String),
+      handler(action, payload['provider'] as String, payload['value']),
     );
   }
 

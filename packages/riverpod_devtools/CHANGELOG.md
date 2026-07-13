@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Added the `set_provider_value` MCP tool: set a provider's state to a specific primitive value (int/double/bool/String/null) for providers with a writable notifier (`StateProvider`, `NotifierProvider`). Unsupported providers are rejected with `supported: false`.
+
 - **MCP: flag lossy/approximate serialized values**: cyclic references and values truncated by the depth limit now carry `lossy: true` in both the raw and compact serialized forms, so an AI reading the value can tell it's a placeholder rather than an accurate reading.
 
 - **MCP: token-efficient responses**:

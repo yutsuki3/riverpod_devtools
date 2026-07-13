@@ -17,6 +17,11 @@ final counterProvider = NotifierProvider<CounterNotifier, int>(
   name: 'counterProvider',
 );
 
+class DoubleNotifier extends Notifier<double> {
+  @override
+  double build() => 0;
+}
+
 void main() {
   setUp(() => RiverpodDevToolsRegistry.instance.clear());
   tearDown(() => RiverpodDevToolsRegistry.instance.clear());
@@ -165,5 +170,101 @@ void main() {
       observer.executeCommand('invalidate', 'autoProvider')['status'],
       'ok',
     );
+  });
+
+  testWidgets('set updates a NotifierProvider with primitive state',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final counter = NotifierProvider(
+      CounterNotifier.new,
+      name: 'notifierCounter',
+    );
+    container.listen(counter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final result = observer.executeCommand('set', 'notifierCounter', 7);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(result['status'], 'ok');
+    expect(container.read(counter), 7);
+  });
+
+  testWidgets('set widens an int value onto a double-typed provider',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final doubleCounter = NotifierProvider(
+      DoubleNotifier.new,
+      name: 'doubleCounter',
+    );
+    container.listen(doubleCounter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final result = observer.executeCommand('set', 'doubleCounter', 5);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(result['status'], 'ok');
+    expect(result['value'], 5.0);
+    expect(container.read(doubleCounter), 5.0);
+  });
+
+  testWidgets('set rejects a provider without a writable notifier',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final plain = Provider((ref) => 1, name: 'plain');
+    container.listen(plain, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final result = observer.executeCommand('set', 'plain', 5);
+    expect(result['status'], 'error');
+    expect(result['supported'], false);
+    expect(container.read(plain), 1); // unchanged
+  });
+
+  testWidgets('set rejects a non-primitive value', (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final counter = NotifierProvider(CounterNotifier.new, name: 'counter');
+    container.listen(counter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final result = observer.executeCommand('set', 'counter', [1, 2, 3]);
+    expect(result['status'], 'error');
+    expect(result['supported'], false);
+    expect(container.read(counter), 0); // unchanged
+  });
+
+  testWidgets('set rejects a value whose type does not match the state',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final counter = NotifierProvider(CounterNotifier.new, name: 'counter');
+    container.listen(counter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final result = observer.executeCommand('set', 'counter', 'not-an-int');
+    expect(result['status'], 'error');
+    expect(container.read(counter), 0); // unchanged
+  });
+
+  testWidgets('set on an unknown provider returns an error', (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final result = observer.executeCommand('set', 'nopeProvider', 1);
+    expect(result['status'], 'error');
   });
 }
