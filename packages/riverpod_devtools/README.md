@@ -5,7 +5,7 @@
 
 A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://riverpod.dev) - inspect and monitor your providers in real-time. **Now meets [MCP](https://modelcontextprotocol.io/)**, so AI coding tools can read that same live provider state too.
 
-<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_044.png" width="100%" alt="Interactive Riverpod dependency graph in Flutter DevTools" />
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_inspector.png" width="100%" alt="Riverpod DevTools — provider inspector with live state and event log" />
 
 ## Features
 
@@ -19,9 +19,9 @@ A [DevTools](https://flutter.dev/devtools) extension for [Riverpod](https://rive
 
 ## Screenshots
 
-**State Inspector** — the provider list (with family grouping), provider details with one-click Invalidate / Refresh, and the live event log:
+**Dependency Graph** — an interactive graph of `watch`/`read`/`listen` edges with runtime status colors, cycle highlighting, and click-to-focus:
 
-<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_inspector.png" width="100%" alt="Riverpod DevTools State Inspector" />
+<img src="https://raw.githubusercontent.com/yutsuki3/riverpod_devtools/main/packages/riverpod_devtools/example/screenshot_graph.png" width="100%" alt="Riverpod DevTools dependency graph" />
 
 **Performance Stats** — per-provider update rate, async load time, and dispose→re-create churn, with hot/slow providers flagged:
 

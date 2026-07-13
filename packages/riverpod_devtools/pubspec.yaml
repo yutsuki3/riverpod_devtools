@@ -13,10 +13,10 @@ topics:
   - mcp
 
 screenshots:
-  - description: 'Interactive provider dependency graph with watch/read/listen edges, runtime status colors, and a legend'
-    path: example/screenshot_044.png
-  - description: 'State Inspector: provider list with family grouping, provider details with Invalidate/Refresh, and the event log'
+  - description: 'State Inspector: provider list with family grouping, provider details with Invalidate/Refresh, and the live event log'
     path: example/screenshot_inspector.png
+  - description: 'Interactive provider dependency graph with watch/read/listen edges, runtime status colors, and a legend'
+    path: example/screenshot_graph.png
   - description: 'Performance Stats: per-provider update rate, async load time, and churn, flagging hot or slow providers'
     path: example/screenshot_stats.png
 
