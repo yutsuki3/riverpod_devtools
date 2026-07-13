@@ -26,6 +26,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     registerTool(_getDependencyGraphTool, _getDependencyGraph);
     registerTool(_getProviderStatsTool, _getProviderStats);
     registerTool(_invalidateProviderTool, _invalidateProvider);
+    registerTool(_setProviderValueTool, _setProviderValue);
     registerTool(_clearRiverpodLogsTool, _clearRiverpodLogs);
   }
 
@@ -197,6 +198,42 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     ),
   );
 
+  final _setProviderValueTool = Tool(
+    name: 'set_provider_value',
+    description:
+        'MUTATES APP STATE: set a provider to a specific primitive value '
+        '(number, boolean, string, or null) — unlike invalidate, which only '
+        'resets it to what build() produces. Only providers with a writable '
+        'notifier and primitive state are supported (StateProvider, '
+        'NotifierProvider); plain/Future/Stream providers, or providers whose '
+        'state is an object or AsyncValue, are rejected with supported=false. '
+        'If a name is shared, pass the exact instanceId. Use it to force an '
+        'edge-case state and watch how the UI reacts.',
+    inputSchema: Schema.object(
+      properties: {
+        'port': _portProperty,
+        'provider': Schema.string(
+          description:
+              'Provider name (when unique) or exact instanceId (e.g. "p3", '
+              'required when the name is shared). Both are in '
+              'get_provider_state.',
+        ),
+        'value': Schema.combined(
+          description:
+              'The new state: a primitive (number, boolean, string, or '
+              "null). Its type must match the provider's current state type.",
+          anyOf: [
+            Schema.num(),
+            Schema.bool(),
+            Schema.string(),
+            Schema.nil(),
+          ],
+        ),
+      },
+      required: ['provider', 'value'],
+    ),
+  );
+
   final _clearRiverpodLogsTool = Tool(
     name: 'clear_riverpod_logs',
     description:
@@ -348,6 +385,36 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
       body: jsonEncode({
         'action': refresh ? 'refresh' : 'invalidate',
         'provider': provider,
+      }),
+      (body) => CallToolResult(content: [TextContent(text: body)]),
+    );
+  }
+
+  FutureOr<CallToolResult> _setProviderValue(CallToolRequest request) async {
+    final arguments = request.arguments ?? const {};
+    final provider = arguments['provider'];
+    if (provider is! String || provider.isEmpty) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required "provider" argument.')],
+        isError: true,
+      );
+    }
+    if (!arguments.containsKey('value')) {
+      return CallToolResult(
+        content: [TextContent(text: 'Missing required "value" argument.')],
+        isError: true,
+      );
+    }
+    final (port, err) = await _resolvePort(request);
+    if (err != null) return err;
+    return _request(
+      port!,
+      'POST',
+      '/commands',
+      body: jsonEncode({
+        'action': 'set',
+        'provider': provider,
+        'value': arguments['value'],
       }),
       (body) => CallToolResult(content: [TextContent(text: body)]),
     );

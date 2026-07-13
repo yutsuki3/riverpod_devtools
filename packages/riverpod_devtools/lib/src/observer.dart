@@ -213,23 +213,28 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   /// Executes a state command coming from DevTools (service extension) or
   /// MCP (`POST /commands`). Supported actions: `invalidate` (mark the
-  /// provider for rebuild) and `refresh` (invalidate, then re-read
-  /// immediately so it rebuilds even without listeners). [target] is either
+  /// provider for rebuild), `refresh` (invalidate, then re-read
+  /// immediately so it rebuilds even without listeners), and `set` (write
+  /// [value] into a writable notifier's state). [target] is either
   /// a provider display name or an exact instanceId. Returns a
   /// JSON-encodable result map with `status: ok | error`.
   @visibleForTesting
-  Map<String, Object?> executeCommand(String action, String target) {
-    if (action != 'invalidate' && action != 'refresh') {
+  Map<String, Object?> executeCommand(String action, String target,
+      [Object? value]) {
+    if (action != 'invalidate' && action != 'refresh' && action != 'set') {
       return {
         'status': 'error',
         'message':
-            'Unknown action "$action". Supported: invalidate, refresh.',
+            'Unknown action "$action". Supported: invalidate, refresh, set.',
       };
     }
     final errorOut = <Map<String, Object?>>[];
     final resolved = _resolveTarget(target, errorOut);
     if (resolved == null) return errorOut.first;
     final entry = resolved.entry;
+    if (action == 'set') {
+      return _executeSet(entry, resolved.id, value);
+    }
     try {
       final dynamic container = entry.container;
       final dynamic provider = entry.provider;
@@ -252,6 +257,99 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       };
     }
   }
+
+  /// Sets a provider's state to [value] (an already-decoded JSON scalar).
+  /// v1 supports only providers with a writable notifier whose current state
+  /// is a primitive; everything else is rejected with `supported: false`
+  /// rather than guessed at. Reuses [_resolveTarget]'s result via [entry].
+  Map<String, Object?> _executeSet(
+    ({Object container, Object provider, String name}) entry,
+    String instanceId,
+    Object? value,
+  ) {
+    // Only primitives survive the JSON round-trip and can be assigned safely.
+    if (!_isPrimitiveValue(value)) {
+      return {
+        'status': 'error',
+        'supported': false,
+        'message': 'set only supports primitive values (int, double, bool, '
+            'String, null). Got ${value.runtimeType}.',
+      };
+    }
+
+    final dynamic container = entry.container;
+    final dynamic provider = entry.provider;
+
+    dynamic notifier;
+    try {
+      // StateProvider / NotifierProvider expose a writable notifier here;
+      // plain Provider / FutureProvider / StreamProvider have no `.notifier`
+      // and throw, landing us in the catch below.
+      // ignore: avoid_dynamic_calls
+      notifier = container.read(provider.notifier);
+    } catch (_) {
+      return {
+        'status': 'error',
+        'supported': false,
+        'message': 'Provider "${entry.name}" does not support set — only '
+            'providers with a writable notifier (StateProvider, '
+            'NotifierProvider) can be set. Use invalidate/refresh instead.',
+      };
+    }
+
+    Object? current;
+    try {
+      // ignore: avoid_dynamic_calls
+      current = notifier.state as Object?;
+    } catch (_) {
+      return {
+        'status': 'error',
+        'supported': false,
+        'message': 'Provider "${entry.name}" has no readable state to set.',
+      };
+    }
+
+    // A non-primitive *current* state excludes AsyncNotifier (state is an
+    // AsyncValue) and any provider holding a custom object — neither can be
+    // rebuilt from a JSON scalar.
+    if (!_isPrimitiveValue(current)) {
+      return {
+        'status': 'error',
+        'supported': false,
+        'message': 'Provider "${entry.name}" holds a ${current.runtimeType} — '
+            'v1 can only set providers whose state is a primitive (int, '
+            'double, bool, String, null).',
+      };
+    }
+
+    // JSON encodes e.g. `5` as an int even for a double-typed provider; widen
+    // so the strongly-typed setter accepts it. Every other type mismatch is
+    // left to the setter's own runtime check in the try below.
+    var toSet = value;
+    if (current is double && value is int) toSet = value.toDouble();
+
+    try {
+      // ignore: avoid_dynamic_calls
+      notifier.state = toSet;
+    } catch (error) {
+      return {
+        'status': 'error',
+        'message': 'Failed to set "${entry.name}" to $toSet: $error. The '
+            "provider's state type likely differs from the value's type.",
+      };
+    }
+
+    return {
+      'status': 'ok',
+      'action': 'set',
+      'provider': entry.name,
+      'instanceId': instanceId,
+      'value': toSet,
+    };
+  }
+
+  static bool _isPrimitiveValue(Object? v) =>
+      v == null || v is num || v is bool || v is String;
 
   final RiverpodDevToolsHttpServer _httpServer;
 
