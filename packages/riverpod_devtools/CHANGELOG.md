@@ -1,4 +1,6 @@
-## Unreleased
+## 1.0.0
+
+First stable release. This milestone makes the bundled MCP server a first-class, token-efficient interface for AI coding tools — reading live provider state and driving it — and rounds out the DevTools extension with an interactive dependency graph and a per-provider performance/health dashboard. The public API (`RiverpodDevToolsObserver`, the analyzer CLI, the MCP server) is now considered stable and follows semantic versioning.
 
 - Added the `set_provider_value` MCP tool: set a provider's state to a specific primitive value (int/double/bool/String/null) for providers with a writable notifier (`StateProvider`, `NotifierProvider`). Unsupported providers are rejected with `supported: false`.
 
