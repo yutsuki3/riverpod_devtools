@@ -164,6 +164,36 @@
 3. Check console for errors
 4. Ensure app is in debug mode (not release)
 
+## MCP Issues
+
+### AI tool reports "No running Flutter app ... was found on ports 8788–8797"
+
+The MCP server probes `localhost:8788`–`8797` and found nothing. Check, in order:
+
+1. The Flutter app is running in **debug mode** (`flutter run`). The HTTP endpoint never starts in profile/release builds, and not on web.
+2. `RiverpodDevToolsObserver()` is registered in `ProviderScope(observers: [...])`.
+3. You're on a **real device or Android emulator** — those have their own network namespace, so forward the port first: `adb forward tcp:8788 tcp:8788` (Android) or `iproxy` (iOS device). Desktop apps and the iOS Simulator need no forwarding.
+
+### The MCP server times out on its very first launch
+
+`dart run riverpod_devtools:riverpod_devtools_mcp` compiles the server the first time it runs (~10–20 s), which can exceed an MCP client's startup timeout. Retry / restart the AI tool — subsequent launches reuse the compiled snapshot and start in well under a second. The snapshot is rebuilt after `flutter pub get` or dependency changes.
+
+### `get_dependency_graph` returns empty `edges`
+
+If the response contains an `edgesNote`, follow it: it means static dependency data isn't loaded (run `dart run riverpod_devtools:analyze`, load `lib/riverpod_dependencies.json` in `main()`, add it to the pubspec assets, hot-restart) or the loaded data matches no running provider by name (re-run the analyzer). Without an `edgesNote`, the running providers genuinely have no static dependencies.
+
+### `invalidate_provider` / `set_provider_value` is rejected with `ambiguous: true`
+
+Several live providers share that display name. The error lists candidate `instanceId`s — call the tool again passing one of them as `provider`. You can see each provider's `instanceId` (and a `nameIsUnique` flag) in `get_provider_state`.
+
+### `set_provider_value` returns `supported: false`
+
+By design, v1 only writes **primitive** values (int/double/bool/String/null) into providers with a writable notifier (`StateProvider`, `NotifierProvider`). Plain / `FutureProvider` / `StreamProvider` providers, and providers whose state is an object or `AsyncValue`, cannot be set — use `invalidate_provider` instead.
+
+### Two apps are running and tools hit the wrong one
+
+Call `list_riverpod_apps` and pass the chosen `port` to every other tool. Each debug app binds the first free port in `8788`–`8797`.
+
 ## JSON File Issues
 
 ### JSON file not found at runtime

@@ -23,3 +23,7 @@ build/
 
 # Generated dependency metadata files
 **/riverpod_dependencies.json
+# ...but commit the examples' generated files so a fresh clone builds and
+# the dependency-graph demo works out of the box.
+!example/lib/riverpod_dependencies.json
+!packages/riverpod_devtools/example/lib/riverpod_dependencies.json

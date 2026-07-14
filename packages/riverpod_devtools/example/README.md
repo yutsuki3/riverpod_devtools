@@ -84,6 +84,8 @@ dart run riverpod_devtools:analyze --watch
 This will generate:
 - `lib/riverpod_dependencies.json` - Single JSON file with all dependency metadata
 
+A pre-generated `lib/riverpod_dependencies.json` is committed so the example builds and shows the dependency graph out of the box — re-run the analyzer (or use `--watch`) after you change any provider.
+
 ### 3. Run the App
 
 ```bash

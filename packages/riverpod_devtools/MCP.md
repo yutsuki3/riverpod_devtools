@@ -78,3 +78,7 @@ Every tool below (except `list_riverpod_apps`) accepts an optional `port` parame
   - Real devices (iOS/Android) — the device has its own network namespace; you'd need manual port forwarding (e.g. `iproxy` for iOS, `adb forward tcp:8788 tcp:8788` for Android)
   - Android Emulator — same reason, needs `adb forward tcp:8788 tcp:8788`
 - The first `dart run riverpod_devtools:riverpod_devtools_mcp` launch compiles the server (~10–20s); later launches are fast. If your AI tool times out once right after setup, retry.
+
+## Troubleshooting
+
+See the [MCP Issues section of TROUBLESHOOTING.md](TROUBLESHOOTING.md#mcp-issues).
