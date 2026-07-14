@@ -31,8 +31,37 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # Infos are non-fatal: a transitive dependency (dart_mcp) deprecates an
+      # API we still use; warnings and errors remain fatal.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
       - name: Print resolved version (for the logs)
         run: flutter pub deps --no-dev | grep -i riverpod || true
 
       - name: Run tests
         run: flutter test
+
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/riverpod_devtools_extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      # The extension only ever runs on web (inside DevTools), and its widget /
+      # notifier tests pull web-only DevTools APIs, so they run on the Chrome
+      # platform. ubuntu-latest ships Chrome preinstalled.
+      - name: Run tests
+        run: flutter test --platform chrome

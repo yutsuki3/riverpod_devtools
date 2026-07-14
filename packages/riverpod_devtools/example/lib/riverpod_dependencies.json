@@ -1,0 +1,125 @@
+{
+  "providers": [
+    {
+      "name": "counterProvider",
+      "providerType": "NotifierProvider",
+      "dependencies": [],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/main.dart",
+        "line": 14,
+        "column": 7
+      }
+    },
+    {
+      "name": "nameProvider",
+      "providerType": "NotifierProvider",
+      "dependencies": [],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/main.dart",
+        "line": 23,
+        "column": 7
+      }
+    },
+    {
+      "name": "doubleCounterProvider",
+      "providerType": "Provider",
+      "dependencies": [
+        {
+          "providerName": "counterProvider",
+          "type": "watch",
+          "location": {
+            "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+            "line": 6,
+            "column": 17
+          }
+        }
+      ],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+        "line": 5,
+        "column": 7
+      }
+    },
+    {
+      "name": "displayTextProvider",
+      "providerType": "Provider",
+      "dependencies": [
+        {
+          "providerName": "counterProvider",
+          "type": "watch",
+          "location": {
+            "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+            "line": 12,
+            "column": 17
+          }
+        },
+        {
+          "providerName": "nameProvider",
+          "type": "watch",
+          "location": {
+            "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+            "line": 13,
+            "column": 16
+          }
+        }
+      ],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+        "line": 11,
+        "column": 7
+      }
+    },
+    {
+      "name": "manualCounterProvider",
+      "providerType": "Provider",
+      "dependencies": [
+        {
+          "providerName": "counterProvider",
+          "type": "read",
+          "location": {
+            "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+            "line": 19,
+            "column": 17
+          }
+        }
+      ],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+        "line": 18,
+        "column": 7
+      }
+    },
+    {
+      "name": "asyncDataProvider",
+      "providerType": "FutureProvider",
+      "dependencies": [
+        {
+          "providerName": "nameProvider",
+          "type": "watch",
+          "location": {
+            "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+            "line": 25,
+            "column": 16
+          }
+        }
+      ],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+        "line": 24,
+        "column": 7
+      }
+    },
+    {
+      "name": "userProvider",
+      "providerType": "Provider",
+      "dependencies": [],
+      "location": {
+        "file": "/home/user/riverpod_devtools/packages/riverpod_devtools/example/lib/providers.dart",
+        "line": 31,
+        "column": 7
+      }
+    }
+  ],
+  "generatedAt": "2026-07-14T14:42:20.398588",
+  "version": "1.0.0"
+}
