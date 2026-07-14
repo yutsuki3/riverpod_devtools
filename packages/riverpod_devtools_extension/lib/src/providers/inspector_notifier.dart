@@ -102,6 +102,17 @@ class InspectorNotifier extends ChangeNotifier {
   /// event anywhere triggers a recompute, rather than ticking down live).
   List<ProviderStats>? _providerStatsCache;
 
+  /// When [_providerStatsCache] was last actually invalidated, used to
+  /// throttle recomputation — see the event-burst handling in [_setState].
+  DateTime? _lastStatsInvalidatedAt;
+  Timer? _statsThrottleTimer;
+
+  /// Minimum spacing between [_providerStatsCache] invalidations. Without
+  /// this, a burst of events (a high-frequency provider ticking many times
+  /// a second) recomputes stats — a full scan + per-provider sort of up to
+  /// 1000 events — on every single one of them.
+  static const Duration _statsThrottle = Duration(milliseconds: 250);
+
   void _setState(InspectorState newState) {
     final old = _state;
     _state = newState;
@@ -117,8 +128,33 @@ class InspectorNotifier extends ChangeNotifier {
     }
     if (!identical(old.events, newState.events)) {
       _eventDepthsCache = null;
-      _providerStatsCache = null;
+      _throttleStatsInvalidation();
     }
+  }
+
+  /// Invalidates [_providerStatsCache] immediately if it's been at least
+  /// [_statsThrottle] since the last invalidation; otherwise defers the
+  /// invalidation to a trailing timer so a burst collapses into at most one
+  /// recompute per throttle window, plus one final recompute once the burst
+  /// settles (so the last few events of a burst are never permanently
+  /// stale).
+  void _throttleStatsInvalidation() {
+    final now = DateTime.now();
+    final last = _lastStatsInvalidatedAt;
+    if (last == null || now.difference(last) >= _statsThrottle) {
+      _providerStatsCache = null;
+      _lastStatsInvalidatedAt = now;
+      _statsThrottleTimer?.cancel();
+      _statsThrottleTimer = null;
+      return;
+    }
+    _statsThrottleTimer?.cancel();
+    _statsThrottleTimer = Timer(_statsThrottle - now.difference(last), () {
+      _providerStatsCache = null;
+      _lastStatsInvalidatedAt = DateTime.now();
+      _statsThrottleTimer = null;
+      notifyListeners();
+    });
   }
 
   static const int _maxEventCount = 1000;
@@ -147,6 +183,7 @@ class InspectorNotifier extends ChangeNotifier {
   void dispose() {
     _extensionSubscription?.cancel();
     _flashTimer?.cancel();
+    _statsThrottleTimer?.cancel();
     super.dispose();
   }
 
@@ -736,18 +773,28 @@ class InspectorNotifier extends ChangeNotifier {
       }
 
       if (newEvent != null) {
-        final newEvents = List<ProviderEvent>.from(_state.events)
-          ..insert(0, newEvent);
+        // Single-pass ring buffer: build the new (newest-first) list at its
+        // final size directly instead of copying the old list (List.from)
+        // and then shifting every element again via insert(0, …) — the
+        // previous approach did two O(n) passes per event.
+        final oldEvents = _state.events;
+        final trimming = oldEvents.length >= _maxEventCount;
+        final newLength =
+            trimming ? _maxEventCount : oldEvents.length + 1;
+        final newEvents =
+            List<ProviderEvent>.filled(newLength, newEvent, growable: false);
+        final keepFromOld = newLength - 1;
+        for (var i = 0; i < keepFromOld; i++) {
+          newEvents[i + 1] = oldEvents[i];
+        }
+
         _eventsByProvider.putIfAbsent(newEvent.providerName, () => []);
         _eventsByProvider[newEvent.providerName]!.insert(0, newEvent);
 
-        // Ring buffer: exactly one event was inserted, so at most one needs
-        // evicting. Evict in place on the copy we just made instead of
-        // copying the whole list a second time.
         Set<String>? newExpanded;
         List<String>? newCompared;
-        if (newEvents.length > _maxEventCount) {
-          final removed = newEvents.removeLast();
+        if (trimming && oldEvents.isNotEmpty) {
+          final removed = oldEvents[oldEvents.length - 1];
 
           final providerEvents = _eventsByProvider[removed.providerName];
           if (providerEvents != null) {
