@@ -125,5 +125,26 @@ void main() {
           (graph['nodes'] as List).map((n) => (n as Map)['name']).toList();
       expect(names, ['a', 'b']);
     });
+
+    test('adds an edgesNote when no static data is loaded', () {
+      final graph = buildDependencyGraph(runtimeStatus: {'a': 'active'});
+      expect(graph['edges'], isEmpty);
+      expect(graph['edgesNote'], contains('riverpod_devtools:analyze'));
+    });
+
+    test('adds a name-mismatch edgesNote when data matches no live provider',
+        () {
+      registry.register(
+          const StaticProviderMetadata(name: 'other', dependencies: []));
+      final graph = buildDependencyGraph(runtimeStatus: {'a': 'active'});
+      expect(graph['edgesNote'], contains('match'));
+    });
+
+    test('no edgesNote when a running provider has static metadata', () {
+      registry.register(
+          const StaticProviderMetadata(name: 'a', dependencies: []));
+      final graph = buildDependencyGraph(runtimeStatus: {'a': 'active'});
+      expect(graph.containsKey('edgesNote'), isFalse);
+    });
   });
 }

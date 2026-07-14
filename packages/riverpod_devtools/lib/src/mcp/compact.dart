@@ -304,6 +304,9 @@ Map<String, Object?> compactGraph(Map<Object?, Object?> graph) {
               if (e['type'] != null) 'type': e['type'],
             },
     ],
+    // Keep the setup hint (why `edges` is empty) — it's the whole point of
+    // surfacing it, and it must survive the compact view.
+    if (graph['edgesNote'] != null) 'edgesNote': graph['edgesNote'],
   };
 }
 

@@ -38,10 +38,13 @@ sed_inplace() {
   fi
 }
 
-echo "==> Syncing version to $new_version in 3 files"
+echo "==> Syncing version to $new_version in 4 files"
 sed_inplace "s/^version: .*/version: $new_version/" "$pkg_dir/pubspec.yaml"
 sed_inplace "s/^version: .*/version: $new_version/" "$config_file"
 sed_inplace "s/^version: .*/version: $new_version/" "$ext_dir/pubspec.yaml"
+# The MCP server reports this constant in its initialize handshake.
+sed_inplace "s/^const String riverpodDevToolsVersion = .*/const String riverpodDevToolsVersion = '$new_version';/" \
+  "$pkg_dir/lib/src/mcp_constants.dart"
 
 echo "==> Building riverpod_devtools_extension (Flutter web, release mode)"
 (cd "$ext_dir" && flutter build web --release)

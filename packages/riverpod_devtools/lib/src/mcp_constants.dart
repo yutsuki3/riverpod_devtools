@@ -17,3 +17,7 @@ Iterable<int> get riverpodDevToolsMcpPorts => Iterable.generate(
   riverpodDevToolsMcpPortCount,
   (i) => riverpodDevToolsMcpPort + i,
 );
+
+/// The published package version, reported in the MCP initialize handshake.
+/// Kept in sync by tool/release.sh — do not edit by hand during a release.
+const String riverpodDevToolsVersion = '1.0.0';
