@@ -29,8 +29,11 @@ import 'utils/stack_trace_utils.dart';
 ///   try {
 ///     final jsonString = await rootBundle.loadString('lib/riverpod_dependencies.json');
 ///     RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
-///   } catch (_) {
-///     // DevTools will show setup instructions if JSON is not available
+///   } catch (e) {
+///     // The asset is missing or unreadable. Log the reason instead of
+///     // swallowing it silently — DevTools/MCP will otherwise just show an
+///     // empty dependency graph with no hint as to why.
+///     debugPrint('riverpod_devtools: could not load dependency data: $e');
 ///   }
 ///
 ///   runApp(
@@ -64,7 +67,6 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   static void _registerCommandExtension() {
     if (_commandExtensionRegistered) return;
-    _commandExtensionRegistered = true;
     try {
       developer.registerExtension(commandExtensionName,
           (method, parameters) async {
@@ -75,6 +77,10 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
             {'status': 'error', 'message': 'No active observer.'};
         return developer.ServiceExtensionResponse.result(jsonEncode(result));
       });
+      // Only mark as registered once registration actually succeeds, so a
+      // failure can be retried by the next observer instead of being latched
+      // off for the rest of the isolate's life.
+      _commandExtensionRegistered = true;
     } catch (error) {
       developer.log(
         'riverpod_devtools: failed to register $commandExtensionName; '

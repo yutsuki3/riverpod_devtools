@@ -5,6 +5,14 @@ Map<String, Object?> serializeValue(
   Set<Object>? visited,
 }) {
   const maxDepth = 10;
+  // Breadth/size caps. Depth alone doesn't bound the work per event: a single
+  // huge List/Map/Set, or an object with a very long toString(), is otherwise
+  // fully serialized on *every* provider add/update (for both previous and new
+  // value). These caps keep per-event cost and payload size bounded; anything
+  // trimmed is flagged with `lossy: true` (plus `totalItems` for collections)
+  // so both the UI and the AI know truncation happened.
+  const maxItems = 100;
+  const maxStringChars = 4000;
 
   if (value == null) {
     return {
@@ -71,28 +79,38 @@ Map<String, Object?> serializeValue(
       // toJson() doesn't exist or failed
     }
 
-    final stringValue = value.toString();
+    final rawString = value.toString();
+    // Cap the stored string form. A long toString() is both a large payload
+    // and (below) expensive to re-parse character-by-character.
+    final stringTooLong = rawString.length > maxStringChars;
+    final stringValue =
+        stringTooLong ? '${rawString.substring(0, maxStringChars)}…' : rawString;
 
     // Try to extract useful information based on type
     final Map<String, Object?> result = {
       'type': value.runtimeType.toString(),
       'string': stringValue,
     };
+    if (stringTooLong) result['lossy'] = true;
 
-    // For collections
+    // For collections. Only the first `maxItems` elements are recursed; the
+    // rest are summarized with `truncated`/`totalItems` so the payload (and the
+    // work to build it) stays bounded regardless of collection size.
     if (value is List) {
-      result['items'] = value.map(recurse).toList();
+      _addItems(result, value, value.length, maxItems, recurse);
       return result;
     } else if (value is Map) {
-      result['entries'] = value.entries.map((entry) {
+      final total = value.length;
+      result['entries'] = value.entries.take(maxItems).map((entry) {
         return {
           'key': entry.key.toString(),
           'value': recurse(entry.value),
         };
       }).toList();
+      _markTruncated(result, total, maxItems);
       return result;
     } else if (value is Set) {
-      result['items'] = value.map(recurse).toList();
+      _addItems(result, value, value.length, maxItems, recurse);
       return result;
     }
 
@@ -100,22 +118,26 @@ Map<String, Object?> serializeValue(
     // below, because e.g. 'AsyncData<int>(value: 5)' also matches the
     // "ClassName(prop: val)" pattern and would return early without it.
     String? asyncState;
-    if (stringValue.startsWith('AsyncData')) {
+    if (rawString.startsWith('AsyncData')) {
       asyncState = 'data';
-    } else if (stringValue.startsWith('AsyncLoading')) {
+    } else if (rawString.startsWith('AsyncLoading')) {
       asyncState = 'loading';
-    } else if (stringValue.startsWith('AsyncError')) {
+    } else if (rawString.startsWith('AsyncError')) {
       asyncState = 'error';
     }
 
-    // Try to parse the toString() representation for custom classes
-    final parsed = _parseToString(stringValue);
-    if (parsed != null) {
-      return {
-        'type': value.runtimeType.toString(),
-        'value': parsed,
-        if (asyncState != null) 'asyncState': asyncState,
-      };
+    // Try to parse the toString() representation for custom classes. Skip the
+    // (character-by-character) parse when the string was truncated: parsing a
+    // cut-off "ClassName(...)" would produce misleading structure.
+    if (!stringTooLong) {
+      final parsed = _parseToString(rawString);
+      if (parsed != null) {
+        return {
+          'type': value.runtimeType.toString(),
+          'value': parsed,
+          if (asyncState != null) 'asyncState': asyncState,
+        };
+      }
     }
 
     if (asyncState != null) {
@@ -127,6 +149,28 @@ Map<String, Object?> serializeValue(
     if (value is! num && value is! bool && value is! String) {
       visited.remove(value);
     }
+  }
+}
+
+/// Serializes the first [maxItems] elements of [iterable] into `result['items']`
+/// and flags truncation when the collection is larger.
+void _addItems(
+  Map<String, Object?> result,
+  Iterable<Object?> iterable,
+  int total,
+  int maxItems,
+  Map<String, Object?> Function(Object?) recurse,
+) {
+  result['items'] = iterable.take(maxItems).map(recurse).toList();
+  _markTruncated(result, total, maxItems);
+}
+
+/// Adds `truncated`/`totalItems`/`lossy` markers when [total] exceeds [maxItems].
+void _markTruncated(Map<String, Object?> result, int total, int maxItems) {
+  if (total > maxItems) {
+    result['truncated'] = true;
+    result['totalItems'] = total;
+    result['lossy'] = true;
   }
 }
 

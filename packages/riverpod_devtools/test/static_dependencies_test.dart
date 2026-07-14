@@ -391,5 +391,40 @@ void main() {
       expect(retrieved, equals(metadata2));
       expect(retrieved?.dependencies.first.providerName, 'dep2');
     });
+
+    test('loadError is null before any load', () {
+      expect(RiverpodDevToolsRegistry.instance.loadError, isNull);
+    });
+
+    test('malformed JSON does not throw but records loadError', () {
+      final registry = RiverpodDevToolsRegistry.instance;
+
+      expect(
+        () => registry.loadFromJson('{ not valid json'),
+        returnsNormally,
+      );
+      expect(registry.loadError, isNotNull);
+      expect(registry.hasAnyData, isFalse);
+    });
+
+    test('a successful load clears a previous loadError', () {
+      final registry = RiverpodDevToolsRegistry.instance;
+
+      registry.loadFromJson('{ not valid json');
+      expect(registry.loadError, isNotNull);
+
+      registry.loadFromJson('{"providers": [], "version": "1.0.0"}');
+      expect(registry.loadError, isNull);
+    });
+
+    test('clear() resets loadError', () {
+      final registry = RiverpodDevToolsRegistry.instance;
+
+      registry.loadFromJson('{ not valid json');
+      expect(registry.loadError, isNotNull);
+
+      registry.clear();
+      expect(registry.loadError, isNull);
+    });
   });
 }

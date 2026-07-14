@@ -3,6 +3,13 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod_devtools/src/utils/serialization.dart';
 
+/// An object whose toString() is a class-like string longer than the
+/// serializer's string cap, used to verify truncated strings are not parsed.
+class _LongToString {
+  @override
+  String toString() => 'Huge(field: ${'y' * 10000})';
+}
+
 class TestObject {
   final String id;
   TestObject? child;
@@ -176,6 +183,64 @@ void main() {
     test('a normal value is not marked lossy', () {
       expect(serializeValue(5).containsKey('lossy'), isFalse);
       expect(serializeValue('hi').containsKey('lossy'), isFalse);
+    });
+
+    group('breadth/size caps', () {
+      test('caps a large List and reports the true size', () {
+        final result = serializeValue(List<int>.generate(5000, (i) => i));
+
+        expect((result['items'] as List).length, 100);
+        expect(result['truncated'], true);
+        expect(result['totalItems'], 5000);
+        expect(result['lossy'], true);
+        // The capped payload is still encodable.
+        expect(() => jsonEncode(result), returnsNormally);
+      });
+
+      test('caps a large Map and reports the true size', () {
+        final big = {for (var i = 0; i < 5000; i++) 'k$i': i};
+        final result = serializeValue(big);
+
+        expect((result['entries'] as List).length, 100);
+        expect(result['truncated'], true);
+        expect(result['totalItems'], 5000);
+        expect(result['lossy'], true);
+      });
+
+      test('caps a large Set and reports the true size', () {
+        final result = serializeValue(List<int>.generate(5000, (i) => i).toSet());
+
+        expect((result['items'] as List).length, 100);
+        expect(result['totalItems'], 5000);
+        expect(result['lossy'], true);
+      });
+
+      test('a collection at the cap is not marked truncated', () {
+        final result = serializeValue(List<int>.generate(100, (i) => i));
+
+        expect((result['items'] as List).length, 100);
+        expect(result.containsKey('truncated'), isFalse);
+        expect(result.containsKey('lossy'), isFalse);
+      });
+
+      test('caps a very long string value and flags it lossy', () {
+        final result = serializeValue('x' * 10000);
+
+        final string = result['string'] as String;
+        expect(string.length, lessThan(10000));
+        expect(string.endsWith('…'), isTrue);
+        expect(result['lossy'], true);
+      });
+
+      test('does not parse a truncated ClassName(...) string into structure', () {
+        // A giant "class-like" string must not be parsed (which would produce
+        // misleading fields from a cut-off representation).
+        final result = serializeValue(_LongToString());
+
+        expect(result.containsKey('value'), isFalse);
+        expect(result['string'], isA<String>());
+        expect(result['lossy'], true);
+      });
     });
 
     test('a shared object beyond the depth limit is not later mislabeled '

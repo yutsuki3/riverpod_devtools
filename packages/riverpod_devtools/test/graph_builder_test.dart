@@ -146,5 +146,17 @@ void main() {
       final graph = buildDependencyGraph(runtimeStatus: {'a': 'active'});
       expect(graph.containsKey('edgesNote'), isFalse);
     });
+
+    test('reports a load failure in the edgesNote, with the reason', () {
+      // A malformed JSON load records an error but does not throw.
+      registry.loadFromJson('{ this is not valid json');
+      expect(registry.loadError, isNotNull);
+
+      final graph = buildDependencyGraph(runtimeStatus: {'a': 'active'});
+      expect(graph['edges'], isEmpty);
+      final note = graph['edgesNote'] as String;
+      expect(note, contains('FAILED'));
+      expect(note, contains('riverpod_devtools:analyze'));
+    });
   });
 }

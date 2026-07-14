@@ -68,7 +68,13 @@ Map<String, Object?> buildDependencyGraph({
   // dependencies" or "static analysis was never loaded". Tell the consumer
   // (typically an AI) which one it is, and how to fix it.
   String? edgesNote;
-  if (!registry.hasAnyData) {
+  if (registry.loadError != null) {
+    edgesNote =
+        'Loading static dependency data FAILED, so "edges" is empty. The JSON '
+        'was found but could not be parsed: ${registry.loadError}. Re-run '
+        '`dart run riverpod_devtools:analyze` to regenerate '
+        'lib/riverpod_dependencies.json, then hot-restart.';
+  } else if (!registry.hasAnyData) {
     edgesNote =
         'No static dependency data is loaded, so "edges" is empty even if '
         'dependencies exist in the code. In the Flutter app: run '

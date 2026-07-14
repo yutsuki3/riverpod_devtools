@@ -76,8 +76,11 @@ See [MCP.md](MCP.md) for setup — it takes one `.mcp.json` entry.
           'lib/riverpod_dependencies.json',
         );
         RiverpodDevToolsRegistry.instance.loadFromJson(jsonString);
-      } catch (_) {
-        // DevTools will show setup instructions if JSON is not available
+      } catch (e) {
+        // The asset is missing or unreadable. Log the reason instead of
+        // swallowing it silently — otherwise the dependency graph is just
+        // empty with no hint as to why.
+        debugPrint('riverpod_devtools: could not load dependency data: $e');
       }
 
       runApp(

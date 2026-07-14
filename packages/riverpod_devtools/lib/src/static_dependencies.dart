@@ -128,6 +128,12 @@ class RiverpodDevToolsRegistry {
   /// Timestamp when the JSON file was generated (from JSON metadata)
   DateTime? _jsonGeneratedTimestamp;
 
+  /// Reason the most recent [loadFromJson] failed, or null if it succeeded (or
+  /// was never called). Retained — not just printed — so the failure can be
+  /// surfaced in-band (e.g. as a dependency-graph `edgesNote`) instead of
+  /// silently degrading to "no dependencies".
+  String? _lastLoadError;
+
   /// Register metadata for a provider
   ///
   /// This is typically called by generated code, not by user code.
@@ -178,6 +184,7 @@ class RiverpodDevToolsRegistry {
   void clear() {
     _metadata.clear();
     _dependencyNamesCache.clear();
+    _lastLoadError = null;
   }
 
   /// Get the total number of registered providers
@@ -187,6 +194,11 @@ class RiverpodDevToolsRegistry {
   ///
   /// This is useful to distinguish between "no JSON file" vs "JSON exists but provider name mismatch"
   bool get hasAnyData => _metadata.isNotEmpty;
+
+  /// The reason the most recent [loadFromJson] call failed to parse, or null if
+  /// it succeeded or was never called. Use this to tell "the JSON was never
+  /// loaded" apart from "the JSON was loaded but was malformed".
+  String? get loadError => _lastLoadError;
 
   /// Get the timestamp when the JSON was last loaded (app startup time)
   ///
@@ -248,9 +260,12 @@ class RiverpodDevToolsRegistry {
 
       // Record the timestamp when the JSON was successfully loaded
       _lastLoadedTimestamp = DateTime.now();
+      _lastLoadError = null;
     } catch (e) {
-      // Silently fail to not break app startup
-      // In production, users can check the log for issues
+      // Don't rethrow — a bad file must not break app startup. But retain the
+      // reason (in addition to logging it) so DevTools / MCP can surface it,
+      // rather than the failure being invisible.
+      _lastLoadError = e.toString();
       // ignore: avoid_print
       print('Warning: Failed to load riverpod dependencies from JSON: $e');
     }
