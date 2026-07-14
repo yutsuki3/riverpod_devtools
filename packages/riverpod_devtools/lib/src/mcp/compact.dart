@@ -49,21 +49,30 @@ Object? _compactCore(Map<Object?, Object?> value) {
     if (string.length <= _maxValueChars) return string;
     final type = value['type'];
     if (value['items'] is List) {
-      return '$type(${(value['items'] as List).length} items)';
+      return '$type(${_collectionCount(value, 'items')} items)';
     }
     if (value['entries'] is List) {
-      return '$type(${(value['entries'] as List).length} entries)';
+      return '$type(${_collectionCount(value, 'entries')} entries)';
     }
     return '${string.substring(0, _maxValueChars - 1)}…';
   }
   // No string: summarize whatever structure is present.
   if (value['items'] is List) {
-    return '${value['type']}(${(value['items'] as List).length} items)';
+    return '${value['type']}(${_collectionCount(value, 'items')} items)';
   }
   if (value['entries'] is List) {
-    return '${value['type']}(${(value['entries'] as List).length} entries)';
+    return '${value['type']}(${_collectionCount(value, 'entries')} entries)';
   }
   return value['type'];
+}
+
+/// The count to report for a collection summary. Prefers `totalItems` (the true
+/// size before the serializer capped it), falling back to the serialized
+/// element count when the collection was not truncated.
+int _collectionCount(Map<Object?, Object?> value, String key) {
+  final total = value['totalItems'];
+  if (total is int) return total;
+  return (value[key] as List).length;
 }
 
 /// Inlines a primitive/small structure as-is, or summarizes it when its

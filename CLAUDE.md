@@ -103,6 +103,13 @@ The MCP tool descriptions (in `riverpod_devtools_mcp_server.dart`) are
 carefully written — they state mutation effects, auto-port behavior, and
 ambiguity handling. Treat them as part of the product; keep them accurate.
 
+**Serializer caps (upstream of compact).** `serializeValue`
+(`lib/src/utils/serialization.dart`) bounds work/payload *at the source*, on
+both paths: depth (10), collection breadth (first 100 elements, with
+`truncated`/`totalItems`), and toString() length (4000 chars). Anything
+trimmed is flagged `lossy: true`. `compactValue` prefers `totalItems` when
+summarizing a truncated collection so the reported count is the true size.
+
 ## Commands
 
 ```bash

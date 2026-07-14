@@ -19,11 +19,14 @@ void main() {
     });
 
     test('summarizes a large collection instead of inlining it', () {
+      // A collection past the serializer's element cap comes through as a
+      // lossy wrapper, and the summary reports the true (pre-cap) size.
       final big = List<int>.generate(500, (i) => i);
-      final compact = compactValue(serializeValue(big));
-      expect(compact, isA<String>());
-      expect(compact as String, contains('500 items'));
-      expect(compact.length, lessThan(40));
+      final compact = compactValue(serializeValue(big)) as Map;
+      expect(compact['lossy'], true);
+      final summary = compact['value'] as String;
+      expect(summary, contains('500 items'));
+      expect(summary.length, lessThan(40));
     });
 
     test('keeps a toJson() structure inline when small', () {
