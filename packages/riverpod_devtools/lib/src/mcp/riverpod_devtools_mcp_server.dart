@@ -5,6 +5,7 @@ import 'dart:io' as io;
 import 'package:dart_mcp/server.dart';
 
 import '../mcp_constants.dart';
+import 'app_discovery_cache.dart';
 import 'compact.dart';
 
 base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
@@ -29,6 +30,12 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     registerTool(_setProviderValueTool, _setProviderValue);
     registerTool(_clearRiverpodLogsTool, _clearRiverpodLogs);
   }
+
+  /// Caches the port-range scan for a short window so a burst of tool calls in
+  /// one session doesn't re-ping every port each time. Invalidated when a
+  /// request to a discovered port fails.
+  late final AppDiscoveryCache _discoveryCache =
+      AppDiscoveryCache(discover: _discoverApps);
 
   /// Shared optional `port` parameter: pins a tool call to one specific app
   /// when several are running (see `list_riverpod_apps`).
@@ -243,7 +250,9 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   );
 
   FutureOr<CallToolResult> _listRiverpodApps(CallToolRequest request) async {
-    final apps = await _discoverApps();
+    // Explicit "what's running?" request: force a fresh scan (and prime the
+    // cache) rather than possibly returning a stale list.
+    final apps = await _discoveryCache.refresh();
     return CallToolResult(
       content: [
         TextContent(
@@ -443,7 +452,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
       return (port.toInt(), null);
     }
 
-    final apps = await _discoverApps();
+    final apps = await _discoveryCache.get();
     if (apps.isEmpty) {
       return (
         null,
@@ -485,15 +494,22 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   /// Probes every port in the range and returns the `/ping` payloads of the
   /// apps that respond.
   Future<List<Map<String, Object?>>> _discoverApps() async {
-    final found = await Future.wait(riverpodDevToolsMcpPorts.map(_pingPort));
-    return [
-      for (final app in found)
-        if (app != null) app,
-    ];
+    // One client for the whole scan instead of one per port.
+    final client = io.HttpClient();
+    try {
+      final found = await Future.wait(
+        riverpodDevToolsMcpPorts.map((port) => _pingPort(client, port)),
+      );
+      return [
+        for (final app in found)
+          if (app != null) app,
+      ];
+    } finally {
+      client.close();
+    }
   }
 
-  Future<Map<String, Object?>?> _pingPort(int port) async {
-    final client = io.HttpClient();
+  Future<Map<String, Object?>?> _pingPort(io.HttpClient client, int port) async {
     try {
       final req = await client
           .getUrl(
@@ -514,8 +530,6 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
       return null;
     } catch (_) {
       return null;
-    } finally {
-      client.close();
     }
   }
 
@@ -554,6 +568,10 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         client.close();
       }
     } catch (e) {
+      // The port we resolved is dead (app stopped, or restarted onto another
+      // port). Drop the cached scan so the next call re-discovers instead of
+      // retrying this same dead port.
+      _discoveryCache.invalidate();
       return CallToolResult(
         content: [
           TextContent(
