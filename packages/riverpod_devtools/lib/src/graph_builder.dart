@@ -64,10 +64,31 @@ Map<String, Object?> buildDependencyGraph({
               edge,
         ];
 
+  // In-band setup hint: an empty `edges` is ambiguous — it can mean "no
+  // dependencies" or "static analysis was never loaded". Tell the consumer
+  // (typically an AI) which one it is, and how to fix it.
+  String? edgesNote;
+  if (!registry.hasAnyData) {
+    edgesNote =
+        'No static dependency data is loaded, so "edges" is empty even if '
+        'dependencies exist in the code. In the Flutter app: run '
+        '`dart run riverpod_devtools:analyze`, load '
+        'lib/riverpod_dependencies.json in main() '
+        '(RiverpodDevToolsRegistry.instance.loadFromJson), add it to the '
+        'pubspec assets, then hot-restart.';
+  } else if (runtimeStatus.isNotEmpty &&
+      runtimeStatus.keys.every((name) => !registry!.hasMetadata(name))) {
+    edgesNote =
+        'Static dependency data is loaded, but none of the running providers '
+        'match it by name — edges may be missing or stale. Re-run '
+        '`dart run riverpod_devtools:analyze` and hot-restart.';
+  }
+
   final generatedAt = registry.jsonGeneratedTimestamp;
   return {
     'nodes': nodes,
     'edges': filteredEdges,
+    if (edgesNote != null) 'edgesNote': edgesNote,
     if (generatedAt != null) 'generatedAt': generatedAt.toIso8601String(),
   };
 }

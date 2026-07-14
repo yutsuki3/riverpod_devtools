@@ -1,3 +1,9 @@
+## Unreleased
+
+- **MCP: `get_dependency_graph` now explains an empty `edges`** — when no static dependency data is loaded (or none of the running providers match it by name), the response carries an `edgesNote` describing why `edges` is empty and how to fix it, instead of being indistinguishable from "no dependencies". The note survives the compact view.
+- **MCP: the server reports its real version** in the initialize handshake (was hardcoded to `0.1.0`); `tool/release.sh` keeps it in sync.
+- **Docs**: MCP.md now notes the one-time ~10–20s first-launch compile of the MCP server so a client startup timeout on first use isn't mistaken for a failure.
+
 ## 1.0.0
 
 First stable release. This milestone makes the bundled MCP server a first-class, token-efficient interface for AI coding tools — reading live provider state and driving it — and rounds out the DevTools extension with an interactive dependency graph and a per-provider performance/health dashboard. The public API (`RiverpodDevToolsObserver`, the analyzer CLI, the MCP server) is now considered stable and follows semantic versioning.

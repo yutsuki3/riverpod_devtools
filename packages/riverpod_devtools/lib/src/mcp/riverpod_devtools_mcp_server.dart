@@ -12,7 +12,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     : super.fromStreamChannel(
         implementation: Implementation(
           name: 'riverpod-devtools-mcp',
-          version: '0.1.0',
+          version: riverpodDevToolsVersion,
         ),
         instructions:
             'Inspect Riverpod state in a running Flutter app (debug mode, '

@@ -260,6 +260,15 @@ void main() {
   });
 
   group('compactGraph', () {
+    test('preserves the edgesNote setup hint', () {
+      final compact = compactGraph({
+        'nodes': [],
+        'edges': [],
+        'edgesNote': 'run analyze',
+      });
+      expect(compact['edgesNote'], 'run analyze');
+    });
+
     test('keeps topology, drops source locations and bookkeeping', () {
       final raw = {
         'nodes': [

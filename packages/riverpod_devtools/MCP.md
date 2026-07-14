@@ -40,6 +40,8 @@ claude mcp add --scope project riverpod_devtools_mcp -- dart run riverpod_devtoo
 
 This works the same way as `dart run riverpod_devtools:analyze` — no path needed, since `riverpod_devtools` is already a dependency of your Flutter app.
 
+> **First launch is slow (one-time):** `dart run` compiles the MCP server the first time it starts, which can take ~10–20 seconds before the server responds — some MCP clients may report a startup timeout on that very first attempt. Just retry (or restart your AI tool): subsequent launches reuse the compiled snapshot and start in well under a second. The compile messages go to stderr, so they never interfere with the MCP protocol on stdout. The snapshot is rebuilt after `flutter pub get` / dependency changes.
+
 **2. Run your Flutter app in debug mode**
 
 ```bash
@@ -75,3 +77,4 @@ Every tool below (except `list_riverpod_apps`) accepts an optional `port` parame
 - It does **not** work out of the box for:
   - Real devices (iOS/Android) — the device has its own network namespace; you'd need manual port forwarding (e.g. `iproxy` for iOS, `adb forward tcp:8788 tcp:8788` for Android)
   - Android Emulator — same reason, needs `adb forward tcp:8788 tcp:8788`
+- The first `dart run riverpod_devtools:riverpod_devtools_mcp` launch compiles the server (~10–20s); later launches are fast. If your AI tool times out once right after setup, retry.
