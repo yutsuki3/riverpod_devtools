@@ -128,6 +128,30 @@ void main() {
       expect(failed.error!['message'], 'boom');
     });
 
+    test('round-trips the dependency load-error state', () {
+      final providers = <String, ProviderInfo>{
+        'brokenProvider': ProviderInfo(
+          id: '9',
+          name: 'brokenProvider',
+          value: const {'type': 'int', 'value': 1},
+          status: ProviderStatus.active,
+          dependenciesSource: DependencySource.loadError,
+          dependenciesLoadError: 'FormatException: Unexpected character',
+        ),
+      };
+
+      final encoded = encodeSession(providers: providers, events: const []);
+      final decoded = decodeSession(
+          jsonDecode(jsonEncode(encoded)) as Map<String, dynamic>);
+
+      final provider = decoded.providers['brokenProvider']!;
+      expect(provider.dependenciesSource, DependencySource.loadError);
+      expect(
+        provider.dependenciesLoadError,
+        'FormatException: Unexpected character',
+      );
+    });
+
     test('rejects JSON without a formatVersion', () {
       expect(
         () => decodeSession(const {'providers': [], 'events': []}),

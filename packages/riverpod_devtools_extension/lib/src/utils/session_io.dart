@@ -94,6 +94,8 @@ Map<String, dynamic> _encodeProvider(ProviderInfo p) {
       'dependenciesLoadedAt': p.dependenciesLoadedAt!.toIso8601String(),
     if (p.dependenciesGeneratedAt != null)
       'dependenciesGeneratedAt': p.dependenciesGeneratedAt!.toIso8601String(),
+    if (p.dependenciesLoadError != null)
+      'dependenciesLoadError': p.dependenciesLoadError,
     if (p.lastError != null) 'lastError': p.lastError,
     if (p.dependencyDetails.isNotEmpty)
       'dependencyDetails': [
@@ -122,6 +124,7 @@ ProviderInfo _decodeProvider(Map<String, dynamic> json) {
     dependenciesSource: _decodeSource(json['dependenciesSource']),
     dependenciesLoadedAt: _parseDate(json['dependenciesLoadedAt']),
     dependenciesGeneratedAt: _parseDate(json['dependenciesGeneratedAt']),
+    dependenciesLoadError: json['dependenciesLoadError']?.toString(),
     lastError: _asStringMap(json['lastError']),
     dependencyDetails: [
       if (json['dependencyDetails'] is List)
@@ -197,6 +200,8 @@ DependencySource _decodeSource(dynamic raw) {
   switch (raw) {
     case 'static':
       return DependencySource.static;
+    case 'loadError':
+      return DependencySource.loadError;
     case 'nameMismatch':
       return DependencySource.nameMismatch;
     case 'none':

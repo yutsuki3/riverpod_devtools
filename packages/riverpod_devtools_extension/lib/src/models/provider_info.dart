@@ -24,6 +24,10 @@ enum DependencySource {
   /// Dependencies detected from static analysis (CLI tool)
   static,
 
+  /// The dependency JSON was found but failed to parse (see
+  /// [ProviderInfo.dependenciesLoadError] for the reason)
+  loadError,
+
   /// JSON was loaded but provider name doesn't match
   nameMismatch,
 
@@ -40,6 +44,11 @@ class ProviderInfo {
   final DependencySource dependenciesSource;
   final DateTime? dependenciesLoadedAt;
   final DateTime? dependenciesGeneratedAt;
+
+  /// Why loading the dependency JSON failed (from the observer's
+  /// `dependenciesLoadError` event field). Only set when
+  /// [dependenciesSource] is [DependencySource.loadError].
+  final String? dependenciesLoadError;
 
   /// Error details (`type`, `message`, `stackTrace`) from the most recent
   /// provider_failed event. Null while the provider is healthy — cleared
@@ -69,6 +78,7 @@ class ProviderInfo {
     this.dependenciesSource = DependencySource.none,
     this.dependenciesLoadedAt,
     this.dependenciesGeneratedAt,
+    this.dependenciesLoadError,
     this.lastError,
     this.dependencyDetails = const [],
     this.family,
