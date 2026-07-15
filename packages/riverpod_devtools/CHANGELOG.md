@@ -1,8 +1,62 @@
-## Unreleased
+## 1.1.0
 
-- **MCP: `get_dependency_graph` now explains an empty `edges`** — when no static dependency data is loaded (or none of the running providers match it by name), the response carries an `edgesNote` describing why `edges` is empty and how to fix it, instead of being indistinguishable from "no dependencies". The note survives the compact view.
-- **MCP: the server reports its real version** in the initialize handshake (was hardcoded to `0.1.0`); `tool/release.sh` keeps it in sync.
-- **Docs**: MCP.md now notes the one-time ~10–20s first-launch compile of the MCP server so a client startup timeout on first use isn't mistaken for a failure.
+Reliability and lightness release: bounded serialization cost for large state,
+faster MCP tool calls, a snappier extension under event bursts, and setup
+failures that explain themselves instead of degrading silently.
+
+- **Serialization is now bounded at the source.** `serializeValue` previously
+  capped only recursion depth; a provider holding a huge `List`/`Map`/`Set`
+  (or an object with a very long `toString()`) was fully re-serialized on
+  every update, on both the DevTools and MCP paths. Collections now serialize
+  only their first 100 elements — flagged with `truncated: true` and the true
+  `totalItems` — and the stored string form is capped at 4000 chars. Anything
+  trimmed carries the existing `lossy: true` marker, and MCP compact summaries
+  report the true (pre-cap) collection size. Large-state apps can keep the
+  observer enabled without paying an unbounded per-event cost.
+- **Dependency-JSON load failures are now visible everywhere.** A broken
+  `riverpod_dependencies.json` used to degrade silently to "no dependencies":
+  - The registry retains the parse error (`RiverpodDevToolsRegistry.loadError`).
+  - `get_dependency_graph` returns a dedicated `edgesNote` with the actual
+    parse error (distinct from "never loaded" and "name mismatch").
+  - Events carry `dependenciesSource: 'load_error'` plus the reason
+    (`dependenciesLoadError`), and the DevTools extension's Dependencies
+    section shows a "Dependency Data Failed to Load" panel with the error and
+    the fix command — instead of the generic setup instructions.
+  - The README / doc-comment setup snippet now logs the load failure reason
+    instead of recommending an empty `catch (_) {}`.
+- **MCP: app discovery is cached (~5s).** Tool calls that omit `port` no
+  longer re-ping all 10 ports (1s timeout each) on every call; a failed
+  request to a cached port invalidates the cache so a restarted app on a new
+  port is re-discovered automatically. One `HttpClient` is used per scan
+  instead of one per port. `list_riverpod_apps` always scans fresh.
+- **MCP: `get_dependency_graph` explains an empty `edges`** — when no static
+  dependency data is loaded (or none of the running providers match it by
+  name), the response carries an `edgesNote` describing why `edges` is empty
+  and how to fix it, instead of being indistinguishable from "no
+  dependencies". The note survives the compact view.
+- **MCP: the server reports its real version** in the initialize handshake
+  (was hardcoded to `0.1.0`); `tool/release.sh` keeps it in sync.
+- **Extension: smoother under event bursts.** The event list is rebuilt in a
+  single pass per event (previously a full copy plus a head insert), and the
+  per-provider stats recompute is throttled to at most once per 250ms with a
+  trailing pass so the final state after a burst is never stale.
+- **Reliability fixes:**
+  - The `ext.riverpod_devtools.command` service extension is only marked
+    registered after registration actually succeeds, so a transient failure
+    no longer permanently disables DevTools Invalidate/Refresh for the rest
+    of the isolate's life.
+  - The `POST /commands` invalid-body error message no longer contains a
+    truncated placeholder (`"value"?: }` → `"value"?: <primitive>}`), so an
+    AI reading it can self-correct against valid JSON.
+- **Examples build from a fresh clone** — the generated
+  `riverpod_dependencies.json` is now committed for both example apps, so
+  `flutter run` works immediately and the dependency-graph demo is live out
+  of the box.
+- **Docs**: TROUBLESHOOTING.md gained an MCP section covering the real
+  failure modes (app not found / port forwarding, first-launch compile
+  timeout, empty graph edges, `ambiguous: true`, `supported: false`,
+  multi-app port selection); MCP.md links to it and notes the one-time
+  ~10–20s first-launch compile of the MCP server.
 
 ## 1.0.0
 

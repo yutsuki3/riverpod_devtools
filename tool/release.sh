@@ -38,13 +38,22 @@ sed_inplace() {
   fi
 }
 
-echo "==> Syncing version to $new_version in 4 files"
+echo "==> Syncing version to $new_version in 5 files"
 sed_inplace "s/^version: .*/version: $new_version/" "$pkg_dir/pubspec.yaml"
 sed_inplace "s/^version: .*/version: $new_version/" "$config_file"
 sed_inplace "s/^version: .*/version: $new_version/" "$ext_dir/pubspec.yaml"
 # The MCP server reports this constant in its initialize handshake.
 sed_inplace "s/^const String riverpodDevToolsVersion = .*/const String riverpodDevToolsVersion = '$new_version';/" \
   "$pkg_dir/lib/src/mcp_constants.dart"
+# The install snippet shown on pub.dev (package README).
+sed_inplace "s/riverpod_devtools: \^[0-9][0-9.]*/riverpod_devtools: ^$new_version/" \
+  "$pkg_dir/README.md"
+
+# Guard against forgotten spots: any other X.Y.Z-looking package-version
+# reference should be either synced above or on the manual checklist below.
+# (The "version" fields inside riverpod_dependencies.json / analyzer.dart are
+# the dependency-JSON FORMAT version, not the package version — never bump
+# those here.)
 
 echo "==> Building riverpod_devtools_extension (Flutter web, release mode)"
 (cd "$ext_dir" && flutter build web --release)
@@ -54,9 +63,15 @@ rm -rf "$build_dest"
 mkdir -p "$build_dest"
 cp -r "$ext_dir/build/web/." "$build_dest/"
 
-echo "==> Done. Remaining manual steps:"
+echo "==> Done. Remaining manual steps (full checklist in CLAUDE.md > Releasing):"
 echo "  1. Add a $new_version entry to packages/riverpod_devtools/CHANGELOG.md"
-echo "  2. Review the diff (especially extension/devtools/build/)"
-echo "  3. git add -A && git commit -m \"chore: release $new_version\""
-echo "  4. cd packages/riverpod_devtools && flutter pub publish --dry-run"
-echo "  5. flutter pub publish"
+echo "     (fold any 'Unreleased' section into it)"
+echo "  2. Root README.md: add a ${new_version%.*}.x row to the Version"
+echo "     Compatibility table if the Flutter/riverpod constraints changed"
+echo "  3. Review the diff (especially extension/devtools/build/)"
+echo "  4. Verify: flutter analyze && flutter test in BOTH packages"
+echo "     (extension tests need: flutter test --platform chrome)"
+echo "  5. git add -A && git commit -m \"chore: release $new_version\""
+echo "  6. cd packages/riverpod_devtools && flutter pub publish --dry-run"
+echo "  7. flutter pub publish"
+echo "  8. git tag v$new_version && git push origin v$new_version"

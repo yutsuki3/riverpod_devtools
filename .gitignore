@@ -2,6 +2,7 @@
 .dart_tool/
 .packages
 build/
+build_web/
 *.lock
 .flutter-plugins
 .flutter-plugins-dependencies

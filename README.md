@@ -145,6 +145,7 @@ Please use the [GitHub issue tracker](https://github.com/yutsuki3/riverpod_devto
 
 | riverpod_devtools | flutter_riverpod | Flutter  |
 |-------------------|------------------|----------|
+| 1.1.x             | >=2.3.0 <4.0.0   | >=3.32.0 |
 | 1.0.x             | >=2.3.0 <4.0.0   | >=3.32.0 |
 | 0.6.x             | >=2.3.0 <4.0.0   | >=3.32.0 |
 | 0.5.x             | >=2.3.0 <4.0.0   | >=3.0.0  |
