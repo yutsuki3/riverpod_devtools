@@ -40,6 +40,34 @@ claude mcp add --scope project riverpod_devtools_mcp -- dart run riverpod_devtoo
 
 This works the same way as `dart run riverpod_devtools:analyze` — no path needed, since `riverpod_devtools` is already a dependency of your Flutter app.
 
+> **Monorepo / subdirectory Flutter app:** the command above assumes it runs from the Flutter package directory — the one whose `pubspec.yaml` lists `riverpod_devtools` as a dependency. If `.mcp.json` lives at a repository root above that directory (a common monorepo layout), `dart run` won't find the package from there. Wrap the command in a shell that `cd`s into the Flutter package first:
+>
+> ```json
+> {
+>   "mcpServers": {
+>     "riverpod_devtools_mcp": {
+>       "type": "stdio",
+>       "command": "/bin/sh",
+>       "args": [
+>         "-lc",
+>         "cd path/to/flutter_package && dart run riverpod_devtools:riverpod_devtools_mcp"
+>       ]
+>     }
+>   }
+> }
+> ```
+>
+> Using [FVM](https://fvm.app/) to manage the Flutter/Dart SDK version? Swap in `fvm dart`:
+>
+> ```json
+> "args": [
+>   "-lc",
+>   "cd path/to/flutter_package && fvm dart run riverpod_devtools:riverpod_devtools_mcp"
+> ]
+> ```
+>
+> If your MCP client supports a separate working-directory field, prefer setting that over the shell wrapper — check its docs, since this varies by client.
+
 > **First launch is slow (one-time):** `dart run` compiles the MCP server the first time it starts, which can take ~10–20 seconds before the server responds — some MCP clients may report a startup timeout on that very first attempt. Just retry (or restart your AI tool): subsequent launches reuse the compiled snapshot and start in well under a second. The compile messages go to stderr, so they never interfere with the MCP protocol on stdout. The snapshot is rebuilt after `flutter pub get` / dependency changes.
 
 **2. Run your Flutter app in debug mode**

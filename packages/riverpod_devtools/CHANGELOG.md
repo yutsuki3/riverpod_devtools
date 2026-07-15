@@ -1,3 +1,11 @@
+## Unreleased
+
+- **Docs: MCP setup for monorepo / subdirectory / FVM Flutter apps.** `MCP.md`
+  now documents the shell-wrapper `.mcp.json` config needed when the Flutter
+  package (the one depending on `riverpod_devtools`) lives below the
+  directory `.mcp.json` is read from — a common monorepo layout — including
+  an FVM example (`fvm dart run ...`).
+
 ## 1.1.0
 
 Reliability and lightness release: bounded serialization cost for large state,
