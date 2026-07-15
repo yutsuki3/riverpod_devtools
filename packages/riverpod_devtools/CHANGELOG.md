@@ -1,5 +1,15 @@
 ## Unreleased
 
+- **Fix: non-finite numbers no longer crash the observer.** A provider value
+  containing `double.infinity`, `double.negativeInfinity`, or `double.nan`
+  could throw an uncaught `Converting object to an encodable object failed:
+  Infinity` from `developer.postEvent`, because those are valid `num`s that
+  Dart's `json.encode` (with no `toEncodable` fallback) rejects. Both routes
+  that let a non-finite number reach the payload are now sealed: the
+  `toJson()` sanitizer (`_jsonSafe`) rewrites non-finite doubles to their
+  string form (`"Infinity"`/`"-Infinity"`/`"NaN"`), and the `toString()`
+  parser no longer turns `num.tryParse('Infinity')` into a live non-finite
+  double (it keeps the original string). Finite numbers are unaffected.
 - **Fix: `dart run riverpod_devtools:analyze` now detects `@riverpod`
   code-generated providers.** The analyzer previously only recognized
   hand-written `final xProvider = SomeProvider(...)` top-level declarations.

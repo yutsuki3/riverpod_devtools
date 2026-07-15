@@ -49,6 +49,28 @@ class ModelWithUnsafeToJson {
       };
 }
 
+/// A model whose toJson() contains non-finite doubles, which json.encode
+/// cannot handle (and developer.postEvent has no toEncodable fallback).
+class ModelWithNonFiniteToJson {
+  Map<String, Object?> toJson() => {
+        'ratio': double.infinity,
+        'delta': double.negativeInfinity,
+        'score': double.nan,
+        'finite': 3.5,
+        'nested': [
+          double.infinity,
+          {'inner': double.nan},
+        ],
+      };
+}
+
+/// A model whose toString() carries a non-finite number in the
+/// "ClassName(prop: val)" shape the serializer parses into structure.
+class StatsWithInfinity {
+  @override
+  String toString() => 'Stats(ratio: Infinity, count: 3)';
+}
+
 void main() {
   group('serializeValue', () {
     test('handles null', () {
@@ -127,6 +149,52 @@ void main() {
       // The whole event must survive json.encode without a toEncodable
       // fallback, as developer.postEvent has none.
       expect(() => jsonEncode(result), returnsNormally);
+    });
+
+    group('non-finite numbers (Infinity/-Infinity/NaN)', () {
+      test('a top-level non-finite double is encodable', () {
+        for (final value in [
+          double.infinity,
+          double.negativeInfinity,
+          double.nan,
+        ]) {
+          final result = serializeValue(value);
+          // The number itself is only carried as its `string` form, which is
+          // json-safe; the event must survive json.encode regardless.
+          expect(() => jsonEncode(result), returnsNormally,
+              reason: 'failed for $value');
+        }
+      });
+
+      test('sanitizes non-finite doubles in toJson() output', () {
+        final result = serializeValue(ModelWithNonFiniteToJson());
+        final value = result['value'] as Map;
+
+        expect(value['ratio'], 'Infinity');
+        expect(value['delta'], '-Infinity');
+        expect(value['score'], 'NaN');
+        // Finite numbers are left as-is.
+        expect(value['finite'], 3.5);
+
+        final nested = value['nested'] as List;
+        expect(nested[0], 'Infinity');
+        expect((nested[1] as Map)['inner'], 'NaN');
+
+        // The whole event must survive json.encode without a toEncodable
+        // fallback, as developer.postEvent has none.
+        expect(() => jsonEncode(result), returnsNormally);
+      });
+
+      test('does not parse a non-finite toString() number into a live double',
+          () {
+        final result = serializeValue(StatsWithInfinity());
+        final value = result['value'] as Map;
+
+        // The non-finite field stays a string; the finite one still parses.
+        expect(value['ratio'], 'Infinity');
+        expect(value['count'], 3);
+        expect(() => jsonEncode(result), returnsNormally);
+      });
     });
 
     test('handles circular references', () {

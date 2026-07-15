@@ -178,7 +178,15 @@ void _markTruncated(Map<String, Object?> result, int total, int maxItems) {
 /// cannot handle (DateTime, enums, custom objects) to its toString() form.
 Object? _jsonSafe(Object? value, int depth) {
   const maxDepth = 10;
-  if (value == null || value is num || value is bool || value is String) {
+  if (value is num) {
+    // Non-finite doubles (Infinity/-Infinity/NaN) are valid `num`s but
+    // json.encode — used by developer.postEvent with no toEncodable
+    // fallback — throws on them, taking the whole event down. Stringify them
+    // ("Infinity"/"NaN"/…) so the event still encodes. `int`s are always
+    // finite, so this only rewrites the pathological doubles.
+    return value.isFinite ? value : value.toString();
+  }
+  if (value == null || value is bool || value is String) {
     return value;
   }
   if (depth > maxDepth) return value.toString();
@@ -263,9 +271,12 @@ Object? _parseValue(String s) {
   if (s == 'true') return true;
   if (s == 'false') return false;
 
-  // Try numeric
+  // Try numeric. `num.tryParse` accepts 'Infinity'/'-Infinity'/'NaN' and
+  // returns a non-finite double; those can't be json.encode'd (and
+  // developer.postEvent has no toEncodable fallback), so keep the original
+  // string form for them rather than emitting a live non-finite number.
   final numVal = num.tryParse(s);
-  if (numVal != null) return numVal;
+  if (numVal != null) return numVal.isFinite ? numVal : s;
 
   // Try ClassName(...) recursive parse
   final nestedObject = _parseToString(s);
