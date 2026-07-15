@@ -229,12 +229,15 @@ class ProviderVisitor extends RecursiveAstVisitor<void> {
   @override
   void visitClassDeclaration(ClassDeclaration node) {
     if (_hasRiverpodAnnotation(node.metadata)) {
-      _addAnnotatedProvider(
-        offsetNode: node,
-        name: _generatedProviderName(node.name.lexeme),
-        providerType: _inferClassProviderType(node),
-        dependencySource: node,
-      );
+      final className = _classNameOf(node);
+      if (className != null) {
+        _addAnnotatedProvider(
+          offsetNode: node,
+          name: _generatedProviderName(className),
+          providerType: _inferClassProviderType(node),
+          dependencySource: node,
+        );
+      }
     }
     super.visitClassDeclaration(node);
   }
@@ -293,8 +296,45 @@ class ProviderVisitor extends RecursiveAstVisitor<void> {
     return 'Provider';
   }
 
+  // `ClassDeclaration.name`/`.members` moved across analyzer versions — older
+  // releases expose them directly, a newer one (tracking Dart's primary
+  // constructors preview) nests them under `namePart.typeName` /
+  // `body.members` instead. `analyzer`'s constraint here is deliberately wide
+  // (`>=6.0.0 <15.0.0`), so resolve both shapes dynamically at runtime rather
+  // than picking one statically, the same way observer.dart bridges Riverpod
+  // API differences across versions.
+  String? _classNameOf(ClassDeclaration node) {
+    final dynamic dynNode = node;
+    try {
+      // ignore: avoid_dynamic_calls
+      return dynNode.name.lexeme as String;
+    } catch (_) {
+      try {
+        // ignore: avoid_dynamic_calls
+        return dynNode.namePart.typeName.lexeme as String;
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Iterable<dynamic> _classMembersOf(ClassDeclaration node) {
+    final dynamic dynNode = node;
+    try {
+      // ignore: avoid_dynamic_calls
+      return dynNode.members as Iterable<dynamic>;
+    } catch (_) {
+      try {
+        // ignore: avoid_dynamic_calls
+        return dynNode.body.members as Iterable<dynamic>;
+      } catch (_) {
+        return const [];
+      }
+    }
+  }
+
   String _inferClassProviderType(ClassDeclaration node) {
-    for (final member in node.members) {
+    for (final member in _classMembersOf(node)) {
       if (member is MethodDeclaration && member.name.lexeme == 'build') {
         final returnType = member.returnType?.toString() ?? '';
         if (returnType.startsWith('Stream')) return 'StreamNotifierProvider';
