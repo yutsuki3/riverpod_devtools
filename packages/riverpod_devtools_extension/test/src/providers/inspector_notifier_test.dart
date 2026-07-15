@@ -206,5 +206,26 @@ void main() {
         expect(notifier.eventDepths[events.last.id], 4);
       });
     });
+
+    group('providerStats throttling', () {
+      test('first update after construction recomputes immediately', () {
+        notifier.debugSetEvents([_updateEvent('a', 1)]);
+        expect(notifier.providerStats, hasLength(1));
+        expect(notifier.providerStats.single.totalUpdateCount, 1);
+      });
+
+      test('a rapid follow-up event is folded in once the throttle '
+          'window elapses, not dropped', () async {
+        notifier.debugSetEvents([_updateEvent('a', 1)]);
+        // Read once so a cache exists to (maybe) go stale.
+        expect(notifier.providerStats.single.totalUpdateCount, 1);
+
+        notifier.debugSetEvents([_updateEvent('a', 2), _updateEvent('a', 1)]);
+        // Give the trailing throttle timer (250ms) time to fire.
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+
+        expect(notifier.providerStats.single.totalUpdateCount, 2);
+      });
+    });
   });
 }
