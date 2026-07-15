@@ -103,7 +103,7 @@ class RiverpodAnalyzer {
       if (context.contextRoot.isAnalyzed(file.path)) {
         final result = await context.currentSession.getResolvedUnit(file.path);
         if (result is ResolvedUnitResult) {
-          final visitor = _ProviderVisitor(file.path);
+          final visitor = ProviderVisitor(file.path);
           result.unit.visitChildren(visitor);
           metadata.addAll(visitor.providers);
         }
@@ -154,11 +154,17 @@ class RiverpodAnalyzer {
   }
 }
 
-class _ProviderVisitor extends RecursiveAstVisitor<void> {
+/// Walks a compilation unit collecting [ProviderMetadata] for every provider
+/// declaration it recognizes. Public (rather than the usual analyzer-private
+/// helper) so tests can drive it directly off an unresolved `parseString()`
+/// unit, the same way [SimpleDependencyExtractor] is tested — a full
+/// [AnalysisContextCollection] needs a resolvable SDK, which test
+/// environments don't always have.
+class ProviderVisitor extends RecursiveAstVisitor<void> {
   final String filePath;
   final List<ProviderMetadata> providers = [];
 
-  _ProviderVisitor(this.filePath);
+  ProviderVisitor(this.filePath);
 
   @override
   void visitTopLevelVariableDeclaration(TopLevelVariableDeclaration node) {
@@ -197,6 +203,145 @@ class _ProviderVisitor extends RecursiveAstVisitor<void> {
     }
 
     super.visitTopLevelVariableDeclaration(node);
+  }
+
+  // `@riverpod` code generation (riverpod_generator) never declares a
+  // top-level `final xProvider = ...` in the *source* file — the generated
+  // variable lives in the `.g.dart` file, which is intentionally excluded
+  // from analysis (it's derived, not authored). Without these two visitors,
+  // every annotated provider/notifier is invisible to the analyzer, so its
+  // generated name (`<lowerCamelCase(name)>Provider`, per riverpod_generator's
+  // own convention) never appears in riverpod_dependencies.json — the runtime
+  // provider then reports 'name_mismatch' even though nothing is misconfigured.
+  @override
+  void visitFunctionDeclaration(FunctionDeclaration node) {
+    if (_hasRiverpodAnnotation(node.metadata)) {
+      _addAnnotatedProvider(
+        offsetNode: node,
+        name: _generatedProviderName(node.name.lexeme),
+        providerType: _inferFunctionProviderType(node),
+        dependencySource: node.functionExpression.body,
+      );
+    }
+    super.visitFunctionDeclaration(node);
+  }
+
+  @override
+  void visitClassDeclaration(ClassDeclaration node) {
+    if (_hasRiverpodAnnotation(node.metadata)) {
+      final className = _classNameOf(node);
+      if (className != null) {
+        _addAnnotatedProvider(
+          offsetNode: node,
+          name: _generatedProviderName(className),
+          providerType: _inferClassProviderType(node),
+          dependencySource: node,
+        );
+      }
+    }
+    super.visitClassDeclaration(node);
+  }
+
+  void _addAnnotatedProvider({
+    required AstNode offsetNode,
+    required String name,
+    required String providerType,
+    required AstNode dependencySource,
+  }) {
+    final compilationUnit = offsetNode.thisOrAncestorOfType<CompilationUnit>();
+    if (compilationUnit == null) return;
+
+    final lineInfo = compilationUnit.lineInfo;
+    final dependencies = SimpleDependencyExtractor.extractDependencies(
+      dependencySource,
+      filePath,
+      lineInfo,
+    );
+
+    final location = lineInfo.getLocation(offsetNode.offset);
+    providers.add(ProviderMetadata(
+      name: name,
+      providerType: providerType,
+      dependencies: dependencies,
+      location: SourceLocation(
+        file: filePath,
+        line: location.lineNumber,
+        column: location.columnNumber,
+      ),
+    ));
+  }
+
+  /// `@riverpod`/`@Riverpod(...)` — matched by name only (not the resolved
+  /// element), same lightweight approach as the rest of this AST-only
+  /// analyzer (no resolved imports, no build_runner dependency).
+  bool _hasRiverpodAnnotation(NodeList<Annotation> metadata) {
+    for (final annotation in metadata) {
+      final name = annotation.name.name;
+      if (name == 'riverpod' || name == 'Riverpod') return true;
+    }
+    return false;
+  }
+
+  /// riverpod_generator's naming convention: the function/class name with
+  /// its first letter lower-cased, plus a `Provider` suffix.
+  String _generatedProviderName(String sourceName) {
+    if (sourceName.isEmpty) return 'Provider';
+    return '${sourceName[0].toLowerCase()}${sourceName.substring(1)}Provider';
+  }
+
+  String _inferFunctionProviderType(FunctionDeclaration node) {
+    final returnType = node.returnType?.toString() ?? '';
+    if (returnType.startsWith('Stream')) return 'StreamProvider';
+    if (returnType.startsWith('Future')) return 'FutureProvider';
+    return 'Provider';
+  }
+
+  // `ClassDeclaration.name`/`.members` moved across analyzer versions — older
+  // releases expose them directly, a newer one (tracking Dart's primary
+  // constructors preview) nests them under `namePart.typeName` /
+  // `body.members` instead. `analyzer`'s constraint here is deliberately wide
+  // (`>=6.0.0 <15.0.0`), so resolve both shapes dynamically at runtime rather
+  // than picking one statically, the same way observer.dart bridges Riverpod
+  // API differences across versions.
+  String? _classNameOf(ClassDeclaration node) {
+    final dynamic dynNode = node;
+    try {
+      // ignore: avoid_dynamic_calls
+      return dynNode.name.lexeme as String;
+    } catch (_) {
+      try {
+        // ignore: avoid_dynamic_calls
+        return dynNode.namePart.typeName.lexeme as String;
+      } catch (_) {
+        return null;
+      }
+    }
+  }
+
+  Iterable<dynamic> _classMembersOf(ClassDeclaration node) {
+    final dynamic dynNode = node;
+    try {
+      // ignore: avoid_dynamic_calls
+      return dynNode.members as Iterable<dynamic>;
+    } catch (_) {
+      try {
+        // ignore: avoid_dynamic_calls
+        return dynNode.body.members as Iterable<dynamic>;
+      } catch (_) {
+        return const [];
+      }
+    }
+  }
+
+  String _inferClassProviderType(ClassDeclaration node) {
+    for (final member in _classMembersOf(node)) {
+      if (member is MethodDeclaration && member.name.lexeme == 'build') {
+        final returnType = member.returnType?.toString() ?? '';
+        if (returnType.startsWith('Stream')) return 'StreamNotifierProvider';
+        if (returnType.startsWith('Future')) return 'AsyncNotifierProvider';
+      }
+    }
+    return 'NotifierProvider';
   }
 
   String? _getProviderType(Expression expression) {

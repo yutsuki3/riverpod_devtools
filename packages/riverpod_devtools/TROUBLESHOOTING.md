@@ -108,6 +108,8 @@
 **Possible Causes**:
 - JSON was loaded, but the runtime provider name does not exactly match any entry in the JSON file (case-sensitive)
 - Analyzer was run against a different codebase than the running app
+- `riverpod_dependencies.json` is stale — regenerated after the analyzer gained
+  `@riverpod` code-generation support (see below) but not re-run since
 
 **Solutions**:
 
@@ -124,6 +126,18 @@
 3. Debug registered provider names:
    ```dart
    print(RiverpodDevToolsRegistry.instance.allProviderNames);
+   ```
+
+4. If **every** (or nearly every) provider reports `name_mismatch` even though
+   `riverpod_dependencies.json` loaded and setup otherwise looks correct, and
+   your app uses `@riverpod` code generation (`riverpod_generator`), make sure
+   you're on a `riverpod_devtools` version that detects annotated providers —
+   older analyzer versions only recognized hand-written
+   `final xProvider = Provider(...)` declarations, so a codegen-heavy app got
+   effectively no static metadata for its `@riverpod` functions/classes.
+   Re-run the analyzer after upgrading:
+   ```bash
+   dart run riverpod_devtools:analyze
    ```
 
 ## General DevTools Issues

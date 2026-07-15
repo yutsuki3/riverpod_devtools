@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Fix: `dart run riverpod_devtools:analyze` now detects `@riverpod`
+  code-generated providers.** The analyzer previously only recognized
+  hand-written `final xProvider = SomeProvider(...)` top-level declarations.
+  Apps using `riverpod_generator` (`@riverpod` functions/classes) got zero
+  matching static metadata for those providers — even though
+  `riverpod_dependencies.json` loaded successfully, every runtime event for
+  them reported `dependenciesSource: 'name_mismatch'`, since the generated
+  provider variable (in the excluded `.g.dart` file) never appeared in the
+  analyzer's output. `@riverpod`/`@Riverpod(...)`-annotated functions and
+  classes are now recognized in the *source* file, and named using
+  `riverpod_generator`'s own convention (`<lowerCamelCase(name)>Provider`),
+  so their static dependencies attach correctly at runtime.
 - **Docs: MCP setup for monorepo / subdirectory / FVM Flutter apps.** `MCP.md`
   now documents the shell-wrapper `.mcp.json` config needed when the Flutter
   package (the one depending on `riverpod_devtools`) lives below the

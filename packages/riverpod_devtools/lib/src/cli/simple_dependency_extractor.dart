@@ -7,9 +7,11 @@ import '../static_dependencies.dart';
 
 /// Simplified dependency extractor for CLI use (no build_runner dependency)
 class SimpleDependencyExtractor {
-  /// Extract dependencies from a provider initializer expression
+  /// Extract dependencies from a provider initializer expression, or from
+  /// any other AST node containing `ref.watch`/`read`/`listen` calls (e.g. a
+  /// `@riverpod` function body or an annotated notifier class).
   static List<DependencyInfo> extractDependencies(
-    Expression initializer,
+    AstNode initializer,
     String filePath,
     LineInfo lineInfo,
   ) {
