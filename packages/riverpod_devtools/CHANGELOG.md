@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.1
 
 - **Fix: non-finite numbers no longer crash the observer.** A provider value
   containing `double.infinity`, `double.negativeInfinity`, or `double.nan`
