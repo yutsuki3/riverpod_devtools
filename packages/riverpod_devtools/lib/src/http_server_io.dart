@@ -6,6 +6,7 @@ import 'dart:io';
 import 'graph_builder.dart';
 import 'mcp_constants.dart';
 import 'provider_stats.dart';
+import 'utils/coerce_int.dart';
 
 class RiverpodDevToolsHttpServer {
   RiverpodDevToolsHttpServer({int maxBufferSize = 1000})
@@ -231,7 +232,7 @@ class RiverpodDevToolsHttpServer {
           // Accept "50" and "50.0" (some clients format integers as
           // doubles); reject anything else explicitly instead of silently
           // returning the full buffer.
-          limit = int.tryParse(rawLimit) ?? num.tryParse(rawLimit)?.toInt();
+          limit = coerceInt(rawLimit);
           if (limit == null || limit < 0) {
             request.response
               ..statusCode = 400
@@ -245,7 +246,7 @@ class RiverpodDevToolsHttpServer {
         for (final name in const ['since', 'until']) {
           final raw = params[name];
           if (raw == null) continue;
-          final parsed = int.tryParse(raw) ?? num.tryParse(raw)?.toInt();
+          final parsed = coerceInt(raw);
           if (parsed == null) {
             request.response
               ..statusCode = 400
