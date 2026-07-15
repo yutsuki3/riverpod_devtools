@@ -5,6 +5,7 @@ import 'dart:io' as io;
 import 'package:dart_mcp/server.dart';
 
 import '../mcp_constants.dart';
+import '../utils/coerce_int.dart';
 import 'app_discovery_cache.dart';
 import 'compact.dart';
 
@@ -275,15 +276,15 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
       // dart_mcp validates arguments against the schema before this runs,
       // rejecting strings and fractional numbers — but whole doubles
       // (e.g. 50.0, as some clients encode integers) pass validation and
-      // arrive here as num, so normalize via toInt().
-      if (arguments['limit'] case final num limit) 'limit': '${limit.toInt()}',
+      // arrive here as num, so normalize via coerceInt.
+      if (coerceInt(arguments['limit']) case final int limit) 'limit': '$limit',
       if (arguments['provider'] case final String provider
           when provider.isNotEmpty)
         'provider': provider,
       if (arguments['type'] case final String type when type.isNotEmpty)
         'type': type,
-      if (arguments['since'] case final num since) 'since': '${since.toInt()}',
-      if (arguments['until'] case final num until) 'until': '${until.toInt()}',
+      if (coerceInt(arguments['since']) case final int since) 'since': '$since',
+      if (coerceInt(arguments['until']) case final int until) 'until': '$until',
     };
     final view = arguments['view'] as String? ?? 'compact';
     return _request(
@@ -448,8 +449,8 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   ///
   /// Returns `(port, null)` on success or `(null, errorResult)` otherwise.
   Future<(int?, CallToolResult?)> _resolvePort(CallToolRequest request) async {
-    if ((request.arguments ?? const {})['port'] case final num port) {
-      return (port.toInt(), null);
+    if (coerceInt((request.arguments ?? const {})['port']) case final int port) {
+      return (port, null);
     }
 
     final apps = await _discoveryCache.get();

@@ -76,6 +76,9 @@ so a rule change must be made in both places or the UI and MCP will disagree:
 | Event model    | serialized in `observer.dart` / `utils/serialization.dart` | `lib/src/models/provider_event.dart`, `provider_info.dart` |
 
 When you change stats thresholds or the event shape, **grep both packages.**
+A drift guard (`test/provider_stats_sync_test.dart` in the main package)
+machine-checks that the shared stats constants and the sparkline bucketing
+function stay identical across the two copies.
 
 ## Wire format is an implicit contract across THREE places
 
