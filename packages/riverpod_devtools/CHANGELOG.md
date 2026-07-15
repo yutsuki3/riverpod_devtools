@@ -5,6 +5,14 @@
   package (the one depending on `riverpod_devtools`) lives below the
   directory `.mcp.json` is read from — a common monorepo layout — including
   an FVM example (`fvm dart run ...`).
+- **Docs: MCP connection diagnostics.** `TROUBLESHOOTING.md`'s MCP Issues
+  section now leads with a quick diagnostic checklist (debug mode, observer
+  registered, `curl .../ping` health check with the expected response shape,
+  running from the right package directory, MCP client restarted after
+  `.mcp.json` changes) so a broken setup can be isolated to app-side vs.
+  MCP-client-side without guesswork. `MCP.md` now calls out that most MCP
+  clients only read `.mcp.json` at startup, so tools added mid-session need a
+  client restart/reload.
 
 ## 1.1.0
 

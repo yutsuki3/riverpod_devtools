@@ -68,6 +68,8 @@ This works the same way as `dart run riverpod_devtools:analyze` — no path need
 >
 > If your MCP client supports a separate working-directory field, prefer setting that over the shell wrapper — check its docs, since this varies by client.
 
+> **New or changed `.mcp.json` mid-session?** Most MCP clients (including Claude Code) only read `.mcp.json` at startup. If you add or edit it while a session is already running, restart or reload the client — the new tools won't appear otherwise. See [Troubleshooting](#troubleshooting) if tools are still missing after that.
+
 > **First launch is slow (one-time):** `dart run` compiles the MCP server the first time it starts, which can take ~10–20 seconds before the server responds — some MCP clients may report a startup timeout on that very first attempt. Just retry (or restart your AI tool): subsequent launches reuse the compiled snapshot and start in well under a second. The compile messages go to stderr, so they never interfere with the MCP protocol on stdout. The snapshot is rebuilt after `flutter pub get` / dependency changes.
 
 **2. Run your Flutter app in debug mode**
