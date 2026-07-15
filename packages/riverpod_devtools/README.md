@@ -51,7 +51,7 @@ See [MCP.md](MCP.md) for setup — it takes one `.mcp.json` entry.
 
     ```yaml
     dependencies:
-      riverpod_devtools: ^1.0.0
+      riverpod_devtools: ^1.1.0
       flutter_riverpod: '>=2.3.0 <4.0.0'
     ```
 

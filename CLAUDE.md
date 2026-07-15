@@ -139,6 +139,35 @@ The built extension lives in
 package. `analyzer` and `dart_mcp` are runtime dependencies (used by the
 CLI / MCP binaries), which is why the SDK minimums are relatively high.
 
+## Releasing
+
+`tool/release.sh <X.Y.Z>` is the entry point; it syncs the version and
+rebuilds the bundled extension, then prints the manual checklist. **Every
+place a version or release note lives** (keep this list in sync when adding
+a new one):
+
+| Location | Updated by |
+|----------|------------|
+| `packages/riverpod_devtools/pubspec.yaml` | release.sh |
+| `packages/riverpod_devtools/extension/devtools/config.yaml` | release.sh |
+| `packages/riverpod_devtools_extension/pubspec.yaml` | release.sh |
+| `lib/src/mcp_constants.dart` (`riverpodDevToolsVersion`, MCP handshake) | release.sh |
+| `packages/riverpod_devtools/README.md` install snippet (shown on pub.dev) | release.sh |
+| `packages/riverpod_devtools/CHANGELOG.md` — new entry; fold `Unreleased` into it | **manual** |
+| Root `README.md` Version Compatibility table — new row only when the Flutter/riverpod constraints change | **manual** |
+| `extension/devtools/build/` — rebuilt web app | release.sh |
+
+**Pitfall:** the `"version"` fields in `riverpod_dependencies.json`, the CLI
+analyzer (`lib/src/cli/analyzer.dart`), and their tests are the
+**dependency-JSON format version**, not the package version. Never bump them
+during a release.
+
+After the sync: run `flutter analyze` + `flutter test` in **both** packages
+(extension needs `--platform chrome`), commit, `flutter pub publish
+--dry-run`, publish, then tag `vX.Y.Z`. A final
+`grep -rn "<old-version>" --include="*.yaml" --include="*.md" --include="*.dart" .`
+(excluding build output and format-version fields) should come back empty.
+
 ## Conventions
 
 - The observer's HTTP server and MCP path only run in **debug mode**; they
