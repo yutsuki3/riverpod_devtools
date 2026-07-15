@@ -589,15 +589,16 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   /// Track which source provided the data
   /// Returns:
   /// - 'static' if metadata exists for this provider
+  /// - 'load_error' if the dependency JSON was found but failed to parse
   /// - 'name_mismatch' if JSON was loaded but this provider name doesn't match
   /// - 'none' if no JSON data was loaded at all
   String _getDependencySource(String providerName) {
-    final hasStatic =
-        RiverpodDevToolsRegistry.instance.hasMetadata(providerName);
-    if (hasStatic) return 'static';
-
-    final hasAnyData = RiverpodDevToolsRegistry.instance.hasAnyData;
-    return hasAnyData ? 'name_mismatch' : 'none';
+    final registry = RiverpodDevToolsRegistry.instance;
+    if (registry.hasMetadata(providerName)) return 'static';
+    // A failed load is a distinct setup state: telling it apart from 'none'
+    // lets the UI say "your JSON is broken" instead of "run the analyzer".
+    if (registry.loadError != null) return 'load_error';
+    return registry.hasAnyData ? 'name_mismatch' : 'none';
   }
 
   Map<String, Object?> _buildProviderEventData(
@@ -621,6 +622,10 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
       // Dependencies are per definition, so look them up by base name.
       'dependencies': _getDependencies(id.base),
       'dependenciesSource': _getDependencySource(id.base),
+      // Why loading failed, so the UI can show the actual reason. Only
+      // attached while a load error is present.
+      if (RiverpodDevToolsRegistry.instance.loadError case final String error)
+        'dependenciesLoadError': error,
       'dependenciesLoadedAt': RiverpodDevToolsRegistry
           .instance.lastLoadedTimestamp?.millisecondsSinceEpoch,
       'dependenciesGeneratedAt': RiverpodDevToolsRegistry

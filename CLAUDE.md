@@ -145,3 +145,9 @@ CLI / MCP binaries), which is why the SDK minimums are relatively high.
   never start in profile/release or on web.
 - Keep changes minimal and behavior-preserving unless the task says
   otherwise. Prefer adding a regression test over expanding scope.
+- A PR that changes the extension UI must include a screenshot of the
+  affected screen. The mock app renders the extension with fixture data —
+  no target app or DevTools session needed:
+  `cd packages/riverpod_devtools_extension && flutter run -d chrome -t lib/main_mock.dart`.
+  When adding a new UI state, also add a fixture for it to `main_mock.dart`
+  so the state stays reproducible.

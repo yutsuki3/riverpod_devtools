@@ -457,6 +457,18 @@ class _MockAppState extends State<_MockApp> {
         dependenciesSource: DependencySource.static,
         dependenciesLoadedAt: at(63),
       ),
+      // Demonstrates the dependency-JSON parse failure state: select this
+      // provider and expand "Dependency Data Failed to Load" in the
+      // Dependencies section of the detail panel.
+      'brokenSetupProvider': ProviderInfo(
+        id: '15',
+        name: 'brokenSetupProvider',
+        value: intValue(1),
+        status: ProviderStatus.active,
+        dependenciesSource: DependencySource.loadError,
+        dependenciesLoadError:
+            'FormatException: Unexpected character (at line 3, character 8)',
+      ),
     };
 
     // The mock harness is the one legitimate non-test consumer.

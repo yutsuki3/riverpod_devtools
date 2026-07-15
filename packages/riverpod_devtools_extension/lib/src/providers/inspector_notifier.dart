@@ -594,6 +594,7 @@ class InspectorNotifier extends ChangeNotifier {
       DependencySource dependenciesSource = DependencySource.none;
       DateTime? dependenciesLoadedAt;
       DateTime? dependenciesGeneratedAt;
+      String? dependenciesLoadError;
       try {
         final rawDeps = data['dependencies'];
         if (rawDeps is List) {
@@ -604,11 +605,18 @@ class InspectorNotifier extends ChangeNotifier {
         if (rawSource is String) {
           if (rawSource == 'static') {
             dependenciesSource = DependencySource.static;
+          } else if (rawSource == 'load_error') {
+            dependenciesSource = DependencySource.loadError;
           } else if (rawSource == 'name_mismatch') {
             dependenciesSource = DependencySource.nameMismatch;
           } else if (rawSource == 'none') {
             dependenciesSource = DependencySource.none;
           }
+        }
+
+        final rawLoadError = data['dependenciesLoadError'];
+        if (rawLoadError is String && rawLoadError.isNotEmpty) {
+          dependenciesLoadError = rawLoadError;
         }
 
         final rawLoadedAt = data['dependenciesLoadedAt'];
@@ -672,6 +680,7 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesSource: dependenciesSource,
           dependenciesLoadedAt: dependenciesLoadedAt,
           dependenciesGeneratedAt: dependenciesGeneratedAt,
+          dependenciesLoadError: dependenciesLoadError,
           dependencyDetails: dependencyDetails,
           family: family,
           argument: argument,
@@ -695,6 +704,7 @@ class InspectorNotifier extends ChangeNotifier {
           dependenciesSource: dependenciesSource,
           dependenciesLoadedAt: dependenciesLoadedAt,
           dependenciesGeneratedAt: dependenciesGeneratedAt,
+          dependenciesLoadError: dependenciesLoadError,
           // Updates don't carry details; keep what the added event gave us.
           dependencyDetails:
               _state.providers[providerName]?.dependencyDetails ?? const [],
@@ -733,6 +743,8 @@ class InspectorNotifier extends ChangeNotifier {
               existing?.dependenciesLoadedAt ?? dependenciesLoadedAt,
           dependenciesGeneratedAt:
               existing?.dependenciesGeneratedAt ?? dependenciesGeneratedAt,
+          dependenciesLoadError:
+              existing?.dependenciesLoadError ?? dependenciesLoadError,
           lastError: errorMap ?? {'message': 'Unknown error'},
           dependencyDetails: existing?.dependencyDetails ?? const [],
           family: family ?? existing?.family,
@@ -758,6 +770,7 @@ class InspectorNotifier extends ChangeNotifier {
               existing?.dependenciesSource ?? DependencySource.none,
           dependenciesLoadedAt: existing?.dependenciesLoadedAt,
           dependenciesGeneratedAt: existing?.dependenciesGeneratedAt,
+          dependenciesLoadError: existing?.dependenciesLoadError,
           dependencyDetails: existing?.dependencyDetails ?? const [],
           family: family ?? existing?.family,
           argument: argument ?? existing?.argument,

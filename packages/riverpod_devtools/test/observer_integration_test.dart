@@ -116,5 +116,41 @@ void main() {
 
       container.dispose();
     });
+
+    test('events report load_error (with the reason) after a failed '
+        'dependency-JSON load', () {
+      RiverpodDevToolsRegistry.instance.loadFromJson('{ not valid json');
+      expect(RiverpodDevToolsRegistry.instance.loadError, isNotNull);
+
+      final observer = RiverpodDevToolsObserver();
+      final container = ProviderContainer(observers: [observer]);
+      addTearDown(container.dispose);
+
+      final testProvider = Provider<int>((ref) => 42, name: 'testProvider');
+      container.read(testProvider);
+
+      final added = observer.bufferedEventsForTesting
+          .firstWhere((e) => e['type'] == 'provider_added');
+      expect(added['dependenciesSource'], 'load_error');
+      expect(added['dependenciesLoadError'], isA<String>());
+      expect(added['dependenciesLoadError'], isNotEmpty);
+    });
+
+    test('events omit dependenciesLoadError when loading succeeded', () {
+      RiverpodDevToolsRegistry.instance
+          .loadFromJson('{"providers": [], "version": "1.0.0"}');
+
+      final observer = RiverpodDevToolsObserver();
+      final container = ProviderContainer(observers: [observer]);
+      addTearDown(container.dispose);
+
+      final testProvider = Provider<int>((ref) => 42, name: 'testProvider');
+      container.read(testProvider);
+
+      final added = observer.bufferedEventsForTesting
+          .firstWhere((e) => e['type'] == 'provider_added');
+      expect(added['dependenciesSource'], isNot('load_error'));
+      expect(added.containsKey('dependenciesLoadError'), isFalse);
+    });
   });
 }
