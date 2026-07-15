@@ -166,6 +166,49 @@
 
 ## MCP Issues
 
+### Quick diagnostic checklist
+
+When an MCP tool (`get_riverpod_logs`, `get_provider_state`, etc.) isn't
+available or isn't returning what you expect, work through these in order —
+each one isolates a different part of the setup:
+
+1. Is the Flutter app running in **debug mode** (`flutter run`)? The HTTP
+   server never starts in profile/release builds, or on web.
+2. Is `RiverpodDevToolsObserver()` registered in
+   `ProviderScope(observers: [...])`?
+3. Is the app-side HTTP server reachable? Query it directly, bypassing MCP
+   entirely:
+   ```bash
+   curl http://127.0.0.1:8788/ping
+   ```
+   A healthy response looks like:
+   ```json
+   {"riverpodDevtools": true, "port": 8788, "providerCount": 86, "eventCount": 1000}
+   ```
+   If this fails, the problem is on the app side (steps 1–2) or the port —
+   each debug app binds the first free port in `8788`–`8797`, so retry with
+   `8789`, `8790`, etc. if several apps are running.
+4. Does the MCP command run **from the Flutter package directory** — the one
+   whose `pubspec.yaml` lists `riverpod_devtools`? See
+   [MCP.md's monorepo/subdirectory note](MCP.md#setup) if `.mcp.json` lives
+   above that directory.
+5. Has the MCP client been **restarted or reloaded** since `.mcp.json` was
+   added or changed? Most MCP clients, including Claude Code, only read
+   `.mcp.json` at session/client startup — adding or editing it mid-session
+   does not make new tools appear until you restart. If `/ping` (step 3)
+   succeeds but the tools still aren't available in your AI tool, this is the
+   most likely cause.
+
+If `/ping` works but you still need to inspect state immediately without
+restarting, the other endpoints (`/logs`, `/providers`, `/graph`, `/stats`)
+are reachable the same way as a stopgap:
+```bash
+curl http://127.0.0.1:8788/logs
+curl http://127.0.0.1:8788/providers
+curl http://127.0.0.1:8788/stats
+curl http://127.0.0.1:8788/graph
+```
+
 ### AI tool reports "No running Flutter app ... was found on ports 8788–8797"
 
 The MCP server probes `localhost:8788`–`8797` and found nothing. Check, in order:
