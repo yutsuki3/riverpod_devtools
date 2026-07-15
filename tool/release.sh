@@ -30,6 +30,19 @@ ext_dir="$root_dir/packages/riverpod_devtools_extension"
 config_file="$pkg_dir/extension/devtools/config.yaml"
 build_dest="$pkg_dir/extension/devtools/build"
 
+# Flutter launcher. Projects that pin their SDK with FVM must invoke Flutter as
+# `fvm flutter`, so prefer that whenever `fvm` is on PATH; otherwise fall back
+# to a plain `flutter`. Force either explicitly with FLUTTER, e.g.
+# `FLUTTER=flutter tool/release.sh 1.2.3` or `FLUTTER="fvm flutter" ...`.
+if [[ -n "${FLUTTER:-}" ]]; then
+  flutter_cmd="$FLUTTER"
+elif command -v fvm >/dev/null 2>&1; then
+  flutter_cmd="fvm flutter"
+else
+  flutter_cmd="flutter"
+fi
+echo "==> Using Flutter command: $flutter_cmd"
+
 sed_inplace() {
   if [[ "$(uname)" == "Darwin" ]]; then
     sed -i '' "$@"
@@ -56,7 +69,7 @@ sed_inplace "s/riverpod_devtools: \^[0-9][0-9.]*/riverpod_devtools: ^$new_versio
 # those here.)
 
 echo "==> Building riverpod_devtools_extension (Flutter web, release mode)"
-(cd "$ext_dir" && flutter build web --release)
+(cd "$ext_dir" && $flutter_cmd build web --release)
 
 echo "==> Copying build output into ${build_dest#"$root_dir"/}"
 rm -rf "$build_dest"
@@ -69,9 +82,9 @@ echo "     (fold any 'Unreleased' section into it)"
 echo "  2. Root README.md: add a ${new_version%.*}.x row to the Version"
 echo "     Compatibility table if the Flutter/riverpod constraints changed"
 echo "  3. Review the diff (especially extension/devtools/build/)"
-echo "  4. Verify: flutter analyze && flutter test in BOTH packages"
-echo "     (extension tests need: flutter test --platform chrome)"
+echo "  4. Verify: $flutter_cmd analyze && $flutter_cmd test in BOTH packages"
+echo "     (extension tests need: $flutter_cmd test --platform chrome)"
 echo "  5. git add -A && git commit -m \"chore: release $new_version\""
-echo "  6. cd packages/riverpod_devtools && flutter pub publish --dry-run"
-echo "  7. flutter pub publish"
+echo "  6. cd packages/riverpod_devtools && $flutter_cmd pub publish --dry-run"
+echo "  7. $flutter_cmd pub publish"
 echo "  8. git tag v$new_version && git push origin v$new_version"
