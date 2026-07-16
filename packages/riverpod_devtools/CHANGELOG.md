@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.2
 
 - **Perf: `dart run riverpod_devtools:analyze` is dramatically faster on
   large projects.** The CLI resolved every file semantically
