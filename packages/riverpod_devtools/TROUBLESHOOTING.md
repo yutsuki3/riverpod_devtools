@@ -302,14 +302,22 @@ Call `list_riverpod_apps` and pass the chosen `port` to every other tool. Each d
 
 **Solutions**:
 
-1. The analyzer scans all `.dart` files in `lib/`. For large projects, this may take a few seconds.
+1. Upgrade `riverpod_devtools`. Older versions semantically resolved every
+   file (each file's transitive imports included), which took **minutes** on
+   provider-heavy apps; current versions do a syntax-only parse, so even
+   large projects finish in about a second. The first run still pays
+   `dart run`'s one-time compile (~10–20s); later runs are fast.
 
-2. Use watch mode during development to avoid re-running manually:
+2. The analyzer parses all `.dart` files in `lib/` (skipping `.g.dart` /
+   `.freezed.dart`), so runtime scales with the amount of source, not with
+   your dependency graph.
+
+3. Use watch mode during development to avoid re-running manually:
    ```bash
    dart run riverpod_devtools:analyze --watch
    ```
 
-3. The generated JSON file is small and loads quickly at app startup.
+4. The generated JSON file is small and loads quickly at app startup.
 
 ### DevTools UI lag with many providers
 
