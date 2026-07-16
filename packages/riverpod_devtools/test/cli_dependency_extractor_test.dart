@@ -150,6 +150,25 @@ final b = Provider((ref) {
       expect(deps, isEmpty);
     });
 
+    test('a syntactically named argument does not throw', () {
+      // Not valid Riverpod usage (ref.watch takes one positional argument),
+      // but still valid Dart syntax, and ArgumentList.arguments' element
+      // shape for a named argument differs across analyzer versions (it was
+      // `NamedExpression implements Expression` pre-14, `NamedArgument
+      // implements Argument` — a different interface — from 14 on). The
+      // exact outcome is version-dependent (older analyzers can't unwrap it
+      // and record nothing; 14+ can and does), but extraction must never
+      // throw either way.
+      expect(
+        () => _extract('''
+final b = Provider((ref) {
+  return ref.watch(name: a);
+});
+'''),
+        returnsNormally,
+      );
+    });
+
     test('records a source location for each dependency', () {
       final deps = _extract('''
 final b = Provider((ref) {
