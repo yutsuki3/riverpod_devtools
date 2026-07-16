@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:analyzer/dart/analysis/analysis_context_collection.dart';
-import 'package:analyzer/dart/analysis/results.dart';
+import 'package:analyzer/dart/analysis/features.dart';
+import 'package:analyzer/dart/analysis/utilities.dart';
 import 'package:analyzer/dart/ast/ast.dart';
 import 'package:analyzer/dart/ast/visitor.dart';
 import 'package:path/path.dart' as path;
@@ -57,13 +57,8 @@ class RiverpodAnalyzer {
 
       // Analyze all files
       final allMetadata = <ProviderMetadata>[];
-      final collection = AnalysisContextCollection(
-        includedPaths: [libDir.path],
-      );
-
       for (final file in dartFiles) {
-        final metadata = await _analyzeFile(file, collection);
-        allMetadata.addAll(metadata);
+        allMetadata.addAll(_analyzeFile(file));
       }
 
       // Generate JSON
@@ -93,25 +88,31 @@ class RiverpodAnalyzer {
     }
   }
 
-  Future<List<ProviderMetadata>> _analyzeFile(
-    File file,
-    AnalysisContextCollection collection,
-  ) async {
-    final metadata = <ProviderMetadata>[];
-
-    for (final context in collection.contexts) {
-      if (context.contextRoot.isAnalyzed(file.path)) {
-        final result = await context.currentSession.getResolvedUnit(file.path);
-        if (result is ResolvedUnitResult) {
-          final visitor = ProviderVisitor(file.path);
-          result.unit.visitChildren(visitor);
-          metadata.addAll(visitor.providers);
-        }
-        break;
-      }
+  // Syntax-only parse, on purpose. [ProviderVisitor] and
+  // [SimpleDependencyExtractor] match purely on AST shape (provider patterns
+  // in initializers, `ref.watch/read/listen` by name, `@riverpod` by
+  // annotation name) and never touch resolved types or elements — so the
+  // previous `AnalysisContextCollection` + `getResolvedUnit` pipeline paid
+  // for full semantic resolution (of each file AND its transitive imports)
+  // that was entirely unused. On provider-heavy apps that made
+  // `dart run riverpod_devtools:analyze` take minutes; a plain parse is
+  // proportional to file size only and produces the identical output.
+  List<ProviderMetadata> _analyzeFile(File file) {
+    try {
+      final result = parseFile(
+        path: file.path,
+        featureSet: FeatureSet.latestLanguageVersion(),
+        throwIfDiagnostics: false,
+      );
+      final visitor = ProviderVisitor(file.path);
+      result.unit.visitChildren(visitor);
+      return visitor.providers;
+    } catch (_) {
+      // An unreadable or unparseable file skips only itself, matching the
+      // old behavior where a file without a usable analysis result was
+      // silently excluded from the metadata.
+      return const [];
     }
-
-    return metadata;
   }
 
   String _generateJson(List<ProviderMetadata> allMetadata) {
@@ -155,11 +156,13 @@ class RiverpodAnalyzer {
 }
 
 /// Walks a compilation unit collecting [ProviderMetadata] for every provider
-/// declaration it recognizes. Public (rather than the usual analyzer-private
-/// helper) so tests can drive it directly off an unresolved `parseString()`
-/// unit, the same way [SimpleDependencyExtractor] is tested — a full
-/// [AnalysisContextCollection] needs a resolvable SDK, which test
-/// environments don't always have.
+/// declaration it recognizes. Purely syntactic by design: it matches AST
+/// shape and names only, never resolved types or elements, which is what
+/// lets [RiverpodAnalyzer] run on a plain [parseFile] unit (no analysis
+/// context, no SDK resolution) and stay fast on large projects. Public
+/// (rather than the usual analyzer-private helper) so tests can drive it
+/// directly off a `parseString()` unit, the same way
+/// [SimpleDependencyExtractor] is tested.
 class ProviderVisitor extends RecursiveAstVisitor<void> {
   final String filePath;
   final List<ProviderMetadata> providers = [];

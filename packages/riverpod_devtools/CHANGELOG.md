@@ -1,3 +1,20 @@
+## Unreleased
+
+- **Perf: `dart run riverpod_devtools:analyze` is dramatically faster on
+  large projects.** The CLI resolved every file semantically
+  (`AnalysisContextCollection` + `getResolvedUnit`), which re-resolves each
+  file's transitive imports — near "files × whole program" work, taking
+  minutes on provider-heavy apps. But the extraction is purely syntactic
+  (provider patterns, `ref.watch/read/listen` by name, `@riverpod` by
+  annotation name) and never used the resolution, so the analyzer now does a
+  plain syntax-only parse per file (`parseFile`). Cost is proportional to
+  source size only — typically minutes → well under a second — and the
+  generated `riverpod_dependencies.json` is identical. `--watch` re-analysis
+  gets the same speedup. A file that fails to read/parse now skips only
+  itself (matching the previous per-file behavior), and the pipeline no
+  longer needs a resolvable SDK, which also made `analyze()` end-to-end
+  testable.
+
 ## 1.1.1
 
 - **Fix: non-finite numbers no longer crash the observer.** A provider value

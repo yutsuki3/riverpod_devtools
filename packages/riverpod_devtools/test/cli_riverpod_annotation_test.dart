@@ -3,11 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod_devtools/src/builder/provider_metadata.dart';
 import 'package:riverpod_devtools/src/cli/analyzer.dart';
 
-/// [ProviderVisitor] normally runs against a resolved AnalysisContextCollection
-/// unit (via `RiverpodAnalyzer.analyze()`), which needs an SDK to resolve
-/// against. It only does syntactic AST matching though (same as
-/// [SimpleDependencyExtractor]), so an unresolved `parseString()` unit is
-/// enough to exercise it directly.
+/// [ProviderVisitor] is purely syntactic (same as
+/// [SimpleDependencyExtractor]) — `RiverpodAnalyzer.analyze()` itself now
+/// drives it off a plain `parseFile` unit — so an unresolved `parseString()`
+/// unit is enough to exercise it directly here.
 List<ProviderMetadata> _providersFor(String source) {
   final parsed = parseString(content: source, throwIfDiagnostics: false);
   final visitor = ProviderVisitor('lib/test.dart');
