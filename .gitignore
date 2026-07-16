@@ -18,18 +18,6 @@ build_web/
 # Claude Code
 .claude/
 
-# Extension build output (generated). This directory is the bundled DevTools
-# extension and SHIPS inside the published package, so it must stay tracked and
-# be included by `flutter pub publish` — the blanket `build/` rule above would
-# otherwise drop it. Re-include the whole subtree: the `/**` line is required
-# in addition to the directory line because `pub`'s file selection is stricter
-# than git's and does not re-include nested files from a directory negation
-# alone. Without it, pub silently drops some canvaskit variants
-# (e.g. canvaskit/experimental_webparagraph/, canvaskit/wimp.*) from the
-# published archive, and `pub publish` warns that checked-in files are ignored.
-!packages/riverpod_devtools/extension/devtools/build/
-!packages/riverpod_devtools/extension/devtools/build/**
-
 # Generated dependency metadata files
 **/riverpod_dependencies.json
 # ...but commit the examples' generated files so a fresh clone builds and

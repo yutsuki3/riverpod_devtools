@@ -76,15 +76,26 @@ rm -rf "$build_dest"
 mkdir -p "$build_dest"
 cp -r "$ext_dir/build/web/." "$build_dest/"
 
+# extension/devtools/build/ is git-ignored and re-included in the published
+# archive only via extension/devtools/.pubignore (`!build`) — it is NEVER
+# committed. That means `git status`/`git add -A` below will not see it, and
+# there is no fallback copy: `pub publish` MUST run from this same working
+# tree, after this build, every time. Don't `git stash`/`git checkout`/switch
+# branches between here and publishing.
+echo "==> NOTE: the rebuilt extension is git-ignored by design (see CLAUDE.md"
+echo "    > Releasing) — publish from THIS working tree without switching"
+echo "    branches or re-checking out files first."
+
 echo "==> Done. Remaining manual steps (full checklist in CLAUDE.md > Releasing):"
 echo "  1. Add a $new_version entry to packages/riverpod_devtools/CHANGELOG.md"
 echo "     (fold any 'Unreleased' section into it)"
 echo "  2. Root README.md: add a ${new_version%.*}.x row to the Version"
 echo "     Compatibility table if the Flutter/riverpod constraints changed"
-echo "  3. Review the diff (especially extension/devtools/build/)"
-echo "  4. Verify: $flutter_cmd analyze && $flutter_cmd test in BOTH packages"
+echo "  3. Verify: $flutter_cmd analyze && $flutter_cmd test in BOTH packages"
 echo "     (extension tests need: $flutter_cmd test --platform chrome)"
-echo "  5. git add -A && git commit -m \"chore: release $new_version\""
-echo "  6. cd packages/riverpod_devtools && $flutter_cmd pub publish --dry-run"
-echo "  7. $flutter_cmd pub publish"
-echo "  8. git tag v$new_version && git push origin v$new_version"
+echo "  4. git add -A && git commit -m \"chore: release $new_version\""
+echo "     (the rebuilt extension itself has nothing to commit — it's git-ignored)"
+echo "  5. cd packages/riverpod_devtools && $flutter_cmd pub publish --dry-run"
+echo "     (run from THIS tree — do not re-checkout/switch branches first)"
+echo "  6. $flutter_cmd pub publish"
+echo "  7. git tag v$new_version && git push origin v$new_version"
