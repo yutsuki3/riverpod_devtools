@@ -135,9 +135,16 @@ dart run riverpod_devtools:analyze
 ```
 
 The built extension lives in
-`packages/riverpod_devtools/extension/devtools/build/` and ships with the
-package. `analyzer` and `dart_mcp` are runtime dependencies (used by the
-CLI / MCP binaries), which is why the SDK minimums are relatively high.
+`packages/riverpod_devtools/extension/devtools/build/` and ships inside the
+**published pub.dev package**, but — unlike the rest of the repo — it is
+**not committed to git**: it's git-ignored (`build/` in the root
+`.gitignore`) and re-included only at publish time via
+`packages/riverpod_devtools/extension/devtools/.pubignore` (`!build`),
+matching the pattern `package:devtools_extensions` itself documents for
+extension authors. This is deliberate — see [Releasing](#releasing) for why
+and what it means for the release flow. `analyzer` and `dart_mcp` are
+runtime dependencies (used by the CLI / MCP binaries), which is why the SDK
+minimums are relatively high.
 
 ## Releasing
 
@@ -155,16 +162,35 @@ a new one):
 | `packages/riverpod_devtools/README.md` install snippet (shown on pub.dev) | release.sh |
 | `packages/riverpod_devtools/CHANGELOG.md` — new entry; fold `Unreleased` into it | **manual** |
 | Root `README.md` Version Compatibility table — new row only when the Flutter/riverpod constraints change | **manual** |
-| `extension/devtools/build/` — rebuilt web app | release.sh |
+| `extension/devtools/build/` — rebuilt web app | release.sh, but **not committed** (see below) |
 
 **Pitfall:** the `"version"` fields in `riverpod_dependencies.json`, the CLI
 analyzer (`lib/src/cli/analyzer.dart`), and their tests are the
 **dependency-JSON format version**, not the package version. Never bump them
 during a release.
 
+**Pitfall — the extension build is git-ignored, not committed:**
+`extension/devtools/build/` is excluded from git (root `.gitignore`) and
+re-included in the published archive only via
+`packages/riverpod_devtools/extension/devtools/.pubignore`. This means:
+- `git status` after `tool/release.sh` will **not** show the rebuilt
+  extension as a change to commit — that's expected, not a sign the build
+  was skipped.
+- You **must run `tool/release.sh` (or otherwise rebuild) immediately before
+  `flutter pub publish`**, in the same working tree, every release — there
+  is no committed fallback copy to publish from if you skip it or publish
+  from a stale checkout.
+- This is deliberate: it avoids committing large regenerated binary diffs
+  (canvaskit, fonts, `main.dart.js`) on every release, and matches the
+  pattern `package:devtools_extensions` documents for extension authors —
+  see the "Extension build output" comment in `.gitignore` and
+  `extension/devtools/.pubignore` for the mechanics.
+
 After the sync: run `flutter analyze` + `flutter test` in **both** packages
-(extension needs `--platform chrome`), commit, `flutter pub publish
---dry-run`, publish, then tag `vX.Y.Z`. A final
+(extension needs `--platform chrome`), commit the version/CHANGELOG sync
+(the rebuilt extension has nothing to commit — see above), `flutter pub
+publish --dry-run` **from the same tree you just built in**, publish, then
+tag `vX.Y.Z`. A final
 `grep -rn "<old-version>" --include="*.yaml" --include="*.md" --include="*.dart" .`
 (excluding build output and format-version fields) should come back empty.
 
