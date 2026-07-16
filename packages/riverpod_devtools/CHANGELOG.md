@@ -14,6 +14,18 @@
   itself (matching the previous per-file behavior), and the pipeline no
   longer needs a resolvable SDK, which also made `analyze()` end-to-end
   testable.
+- **Fix: `dart run riverpod_devtools:analyze` no longer fails to compile on
+  `analyzer` 14+.** `ArgumentList.arguments`'s element type changed from
+  `NodeList<Expression>` to `NodeList<Argument>` (a new sealed interface
+  implemented by both `Expression` and the new `NamedArgument`; the old
+  `NamedExpression` was removed) — a genuine breaking type change that can't
+  be bridged with a single static type, since `Argument`/`NamedArgument`
+  don't exist pre-14 and `NamedExpression` doesn't exist on 14+. The
+  `ref.watch`/`read`/`listen` argument extractor now resolves the argument's
+  expression dynamically instead of relying on either shape, restoring
+  compatibility across the package's full declared `analyzer: >=6.0.0
+  <15.0.0` range instead of breaking on whichever version `pub get`
+  resolves.
 
 ## 1.1.1
 

@@ -38,7 +38,8 @@ class _RefCallVisitor extends RecursiveAstVisitor<void> {
 
     // Check for ref.watch/read/listen
     if (_isRefTarget(target) && _isRefMethod(methodName)) {
-      final providerName = _extractProviderName(node.argumentList.arguments);
+      final providerName =
+          _extractProviderName(node.argumentList.arguments.toList());
       if (providerName != null) {
         final dependencyType = _getDependencyType(methodName);
         if (dependencyType != null) {
@@ -69,11 +70,43 @@ class _RefCallVisitor extends RecursiveAstVisitor<void> {
   }
 
   /// Extract provider name from method arguments
-  String? _extractProviderName(NodeList<Expression> arguments) {
+  String? _extractProviderName(List<Object?> arguments) {
     if (arguments.isEmpty) return null;
 
-    final firstArg = arguments.first;
+    final firstArg = _asExpression(arguments.first);
+    if (firstArg == null) return null;
     return _getProviderNameFromExpression(firstArg);
+  }
+
+  /// `ArgumentList.arguments`'s element type changed across analyzer
+  /// versions: pre-14 it's `NodeList<Expression>` (a positional argument
+  /// simply *is* an Expression); 14+ it's `NodeList<Argument>`, a new sealed
+  /// interface implemented by both `Expression` (positional) and the new
+  /// `NamedArgument` (`.argumentExpression` unwraps to the value). This is a
+  /// genuine breaking type change — `Argument`/`NamedArgument` don't exist
+  /// pre-14, and the old `NamedExpression` was removed in 14 — so it can't
+  /// be bridged with a single static type; resolve dynamically instead, the
+  /// same way `ClassDeclaration.name`/`.members` are bridged in analyzer.dart.
+  ///
+  /// A positional argument's *runtime* type is `Expression` on every
+  /// version (14+ only added the `Argument` interface on top of it), so the
+  /// fast path below handles the common case — including on 14+ — without
+  /// any dynamic call. `ref.watch`/`read`/`listen` never take a named
+  /// argument, so the `.argumentExpression` fallback (14+ only) is
+  /// unreachable in practice; it exists purely so a genuinely-named argument
+  /// degrades to "not extracted" instead of being silently mismatched.
+  Expression? _asExpression(Object? argument) {
+    if (argument is Expression) return argument;
+    final dynamic dynArg = argument;
+    try {
+      // ignore: avoid_dynamic_calls
+      final expr = dynArg.argumentExpression;
+      if (expr is Expression) return expr;
+    } catch (_) {
+      // Not present on this analyzer version (pre-14) or an unrecognized
+      // argument shape; treat as unextractable.
+    }
+    return null;
   }
 
   /// Get provider name from an expression
