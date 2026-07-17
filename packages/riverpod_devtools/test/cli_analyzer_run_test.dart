@@ -74,6 +74,38 @@ class VersionManager extends _\$VersionManager {
     expect(json['version'], '1.0.0'); // dependency-JSON FORMAT version
   });
 
+  test('records locations relative to the project root with / separators',
+      () async {
+    // Absolute paths made the committed JSON differ per machine/checkout;
+    // the output must stay byte-identical wherever it is regenerated.
+    libFile('providers.dart',
+        'final counterProvider = StateProvider<int>((ref) => 0);');
+    libFile('pages/home.dart', '''
+final doubledProvider = Provider<int>((ref) {
+  return ref.watch(counterProvider) * 2;
+});
+''');
+
+    final result = await RiverpodAnalyzer().analyze();
+
+    expect(result.success, isTrue, reason: result.error ?? '');
+
+    final json = jsonDecode(File(result.outputPath).readAsStringSync())
+        as Map<String, dynamic>;
+    final providers = (json['providers'] as List).cast<Map<String, dynamic>>();
+
+    final files = <String>{
+      for (final provider in providers)
+        (provider['location'] as Map<String, dynamic>)['file'] as String,
+      for (final provider in providers)
+        for (final dep
+            in (provider['dependencies'] as List).cast<Map<String, dynamic>>())
+          (dep['location'] as Map<String, dynamic>)['file'] as String,
+    };
+
+    expect(files, {'lib/providers.dart', 'lib/pages/home.dart'});
+  });
+
   test('skips generated files and survives a file with syntax errors',
       () async {
     libFile('good.dart', 'final aProvider = Provider<int>((ref) => 1);');
