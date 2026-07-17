@@ -1,3 +1,15 @@
+## Unreleased
+
+- **Fix: `dart run riverpod_devtools:analyze` writes project-relative file
+  paths.** `riverpod_dependencies.json` recorded every `location.file` as an
+  absolute path of the machine that ran the analyzer, so the generated file
+  (which lives in `lib/` and is typically committed) churned in git on every
+  machine and checkout location. Locations are now relative to the project
+  root (e.g. `lib/pages/home.dart`) with `/` separators on every platform,
+  making the output reproducible. Only the recorded paths change — provider
+  and dependency extraction is untouched. Re-run
+  `dart run riverpod_devtools:analyze` once to migrate an existing file.
+
 ## 1.1.2
 
 - **Perf: `dart run riverpod_devtools:analyze` is dramatically faster on

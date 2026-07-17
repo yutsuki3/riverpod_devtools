@@ -5,7 +5,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/todo_page.dart",
+        "file": "lib/pages/todo_page.dart",
         "line": 25,
         "column": 7
       }
@@ -15,7 +15,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/lifecycle_page.dart",
+        "file": "lib/pages/lifecycle_page.dart",
         "line": 5,
         "column": 7
       }
@@ -25,7 +25,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 5,
         "column": 7
       }
@@ -38,14 +38,14 @@
           "providerName": "authTokenProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 21,
             "column": 19
           }
         }
       ],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 19,
         "column": 7
       }
@@ -58,14 +58,14 @@
           "providerName": "userIdProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 30,
             "column": 20
           }
         }
       ],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 28,
         "column": 7
       }
@@ -78,14 +78,14 @@
           "providerName": "userIdProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 39,
             "column": 20
           }
         }
       ],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 37,
         "column": 7
       }
@@ -98,7 +98,7 @@
           "providerName": "userNameProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 48,
             "column": 18
           }
@@ -107,14 +107,14 @@
           "providerName": "userEmailProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 49,
             "column": 19
           }
         }
       ],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 46,
         "column": 7
       }
@@ -124,7 +124,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 59,
         "column": 7
       }
@@ -137,14 +137,14 @@
           "providerName": "counterProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 75,
             "column": 19
           }
         }
       ],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 73,
         "column": 7
       }
@@ -157,7 +157,7 @@
           "providerName": "doubleCounterProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 84,
             "column": 25
           }
@@ -166,14 +166,14 @@
           "providerName": "counterProvider",
           "type": "watch",
           "location": {
-            "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+            "file": "lib/pages/dependencies_page.dart",
             "line": 85,
             "column": 26
           }
         }
       ],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/dependencies_page.dart",
+        "file": "lib/pages/dependencies_page.dart",
         "line": 82,
         "column": 7
       }
@@ -183,7 +183,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/performance_page.dart",
+        "file": "lib/pages/performance_page.dart",
         "line": 12,
         "column": 7
       }
@@ -193,7 +193,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/performance_page.dart",
+        "file": "lib/pages/performance_page.dart",
         "line": 22,
         "column": 7
       }
@@ -203,7 +203,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/performance_page.dart",
+        "file": "lib/pages/performance_page.dart",
         "line": 33,
         "column": 7
       }
@@ -213,7 +213,7 @@
       "providerType": "FutureProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/async_page.dart",
+        "file": "lib/pages/async_page.dart",
         "line": 7,
         "column": 7
       }
@@ -223,7 +223,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/custom_class_page.dart",
+        "file": "lib/pages/custom_class_page.dart",
         "line": 46,
         "column": 7
       }
@@ -233,7 +233,7 @@
       "providerType": "NotifierProvider",
       "dependencies": [],
       "location": {
-        "file": "/home/user/riverpod_devtools/example/lib/pages/collections_page.dart",
+        "file": "lib/pages/collections_page.dart",
         "line": 27,
         "column": 7
       }

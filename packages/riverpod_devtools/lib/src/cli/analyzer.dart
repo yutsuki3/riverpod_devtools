@@ -58,7 +58,9 @@ class RiverpodAnalyzer {
       // Analyze all files
       final allMetadata = <ProviderMetadata>[];
       for (final file in dartFiles) {
-        allMetadata.addAll(_analyzeFile(file));
+        allMetadata.addAll(
+          _analyzeFile(file, _projectRelativePath(file.path, currentDir.path)),
+        );
       }
 
       // Generate JSON
@@ -88,6 +90,14 @@ class RiverpodAnalyzer {
     }
   }
 
+  // The JSON must be reproducible across machines and checkout locations —
+  // it lives in lib/ and is typically committed — so locations are recorded
+  // relative to the project root, with `/` separators on every platform.
+  String _projectRelativePath(String filePath, String projectRoot) {
+    final relative = path.relative(filePath, from: projectRoot);
+    return path.split(relative).join('/');
+  }
+
   // Syntax-only parse, on purpose. [ProviderVisitor] and
   // [SimpleDependencyExtractor] match purely on AST shape (provider patterns
   // in initializers, `ref.watch/read/listen` by name, `@riverpod` by
@@ -97,14 +107,14 @@ class RiverpodAnalyzer {
   // that was entirely unused. On provider-heavy apps that made
   // `dart run riverpod_devtools:analyze` take minutes; a plain parse is
   // proportional to file size only and produces the identical output.
-  List<ProviderMetadata> _analyzeFile(File file) {
+  List<ProviderMetadata> _analyzeFile(File file, String relativePath) {
     try {
       final result = parseFile(
         path: file.path,
         featureSet: FeatureSet.latestLanguageVersion(),
         throwIfDiagnostics: false,
       );
-      final visitor = ProviderVisitor(file.path);
+      final visitor = ProviderVisitor(relativePath);
       result.unit.visitChildren(visitor);
       return visitor.providers;
     } catch (_) {
