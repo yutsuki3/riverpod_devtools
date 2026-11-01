@@ -72,6 +72,56 @@ This works the same way as `dart run riverpod_devtools:analyze` — no path need
 
 > **First launch is slow (one-time):** `dart run` compiles the MCP server the first time it starts, which can take ~10–20 seconds before the server responds — some MCP clients may report a startup timeout on that very first attempt. Just retry (or restart your AI tool): subsequent launches reuse the compiled snapshot and start in well under a second. The compile messages go to stderr, so they never interfere with the MCP protocol on stdout. The snapshot is rebuilt after `flutter pub get` / dependency changes.
 
+**Using another AI tool?** The server is a standard stdio MCP server, so any MCP client can run it with the same command (`dart run riverpod_devtools:riverpod_devtools_mcp`, from the Flutter package directory). Each client has its own config format; these are taken from the clients' own docs:
+
+- **Cursor** — `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
+  ```json
+  {
+    "mcpServers": {
+      "riverpod_devtools_mcp": {
+        "command": "dart",
+        "args": ["run", "riverpod_devtools:riverpod_devtools_mcp"]
+      }
+    }
+  }
+  ```
+- **VS Code (GitHub Copilot)** — `.vscode/mcp.json`. Note the top-level key is `servers`, not `mcpServers`:
+  ```json
+  {
+    "servers": {
+      "riverpod_devtools_mcp": {
+        "type": "stdio",
+        "command": "dart",
+        "args": ["run", "riverpod_devtools:riverpod_devtools_mcp"],
+        "cwd": "${workspaceFolder}"
+      }
+    }
+  }
+  ```
+- **Codex CLI** — `~/.codex/config.toml` (or `.codex/config.toml` in a trusted project), or `codex mcp add`:
+  ```toml
+  [mcp_servers.riverpod_devtools_mcp]
+  command = "dart"
+  args = ["run", "riverpod_devtools:riverpod_devtools_mcp"]
+  ```
+  ```bash
+  codex mcp add riverpod_devtools_mcp -- dart run riverpod_devtools:riverpod_devtools_mcp
+  ```
+- **Gemini CLI** — `.gemini/settings.json` (project) or `~/.gemini/settings.json` (user); `cwd` is optional and useful for monorepos:
+  ```json
+  {
+    "mcpServers": {
+      "riverpod_devtools_mcp": {
+        "command": "dart",
+        "args": ["run", "riverpod_devtools:riverpod_devtools_mcp"]
+      }
+    }
+  }
+  ```
+  or `gemini mcp add riverpod_devtools_mcp dart run riverpod_devtools:riverpod_devtools_mcp`.
+
+Other clients: check their docs for where to register a stdio server. The first-launch and monorepo notes above apply to every client.
+
 **2. Run your Flutter app in debug mode**
 
 ```bash
@@ -81,6 +131,25 @@ flutter run
 **3. Ask Claude Code to inspect the logs**
 
 The `get_riverpod_logs` tool is now available and Claude Code will call it automatically when you ask about provider state or runtime behavior. Ask it to clear the buffer (`clear_riverpod_logs`) before reproducing a specific flow so only the relevant events show up.
+
+### Tell your AI when to use it
+
+MCP clients list the tools, but a short note in your AI tool's instruction file (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules`, ...) makes it reach for them at the right moment. A starting point:
+
+```markdown
+## Riverpod state (riverpod_devtools MCP)
+
+When debugging provider state, unexpected rebuilds, or provider errors in the
+running debug app, read the live state instead of guessing:
+- Current values: `get_provider_state` (prefer over logs for "what is it now").
+- What happened / why it rebuilt: `get_riverpod_logs` (filter with `provider`,
+  `type`, `limit`; updates carry `triggeredBy`).
+- Too many rebuilds or slow loads: `get_provider_stats`.
+- To reproduce a flow: `clear_riverpod_logs` -> act (or `invalidate_provider`)
+  -> `get_riverpod_logs`.
+`invalidate_provider` and `set_provider_value` change the running app; use them
+only to reproduce or test a scenario.
+```
 
 ## Tools
 

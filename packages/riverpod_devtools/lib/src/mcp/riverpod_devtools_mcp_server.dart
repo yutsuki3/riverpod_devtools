@@ -10,6 +10,14 @@ import 'app_discovery_cache.dart';
 import 'compact.dart';
 import 'response_status.dart';
 
+/// Appended to "app not found / unreachable" errors. An Android emulator or a
+/// real device has its own network namespace, so the app's port is invisible
+/// to this process until it is forwarded.
+const _deviceForwardingHint =
+    '4. On an Android emulator/device or a real iOS device, forward the '
+    'port first (adb forward tcp:8788 tcp:8788 / iproxy 8788 8788). Desktop '
+    'apps and the iOS Simulator need no forwarding.';
+
 base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   RiverpodDevToolsMcpServer(super.channel)
     : super.fromStreamChannel(
@@ -493,7 +501,9 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
                   'Make sure:\n'
                   '1. The Flutter app is running in debug mode: flutter run\n'
                   '2. riverpod_devtools is a dependency\n'
-                  '3. RiverpodDevToolsObserver() is added to ProviderScope observers',
+                  '3. RiverpodDevToolsObserver() is added to ProviderScope '
+                  'observers\n'
+                  '$_deviceForwardingHint',
             ),
           ],
           isError: true,
@@ -622,7 +632,9 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
                 'Make sure:\n'
                 '1. The Flutter app is running in debug mode: flutter run\n'
                 '2. riverpod_devtools is listed in pubspec.yaml dependencies\n'
-                '3. RiverpodDevToolsObserver() is added to ProviderScope observers',
+                '3. RiverpodDevToolsObserver() is added to ProviderScope '
+                'observers\n'
+                '$_deviceForwardingHint',
           ),
         ],
         isError: true,
