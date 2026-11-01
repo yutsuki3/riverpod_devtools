@@ -71,8 +71,8 @@ void main() {
       // Press, let the UI rebuild while the pointer is still down (as
       // happens with any non-instant click, or when a provider event
       // triggers a rebuild mid-click), then release.
-      final gesture =
-          await tester.startGesture(tester.getCenter(find.text('counterProvider')));
+      final gesture = await tester
+          .startGesture(tester.getCenter(find.text('counterProvider')));
       await tester.pump(const Duration(milliseconds: 300));
       await gesture.up();
       await tester.pump();
@@ -166,7 +166,8 @@ void main() {
           reason: 'clearing must be one atomic state change');
     });
 
-    testWidgets('family header toggle collapses instances without '
+    testWidgets(
+        'family header toggle collapses instances without '
         'changing the selection', (tester) async {
       await pumpPanel(tester, providers: [
         _provider('plainProvider'),
@@ -187,6 +188,147 @@ void main() {
           reason: 'header tap collapses the family');
       expect(notifier.state.selectedProviderNames, {'plainProvider'},
           reason: 'header tap must not touch the selection');
+    });
+  });
+
+  group('ProviderListPanel keyboard', () {
+    Future<void> press(WidgetTester tester, LogicalKeyboardKey key) async {
+      await tester.sendKeyEvent(key);
+      await tester.pump();
+    }
+
+    testWidgets('arrow keys move the selection and clamp at the ends',
+        (tester) async {
+      await pumpPanel(tester, providers: [
+        _provider('a'),
+        _provider('b'),
+        _provider('c'),
+      ]);
+      await tester.tap(find.text('a')); // gives the panel focus
+      await tester.pump();
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'b'});
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'c'}, reason: 'clamped');
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      expect(notifier.state.selectedProviderNames, {'b'});
+    });
+
+    testWidgets('Down from no selection picks the first, Up the last',
+        (tester) async {
+      await pumpPanel(tester, providers: [_provider('a'), _provider('b')]);
+      await tester.tap(find.text('a'));
+      await tester.pump();
+      await tester.tap(find.text('a')); // deselect, focus stays
+      await tester.pump();
+      expect(notifier.state.selectedProviderNames, isEmpty);
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'a'});
+
+      notifier.clearSelection();
+      await tester.pump();
+      await press(tester, LogicalKeyboardKey.arrowUp);
+      expect(notifier.state.selectedProviderNames, {'b'});
+    });
+
+    testWidgets('arrows skip family headers and collapsed instances',
+        (tester) async {
+      await pumpPanel(tester, providers: [
+        _provider('first'),
+        _provider('user(1)', family: 'user', argument: '1'),
+        _provider('user(2)', family: 'user', argument: '2'),
+        _provider('last'),
+      ]);
+      await tester.tap(find.text('first'));
+      await tester.pump();
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'user(1)'});
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'last'});
+
+      await tester.tap(find.text('user')); // collapse the family
+      await tester.pump();
+      await tester.tap(find.text('first'));
+      await tester.pump();
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'last'});
+    });
+
+    testWidgets('arrows work from inside the search field on filtered rows',
+        (tester) async {
+      await pumpPanel(tester, providers: [
+        _provider('apple'),
+        _provider('banana'),
+        _provider('blueberry'),
+      ]);
+      await tester.enterText(find.byType(TextField), 'b');
+      await tester.pump();
+
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'banana'});
+      await press(tester, LogicalKeyboardKey.arrowDown);
+      expect(notifier.state.selectedProviderNames, {'blueberry'});
+    });
+
+    testWidgets('Esc clears the search first, then the selection',
+        (tester) async {
+      await pumpPanel(tester, providers: [_provider('apple')]);
+      await tester.tap(find.text('apple'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'app');
+      await tester.pump();
+
+      await press(tester, LogicalKeyboardKey.escape);
+      expect(notifier.state.providerSearchQuery, isEmpty);
+      expect(notifier.state.selectedProviderNames, {'apple'});
+
+      await press(tester, LogicalKeyboardKey.escape);
+      expect(notifier.state.selectedProviderNames, isEmpty);
+    });
+
+    testWidgets('"/" focuses the search field, and is typeable inside it',
+        (tester) async {
+      await pumpPanel(tester, providers: [_provider('a')]);
+      await tester.tap(find.text('a'));
+      await tester.pump();
+
+      await press(tester, LogicalKeyboardKey.slash);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.focusNode!.hasFocus, isTrue);
+
+      await tester.enterText(find.byType(TextField), 'a/b');
+      await tester.pump();
+      expect(notifier.state.providerSearchQuery, 'a/b');
+    });
+
+    testWidgets('a long list scrolls the keyboard-selected row into view',
+        (tester) async {
+      await pumpPanel(tester, providers: [
+        for (var i = 0; i < 60; i++)
+          _provider('p${i.toString().padLeft(2, '0')}'),
+      ]);
+      await tester.tap(find.text('p00'));
+      await tester.pump();
+
+      await press(tester, LogicalKeyboardKey.arrowUp); // clamp stays p00
+      for (var i = 0; i < 40; i++) {
+        await press(tester, LogicalKeyboardKey.arrowDown);
+      }
+      await tester.pumpAndSettle();
+
+      expect(notifier.state.selectedProviderNames, {'p40'});
+      expect(find.text('p40'), findsOneWidget, reason: 'built = on screen');
+      final rect = tester.getRect(find.text('p40'));
+      expect(rect.top, greaterThanOrEqualTo(0));
+      expect(
+          rect.bottom,
+          lessThanOrEqualTo(
+              tester.view.physicalSize.height / tester.view.devicePixelRatio));
     });
   });
 }
