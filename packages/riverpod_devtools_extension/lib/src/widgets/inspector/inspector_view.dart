@@ -102,12 +102,7 @@ class _InspectorViewState extends State<InspectorView> {
             SizedBox(
               width: detailPanelWidth,
               child: PanelCard(
-                child: DetailPanel(
-                  notifier: widget.notifier,
-                  onProviderJump: () {
-                    // Handle jump logic if needed
-                  },
-                ),
+                child: DetailPanel(notifier: widget.notifier),
               ),
             ),
             _PanelDivider(
