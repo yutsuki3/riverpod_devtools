@@ -45,6 +45,23 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     description: 'App port (from list_riverpod_apps). Omit if only one app.',
   );
 
+  /// Hints for MCP clients (they are advisory, not enforced): read tools only
+  /// observe the app, so a client may auto-approve them.
+  static final _readOnly = ToolAnnotations(
+    readOnlyHint: true,
+    openWorldHint: false,
+  );
+
+  /// Tools that change the running app (or discard its event history). The
+  /// effect is a reset/overwrite rather than an addition, and repeating the
+  /// same call leaves the same result.
+  static final _mutating = ToolAnnotations(
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  );
+
   static final _logsViewProperty = Schema.string(
     description:
         'compact (default): slim events. summary: per-provider counts + '
@@ -76,6 +93,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _listRiverpodAppsTool = Tool(
     name: 'list_riverpod_apps',
+    annotations: _readOnly,
     description:
         'List running debug apps exposing Riverpod (port, provider count, '
         'event count). Only needed when several apps run — pass the chosen '
@@ -85,6 +103,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _getRiverpodLogsTool = Tool(
     name: 'get_riverpod_logs',
+    annotations: _readOnly,
     description:
         'Riverpod provider lifecycle events (added / updated / failed / '
         'disposed) — state changes only, not console output. For debugging '
@@ -120,6 +139,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _getProviderStateTool = Tool(
     name: 'get_provider_state',
+    annotations: _readOnly,
     description:
         'Current state of live providers: name, instanceId, status '
         '(active/failed), latest value, error, last-update time. Prefer this '
@@ -142,6 +162,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _getDependencyGraphTool = Tool(
     name: 'get_dependency_graph',
+    annotations: _readOnly,
     description:
         'Provider dependency graph: nodes (with runtime status) and directed '
         'edges dependent → dependency, each with its kind (watch/read/'
@@ -164,6 +185,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _getProviderStatsTool = Tool(
     name: 'get_provider_stats',
+    annotations: _readOnly,
     description:
         'Aggregated per-provider health from the event log: update count + '
         'rate, async load duration (min/avg/max), dispose→recreate churn, '
@@ -183,6 +205,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _invalidateProviderTool = Tool(
     name: 'invalidate_provider',
+    annotations: _mutating,
     description:
         'MUTATES APP STATE: invalidate a provider so it recomputes (state '
         'resets to what build() produces). By default it rebuilds on next '
@@ -209,6 +232,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _setProviderValueTool = Tool(
     name: 'set_provider_value',
+    annotations: _mutating,
     description:
         'MUTATES APP STATE: set a provider to a specific primitive value '
         '(number, boolean, string, or null) — unlike invalidate, which only '
@@ -245,6 +269,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
 
   final _clearRiverpodLogsTool = Tool(
     name: 'clear_riverpod_logs',
+    annotations: _mutating,
     description:
         'Clear the event buffer so only events after this appear next. Does '
         'not affect get_provider_state (current state is unchanged).',

@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **MCP: tools now declare annotations.** The five read tools
+  (`list_riverpod_apps`, `get_riverpod_logs`, `get_provider_state`,
+  `get_dependency_graph`, `get_provider_stats`) are marked `readOnlyHint`, so
+  MCP clients can auto-approve them instead of prompting on every call. The
+  tools that change the app or discard history (`invalidate_provider`,
+  `set_provider_value`, `clear_riverpod_logs`) are marked non-read-only,
+  destructive and idempotent. All are `openWorldHint: false` (they only talk
+  to the local app). Annotations are advisory hints; behavior is unchanged.
 - **Fix: MCP tools now report failures as errors.** The MCP server relayed
   every app response as a successful tool result, so an AI could not tell a
   failed call from a good one: invalid `limit`/`since`/`until` (HTTP 400) and
