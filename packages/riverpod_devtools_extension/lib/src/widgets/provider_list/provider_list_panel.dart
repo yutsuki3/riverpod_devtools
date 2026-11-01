@@ -251,6 +251,7 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                     height: 24,
                     child: state.providerSearchQuery.isNotEmpty
                         ? IconButton(
+                            tooltip: 'Clear search',
                             icon: Icon(
                               Icons.clear,
                               size: 14,
