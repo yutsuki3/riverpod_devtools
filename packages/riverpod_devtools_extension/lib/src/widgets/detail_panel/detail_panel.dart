@@ -9,6 +9,8 @@ import '../../providers/inspector_notifier.dart';
 import '../common/error_details.dart';
 import '../common/json_tree_view.dart';
 import '../common/copy_button.dart';
+import '../common/copy_for_ai_button.dart';
+import '../../utils/provider_brief.dart';
 import '../common/panel_ui.dart';
 
 class DetailPanel extends StatelessWidget {
@@ -179,14 +181,29 @@ class DetailPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SelectableText(
-                  provider.name,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.2,
-                    color: theme.colorScheme.onSurface,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: SelectableText(
+                        provider.name,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    CopyForAiButton(
+                      textBuilder: () => buildProviderBrief(
+                        provider,
+                        usedBy: notifier.getUsedBy(provider.name),
+                        events: notifier.eventsFor(provider.name),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 _ProviderCommandBar(

@@ -1,5 +1,14 @@
 ## Unreleased
 
+- **DevTools: "Copy for AI" button in the provider detail panel.** Pasting a
+  provider's situation into an AI chat meant copying the value, error,
+  dependencies and recent events one by one. The button next to the provider
+  name copies them as one short Markdown brief: status, current value
+  (unwrapped to plain JSON and cut at 1500 chars, flagged when truncated),
+  the error with the top of its stack trace, what it depends on / is used by
+  (or why that data is unavailable), and the latest 5 events with their
+  `seq` and trigger. The brief is built when you click, so it reflects the
+  live state.
 - **MCP: `get_riverpod_logs` can poll incrementally with `sinceSeq`, and
   reports lost events.** Events already carry a monotonic `seq`, but the only
   time filter was epoch-ms `since`, so following a running app meant

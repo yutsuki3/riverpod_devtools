@@ -518,6 +518,10 @@ class InspectorNotifier extends ChangeNotifier {
   List<ProviderStats> get providerStats =>
       _providerStatsCache ??= computeProviderStats(_state.events);
 
+  /// Events for [providerName], newest first (empty when none).
+  List<ProviderEvent> eventsFor(String providerName) =>
+      _eventsByProvider[providerName] ?? const [];
+
   /// The most recent event for [providerName], if any (O(1) lookup).
   ProviderEvent? latestEventFor(String providerName) {
     final events = _eventsByProvider[providerName];
