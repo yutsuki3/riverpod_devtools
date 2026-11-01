@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **DevTools: keyboard navigation in the provider list.** The list was
+  mouse-only. With the list or search field focused: `↑`/`↓` move the
+  selection (skipping family headers and collapsed instances, scrolling the
+  row into view, works on the filtered list and from inside the search
+  field), `/` jumps to the search field, and `Esc` clears the search first and
+  then the selection. A mouse click on a row keeps keyboard focus on the list,
+  and the footer hint lists the keys.
 - **DevTools: "Copy for AI" button in the provider detail panel.** Pasting a
   provider's situation into an AI chat meant copying the value, error,
   dependencies and recent events one by one. The button next to the provider

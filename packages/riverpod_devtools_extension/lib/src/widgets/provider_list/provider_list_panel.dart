@@ -21,6 +21,15 @@ class ProviderListPanel extends StatefulWidget {
 
 class _ProviderListPanelState extends State<ProviderListPanel> {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+
+  /// Receives arrow / Esc / `/` keys for the whole panel. Tapping a tile
+  /// moves focus here so the keyboard keeps working after a mouse click.
+  final FocusNode _panelFocus = FocusNode(debugLabel: 'provider list');
+
+  /// Keys of the rows currently built, used to scroll a keyboard-selected
+  /// provider into view.
+  final Map<String, GlobalKey> _tileKeys = {};
 
   /// Family names whose instances are currently collapsed (hidden). Kept
   /// in local state — it survives the ListenableBuilder rebuilds that fire
@@ -36,7 +45,89 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
+    _panelFocus.dispose();
     super.dispose();
+  }
+
+  /// Visible provider rows in display order (collapsed family instances and
+  /// family headers are skipped).
+  List<String> _visibleProviderNames() => [
+        for (final row in _buildRows(widget.notifier.filteredProviders))
+          if (row.provider != null) row.provider!.name,
+      ];
+
+  /// Moves the single selection one row up/down; from no selection, Down
+  /// picks the first row and Up the last.
+  void _moveSelection(int delta) {
+    final names = _visibleProviderNames();
+    if (names.isEmpty) return;
+    final selected = widget.notifier.state.selectedProviderNames;
+    final current =
+        selected.isEmpty ? -1 : names.lastIndexWhere(selected.contains);
+    final int next;
+    if (current == -1) {
+      next = delta > 0 ? 0 : names.length - 1;
+    } else {
+      next = (current + delta).clamp(0, names.length - 1);
+    }
+    // selectOnly() toggles a lone selection off (click semantics); at the
+    // ends of the list the arrow must instead stay put.
+    if (selected.length == 1 && selected.first == names[next]) return;
+    widget.notifier.selectOnly(names[next]);
+    _scrollIntoView(names[next], next, names.length);
+  }
+
+  void _scrollIntoView(String name, int index, int count) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final context = _tileKeys[name]?.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(context, alignment: 0.5);
+        return;
+      }
+      // Not built yet (far off-screen): jump near it, then settle exactly.
+      if (!widget.scrollController.hasClients || count < 2) return;
+      final max = widget.scrollController.position.maxScrollExtent;
+      widget.scrollController.jumpTo(max * index / (count - 1));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final built = _tileKeys[name]?.currentContext;
+        if (mounted && built != null) {
+          Scrollable.ensureVisible(built, alignment: 0.5);
+        }
+      });
+    });
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      _moveSelection(1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      _moveSelection(-1);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      if (widget.notifier.state.providerSearchQuery.isNotEmpty) {
+        _searchController.clear();
+        widget.notifier.updateSearchQuery('');
+      } else if (widget.notifier.state.selectedProviderNames.isNotEmpty) {
+        widget.notifier.clearSelection();
+      } else {
+        return KeyEventResult.ignored;
+      }
+      _panelFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
+    // "/" jumps to search, but must stay typeable inside the search field.
+    if (key == LogicalKeyboardKey.slash && !_searchFocus.hasFocus) {
+      _searchFocus.requestFocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   /// Applies the click-selection rules used by both standalone tiles and
@@ -45,6 +136,7 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   /// Reads the notifier's *current* state so the outcome cannot depend on
   /// how long ago the surrounding widget was built.
   void _handleSelect(String name, bool isCtrlOrCmd) {
+    _panelFocus.requestFocus();
     if (isCtrlOrCmd) {
       if (widget.notifier.state.selectedProviderNames.contains(name)) {
         widget.notifier.removeSelectedProvider(name);
@@ -90,7 +182,13 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Focus(
+        focusNode: _panelFocus,
+        onKeyEvent: _handleKey,
+        child: _buildPanel(context),
+      );
+
+  Widget _buildPanel(BuildContext context) {
     final theme = Theme.of(context);
 
     return ListenableBuilder(
@@ -124,12 +222,13 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
               child: TextField(
                 controller: _searchController,
+                focusNode: _searchFocus,
                 onChanged: (value) {
                   widget.notifier.updateSearchQuery(value);
                 },
                 style: const TextStyle(fontSize: 11),
                 decoration: InputDecoration(
-                  hintText: 'Search providers...',
+                  hintText: 'Search providers...  ( / )',
                   hintStyle: TextStyle(
                     fontSize: 11,
                     color: theme.colorScheme.onSurfaceVariant
@@ -244,6 +343,8 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                                   final isSelected = state.selectedProviderNames
                                       .contains(provider.name);
                                   return _ProviderListTile(
+                                    key: _tileKeys.putIfAbsent(
+                                        provider.name, () => GlobalKey()),
                                     provider: provider,
                                     stats: statsByProvider[provider.name],
                                     isSelected: isSelected,
@@ -283,7 +384,7 @@ class _ProviderListPanelState extends State<ProviderListPanel> {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      'Ctrl/Cmd+Click for multi-selection',
+                      'Ctrl/Cmd+Click multi-select · ↑↓ move · / search · Esc clear',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -386,6 +487,7 @@ class _ProviderListTile extends StatefulWidget {
   final void Function(bool isCtrlOrCmd) onSelect;
 
   const _ProviderListTile({
+    super.key,
     required this.provider,
     required this.stats,
     required this.isSelected,
