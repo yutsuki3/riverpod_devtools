@@ -267,4 +267,53 @@ void main() {
     final result = observer.executeCommand('set', 'nopeProvider', 1);
     expect(result['status'], 'error');
   });
+
+  testWidgets(
+      'a refresh that rebuilds to an equal value keeps the provider in the '
+      'snapshot (Riverpod emits no update for it)', (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final counter = NotifierProvider(CounterNotifier.new, name: 'counter');
+    container.listen(counter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final result = observer.executeCommand('refresh', 'counter');
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(result['status'], 'ok');
+    final names = observer.providerSnapshotForTesting.map((e) => e['provider']);
+    expect(names, contains('counter'));
+  });
+
+  testWidgets(
+      'an autoDispose provider that loses its listener leaves the snapshot',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+    addTearDown(container.dispose);
+
+    final auto = Provider.autoDispose<int>((ref) => 1, name: 'auto');
+    container.listen(auto, (_, __) {}).close();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final names = observer.providerSnapshotForTesting.map((e) => e['provider']);
+    expect(names, isNot(contains('auto')));
+  });
+
+  testWidgets('disposing the container removes its providers from the snapshot',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+
+    final counter = NotifierProvider(CounterNotifier.new, name: 'counter');
+    container.listen(counter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(observer.providerSnapshotForTesting, isNotEmpty);
+
+    container.dispose();
+
+    expect(observer.providerSnapshotForTesting, isEmpty);
+  });
 }

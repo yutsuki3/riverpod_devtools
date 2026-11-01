@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Fix: MCP no longer loses a provider after `refresh` / `invalidate`.**
+  Riverpod disposes a provider's state on `refresh`/`invalidate` and, when the
+  rebuild yields an equal value, sends no update afterwards. The snapshot
+  dropped the provider on the dispose and never got it back, so
+  `get_provider_state` returned `[]` for a live provider until its next
+  change. A disposal caused by an `invalidate_provider` command now keeps the
+  provider's snapshot entry; real removals (an `autoDispose` provider losing
+  its last listener, a disposed container) still drop it.
 - **DevTools: tooltips on the two icon-only buttons.** The search-clear (✕)
   button and the diff dialog's close button had no label for hover or screen
   readers; they now read "Clear search" and "Close".

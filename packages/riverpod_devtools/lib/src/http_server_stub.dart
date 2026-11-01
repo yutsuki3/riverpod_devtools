@@ -5,8 +5,12 @@ class RiverpodDevToolsHttpServer {
   int? get boundPort => null;
   Future<void> start() async {}
   void stop() {}
-  void addEvent(Map<String, Object?> event) {}
+  void addEvent(
+    Map<String, Object?> event, {
+    bool isStateReset = false,
+  }) {}
   void clearEvents() {}
+  List<Map<String, Object?>> providerSnapshot({String? provider}) => const [];
   int? get oldestSeq => null;
   List<Map<String, Object?>> eventsFor({
     String? provider,
