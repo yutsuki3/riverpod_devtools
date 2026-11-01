@@ -119,7 +119,8 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'state bugs, unexpected rebuilds, or provider errors. Each event has '
         'a monotonic "seq"; updated events may carry "triggeredBy" (the '
         'inferred dependency change that caused the rebuild). Buffer holds '
-        'up to 1000 events — narrow with the filters below.',
+        'up to 1000 events — narrow with the filters below. To follow along, '
+        'poll with "sinceSeq" = the highest seq you have seen.',
     inputSchema: Schema.object(
       properties: {
         'port': _portProperty,
@@ -135,6 +136,12 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
           description:
               'Only this kind: provider_added / provider_updated / '
               'provider_failed / provider_disposed (failed = errors only).',
+        ),
+        'sinceSeq': Schema.int(
+          description:
+              'Only events with seq greater than this — pass the highest '
+              'seq you already saw to fetch just what is new. If events in '
+              'between were evicted/cleared, a note says so.',
         ),
         'since': Schema.int(
           description: 'Only events at/after this epoch-ms time.',
@@ -318,15 +325,23 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         'provider': provider,
       if (arguments['type'] case final String type when type.isNotEmpty)
         'type': type,
+      if (coerceInt(arguments['sinceSeq']) case final int sinceSeq)
+        'sinceSeq': '$sinceSeq',
       if (coerceInt(arguments['since']) case final int since) 'since': '$since',
       if (coerceInt(arguments['until']) case final int until) 'until': '$until',
     };
     final view = arguments['view'] as String? ?? 'compact';
-    return _request(
+    int? oldestSeq;
+    final result = await _request(
       port!,
       'GET',
       '/logs',
       queryParameters: queryParameters,
+      onHeaders:
+          (headers) =>
+              oldestSeq = int.tryParse(
+                headers.value('x-riverpod-oldest-seq') ?? '',
+              ),
       (body) => _reshaped(body, (decoded) {
         if (decoded is! List) return decoded; // error/unknown shape
         return switch (view) {
@@ -335,6 +350,13 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
           _ => compactEvents(decoded),
         };
       }),
+    );
+    // The event list stays a plain JSON array; a lost-events warning rides
+    // along as a second text block so existing parsing is unaffected.
+    final note = logsGapNote(coerceInt(arguments['sinceSeq']), oldestSeq);
+    if (note == null || result.isError == true) return result;
+    return CallToolResult(
+      content: [...result.content, TextContent(text: note)],
     );
   }
 
@@ -578,6 +600,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     CallToolResult Function(String body) onSuccess, {
     Map<String, String> queryParameters = const {},
     String? body,
+    void Function(io.HttpHeaders headers)? onHeaders,
   }) async {
     try {
       final client = io.HttpClient();
@@ -616,6 +639,7 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
             isError: true,
           );
         }
+        onHeaders?.call(response.headers);
         return onSuccess(responseBody);
       } finally {
         client.close();

@@ -1,5 +1,16 @@
 ## Unreleased
 
+- **MCP: `get_riverpod_logs` can poll incrementally with `sinceSeq`, and
+  reports lost events.** Events already carry a monotonic `seq`, but the only
+  time filter was epoch-ms `since`, so following a running app meant
+  re-reading (and re-paying tokens for) overlapping windows. `sinceSeq`
+  returns only events with a higher `seq`. Because the buffer is capped at
+  1000 events (and `clear_riverpod_logs` empties it), a poll can silently
+  miss events; when the events between `sinceSeq` and the oldest buffered one
+  are gone, the result now carries an extra `Note:` text block with the count.
+  The event list itself is still a plain JSON array, and the app reports the
+  oldest buffered `seq` in an `x-riverpod-oldest-seq` response header, so
+  existing consumers are unaffected.
 - **MCP: clearer "app not found" errors and setup docs for more AI tools.**
   The "no app found" / "cannot connect" tool errors now also say that an
   Android emulator/device or a real iOS device needs its port forwarded
