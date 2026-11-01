@@ -141,7 +141,8 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
           description:
               'Only events with seq greater than this — pass the highest '
               'seq you already saw to fetch just what is new. If events in '
-              'between were evicted/cleared, a note says so.',
+              'between were evicted/cleared, or cut off by "limit" (which '
+              'keeps the most recent), a note says so.',
         ),
         'since': Schema.int(
           description: 'Only events at/after this epoch-ms time.',
@@ -332,16 +333,18 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     };
     final view = arguments['view'] as String? ?? 'compact';
     int? oldestSeq;
+    int? omittedByLimit;
     final result = await _request(
       port!,
       'GET',
       '/logs',
       queryParameters: queryParameters,
-      onHeaders:
-          (headers) =>
-              oldestSeq = int.tryParse(
-                headers.value('x-riverpod-oldest-seq') ?? '',
-              ),
+      onHeaders: (headers) {
+        oldestSeq = int.tryParse(headers.value('x-riverpod-oldest-seq') ?? '');
+        omittedByLimit = int.tryParse(
+          headers.value('x-riverpod-omitted-by-limit') ?? '',
+        );
+      },
       (body) => _reshaped(body, (decoded) {
         if (decoded is! List) return decoded; // error/unknown shape
         return switch (view) {
@@ -353,10 +356,17 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
     );
     // The event list stays a plain JSON array; a lost-events warning rides
     // along as a second text block so existing parsing is unaffected.
-    final note = logsGapNote(coerceInt(arguments['sinceSeq']), oldestSeq);
-    if (note == null || result.isError == true) return result;
+    final sinceSeq = coerceInt(arguments['sinceSeq']);
+    final notes = [
+      logsGapNote(sinceSeq, oldestSeq),
+      logsOmittedNote(sinceSeq, omittedByLimit),
+    ].whereType<String>();
+    if (notes.isEmpty || result.isError == true) return result;
     return CallToolResult(
-      content: [...result.content, TextContent(text: note)],
+      content: [
+        ...result.content,
+        for (final note in notes) TextContent(text: note),
+      ],
     );
   }
 

@@ -241,6 +241,28 @@ class RiverpodDevToolsHttpServer {
     return _buffer.skip(_buffer.length - limit).toList(growable: false);
   }
 
+  /// How many events matching these filters were left out because of
+  /// [limit] (which keeps only the most recent ones). 0 when nothing was cut.
+  int omittedByLimit({
+    String? provider,
+    String? type,
+    int? limit,
+    int? since,
+    int? until,
+    int? sinceSeq,
+  }) {
+    if (limit == null) return 0;
+    final matching = eventsFor(
+      provider: provider,
+      type: type,
+      since: since,
+      until: until,
+      sinceSeq: sinceSeq,
+    ).length;
+    final omitted = matching - (limit < 0 ? 0 : limit);
+    return omitted > 0 ? omitted : 0;
+  }
+
   Future<void> _handleRequest(HttpRequest request) async {
     try {
       if (request.method == 'GET' && request.uri.path == '/ping') {
@@ -305,12 +327,27 @@ class RiverpodDevToolsHttpServer {
           until: until,
           sinceSeq: sinceSeq,
         );
+        // A `sinceSeq` poll that `limit` cut short would otherwise skip the
+        // older events silently; report how many.
+        final omitted = sinceSeq == null
+            ? 0
+            : omittedByLimit(
+                provider: params['provider'],
+                type: params['type'],
+                limit: limit,
+                since: since,
+                until: until,
+                sinceSeq: sinceSeq,
+              );
         await _writeJson(
           request,
           events,
-          // Lets the MCP side flag events lost to eviction/clear without
-          // changing the response body (a plain event list).
-          headers: {'x-riverpod-oldest-seq': '${oldestSeq ?? ''}'},
+          // Lets the MCP side flag events lost to eviction/clear (or cut by
+          // `limit`) without changing the response body (a plain event list).
+          headers: {
+            'x-riverpod-oldest-seq': '${oldestSeq ?? ''}',
+            if (omitted > 0) 'x-riverpod-omitted-by-limit': '$omitted',
+          },
         );
       } else if (request.method == 'GET' && request.uri.path == '/providers') {
         final snapshot = providerSnapshot(

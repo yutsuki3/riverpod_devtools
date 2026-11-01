@@ -392,3 +392,14 @@ String? logsGapNote(int? sinceSeq, int? oldestSeq) {
       'seq $oldestSeq. State derived from these logs may be incomplete — use '
       'get_provider_state for current values.';
 }
+
+/// Warning for a `sinceSeq` poll whose `limit` cut off older events, or null
+/// when nothing was cut. [omitted] is the app's count of matching events that
+/// `limit` left out; they sit between `sinceSeq` and the first returned event,
+/// so a caller advancing `sinceSeq` to the highest seq it saw would skip them.
+String? logsOmittedNote(int? sinceSeq, int? omitted) {
+  if (sinceSeq == null || omitted == null || omitted <= 0) return null;
+  return 'Note: $omitted older event(s) after seq $sinceSeq were left out by '
+      '"limit" (it keeps the most recent). Raise "limit" or poll more often to '
+      'see them; advancing "sinceSeq" past this result skips them.';
+}

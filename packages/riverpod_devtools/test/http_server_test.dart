@@ -166,6 +166,21 @@ void main() {
           [4, 5]);
     });
 
+    test('omittedByLimit counts matching events that limit cut off', () {
+      final server = RiverpodDevToolsHttpServer();
+      for (var seq = 1; seq <= 5; seq++) {
+        server.addEvent({'type': 'provider_updated', 'provider': 'a', 'seq': seq});
+      }
+      server.addEvent({'type': 'provider_updated', 'provider': 'b', 'seq': 6});
+
+      // sinceSeq 1 -> seqs 2..6 match; limit 2 keeps the newest two.
+      expect(server.omittedByLimit(sinceSeq: 1, limit: 2), 3);
+      expect(server.omittedByLimit(sinceSeq: 1, limit: 5), 0);
+      expect(server.omittedByLimit(sinceSeq: 1), 0, reason: 'no limit');
+      // Filters count too: only provider "a" events (2..5) are candidates.
+      expect(server.omittedByLimit(sinceSeq: 1, limit: 2, provider: 'a'), 2);
+    });
+
     test('events without a seq are excluded by sinceSeq', () {
       final server = RiverpodDevToolsHttpServer();
       server.addEvent(event('a', 0)); // no seq
