@@ -559,6 +559,7 @@ class _DiffDialogState extends State<_DiffDialog> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Close',
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () => Navigator.of(context).pop(),
                   ),

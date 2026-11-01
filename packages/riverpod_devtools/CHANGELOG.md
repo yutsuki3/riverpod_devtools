@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **DevTools: tooltips on the two icon-only buttons.** The search-clear (✕)
+  button and the diff dialog's close button had no label for hover or screen
+  readers; they now read "Clear search" and "Close".
 - **DevTools: keyboard navigation in the provider list.** The list was
   mouse-only. With the list or search field focused: `↑`/`↓` move the
   selection (skipping family headers and collapsed instances, scrolling the
