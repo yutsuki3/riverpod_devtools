@@ -1,5 +1,10 @@
 ## Unreleased
 
+- **DevTools: "Copy for AI" says how to fix a failed dependency load.** When
+  `riverpod_dependencies.json` failed to load, the brief gave only the parse
+  error, unlike the other "unavailable" cases. It now also says to regenerate
+  the file with `dart run riverpod_devtools:analyze` and hot-restart, matching
+  the in-app hint.
 - **Fix: a `sinceSeq` poll cut short by `limit` now says so.** `limit` keeps
   the most recent events, so `sinceSeq` + `limit` returned only the newest
   ones and the older events in between were skipped with no warning — an AI

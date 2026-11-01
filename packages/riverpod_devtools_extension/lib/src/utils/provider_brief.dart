@@ -62,7 +62,8 @@ String buildProviderBrief(
         ..writeln('- Used by: ${_list(usedBy)}');
     case DependencySource.loadError:
       out.writeln('- Unavailable: riverpod_dependencies.json failed to load '
-          '(${provider.dependenciesLoadError ?? 'unknown error'}).');
+          '(${provider.dependenciesLoadError ?? 'unknown error'}); regenerate '
+          'it with `dart run riverpod_devtools:analyze` and hot-restart.');
     case DependencySource.nameMismatch:
       out.writeln('- Unavailable: no static data matches this provider name '
           '(re-run `dart run riverpod_devtools:analyze`).');

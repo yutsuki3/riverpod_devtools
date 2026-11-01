@@ -138,6 +138,9 @@ void main() {
           events: const [],
         );
         expect(text, contains(needle), reason: '$source');
+        // Every unavailable case tells the reader how to get the data back.
+        expect(text, contains('dart run riverpod_devtools:analyze'),
+            reason: '$source');
         expect(text, isNot(contains('Depends on: none')), reason: '$source');
       }
     });
