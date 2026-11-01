@@ -15,7 +15,6 @@ import '../common/panel_ui.dart';
 
 class DetailPanel extends StatelessWidget {
   final InspectorNotifier notifier;
-  final VoidCallback? onProviderJump;
 
   /// Hint shown when no provider is selected. The default matches the
   /// Inspector view; the Graph view passes its own wording since there is
@@ -25,7 +24,6 @@ class DetailPanel extends StatelessWidget {
   const DetailPanel({
     super.key,
     required this.notifier,
-    this.onProviderJump,
     this.noSelectionHint = 'Pick a provider from the list on the left',
   });
 
@@ -532,7 +530,6 @@ class DetailPanel extends StatelessWidget {
                       }
                       if (wasNotSelected) {
                         notifier.flashProvider(name);
-                        onProviderJump?.call();
                       }
                     },
                     borderRadius: BorderRadius.circular(999),
