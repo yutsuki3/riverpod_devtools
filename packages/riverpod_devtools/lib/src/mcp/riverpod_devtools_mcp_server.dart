@@ -8,6 +8,7 @@ import '../mcp_constants.dart';
 import '../utils/coerce_int.dart';
 import 'app_discovery_cache.dart';
 import 'compact.dart';
+import 'response_status.dart';
 
 base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   RiverpodDevToolsMcpServer(super.channel)
@@ -564,6 +565,21 @@ base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
         }
         final response = await req.close();
         final responseBody = await response.transform(utf8.decoder).join();
+        if (isFailedResponse(response.statusCode, responseBody)) {
+          // Pass the body through untouched: it names the cause and, for an
+          // ambiguous provider, the candidate instanceIds.
+          return CallToolResult(
+            content: [
+              TextContent(
+                text:
+                    responseBody.isEmpty
+                        ? 'The app answered HTTP ${response.statusCode}.'
+                        : responseBody,
+              ),
+            ],
+            isError: true,
+          );
+        }
         return onSuccess(responseBody);
       } finally {
         client.close();

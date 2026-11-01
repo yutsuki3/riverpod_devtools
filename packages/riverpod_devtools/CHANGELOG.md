@@ -1,5 +1,13 @@
 ## Unreleased
 
+- **Fix: MCP tools now report failures as errors.** The MCP server relayed
+  every app response as a successful tool result, so an AI could not tell a
+  failed call from a good one: invalid `limit`/`since`/`until` (HTTP 400) and
+  commands answered with `status: "error"` (unknown or ambiguous provider,
+  unsupported `set`, ...) all came back with `isError: false`. Both HTTP
+  4xx/5xx and `status: "error"` bodies now set `isError: true`; the body is
+  passed through unchanged, so the cause and any `ambiguous` candidate
+  `instanceId`s still reach the caller. The app's HTTP responses are unchanged.
 - **Fix: `dart run riverpod_devtools:analyze` writes project-relative file
   paths.** `riverpod_dependencies.json` recorded every `location.file` as an
   absolute path of the machine that ran the analyzer, so the generated file
