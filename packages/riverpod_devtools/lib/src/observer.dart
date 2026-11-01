@@ -372,6 +372,11 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   List<Map<String, Object?>> get bufferedEventsForTesting =>
       _httpServer.eventsFor();
 
+  /// The current-state snapshot served to MCP, exposed for tests.
+  @visibleForTesting
+  List<Map<String, Object?>> get providerSnapshotForTesting =>
+      _httpServer.providerSnapshot();
+
   /// Whether any consumer can observe events right now.
   ///
   /// In debug mode the local HTTP buffer (MCP) always needs events. Outside
@@ -483,9 +488,28 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // to the extension via the event below, which disables the buttons for
     // genuinely-disposed providers.
 
-    _postEvent('provider_disposed', {
-      ..._buildProviderEventData(provider, id, instanceId),
-    });
+    _postEvent(
+      'provider_disposed',
+      {..._buildProviderEventData(provider, id, instanceId)},
+      providerStillExists: _elementStillExists(context, provider, arg2),
+    );
+  }
+
+  /// Whether [provider]'s element is still in its container. A disposal that
+  /// leaves it there is a state reset (`invalidate` / `refresh`); one that
+  /// removes it (an `autoDispose` provider losing its last listener) is real.
+  bool _elementStillExists(
+    Object context,
+    dynamic provider,
+    Object? legacyArg,
+  ) {
+    try {
+      final dynamic container = _getContainer(context, legacyArg);
+      // ignore: avoid_dynamic_calls
+      return container?.exists(provider) == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Caches the API probe result: true once `context.provider` has succeeded
@@ -634,10 +658,17 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     };
   }
 
-  void _postEvent(String kind, Map<String, Object?> data) {
+  void _postEvent(
+    String kind,
+    Map<String, Object?> data, {
+    bool providerStillExists = false,
+  }) {
     developer.postEvent('riverpod:$kind', data);
     if (kDebugMode) {
-      _httpServer.addEvent({'type': kind, ...data});
+      _httpServer.addEvent(
+        {'type': kind, ...data},
+        providerStillExists: providerStillExists,
+      );
     }
   }
 }

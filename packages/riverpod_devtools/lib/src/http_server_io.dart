@@ -88,15 +88,26 @@ class RiverpodDevToolsHttpServer {
     _server = null;
   }
 
-  void addEvent(Map<String, Object?> event) {
+  /// [providerStillExists] only matters for `provider_disposed`: the
+  /// provider's element is still in its container, so the disposal was a state
+  /// reset (`invalidate` / `refresh`) rather than a removal. Riverpod sends no
+  /// update when the rebuild yields an equal value, so the snapshot entry is
+  /// kept instead of waiting for an event that never comes.
+  void addEvent(
+    Map<String, Object?> event, {
+    bool providerStillExists = false,
+  }) {
     if (_buffer.length >= _maxBufferSize) {
       _buffer.removeFirst();
     }
     _buffer.add(event);
-    _updateSnapshot(event);
+    _updateSnapshot(event, providerStillExists: providerStillExists);
   }
 
-  void _updateSnapshot(Map<String, Object?> event) {
+  void _updateSnapshot(
+    Map<String, Object?> event, {
+    required bool providerStillExists,
+  }) {
     final provider = event['provider'];
     if (provider is! String) return;
     // Key the snapshot by the stable, session-unique instanceId — NOT the
@@ -133,7 +144,7 @@ class RiverpodDevToolsHttpServer {
           _providerSnapshot[key]?['value'],
         )..['error'] = event['error'];
       case 'provider_disposed':
-        _providerSnapshot.remove(key);
+        if (!providerStillExists) _providerSnapshot.remove(key);
     }
   }
 
