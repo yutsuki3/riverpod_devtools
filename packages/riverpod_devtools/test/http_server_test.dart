@@ -269,6 +269,17 @@ void main() {
       expect(server.providerSnapshot(provider: 'a'), isEmpty);
     });
 
+    test('keeps a provider whose disposal is a command-driven state reset', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(lifecycleEvent('provider_added', 'a', value: 1));
+      server.addEvent(
+        lifecycleEvent('provider_disposed', 'a'),
+        isStateReset: true,
+      );
+
+      expect(server.providerSnapshot().single['value'], 1);
+    });
+
     test('filters by provider name and sorts the full snapshot', () {
       final server = RiverpodDevToolsHttpServer();
       server.addEvent(lifecycleEvent('provider_added', 'b', value: 2));

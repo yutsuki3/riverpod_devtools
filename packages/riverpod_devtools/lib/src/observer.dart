@@ -244,6 +244,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     try {
       final dynamic container = entry.container;
       final dynamic provider = entry.provider;
+      _commandResetUntil[resolved.id] =
+          DateTime.now().millisecondsSinceEpoch + _commandResetGraceMs;
       // ignore: avoid_dynamic_calls
       container.invalidate(provider);
       if (action == 'refresh') {
@@ -366,11 +368,32 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
 
   final UpdateTriggerTracker _triggerTracker = UpdateTriggerTracker();
 
+  /// How long after an `invalidate` / `refresh` command its target's
+  /// `provider_disposed` still counts as a state reset, not a removal.
+  /// Invalidation of a watched provider disposes it asynchronously.
+  static const _commandResetGraceMs = 1000;
+
+  /// instanceId -> epoch ms until which a disposal is a command-driven reset.
+  final Map<String, int> _commandResetUntil = {};
+
+  bool _isCommandReset(String instanceId) {
+    final until = _commandResetUntil[instanceId];
+    if (until == null) return false;
+    if (DateTime.now().millisecondsSinceEpoch <= until) return true;
+    _commandResetUntil.remove(instanceId);
+    return false;
+  }
+
   /// The events buffered for the local MCP endpoint, exposed so tests can
   /// assert on posted payloads (developer.postEvent is not interceptable).
   @visibleForTesting
   List<Map<String, Object?>> get bufferedEventsForTesting =>
       _httpServer.eventsFor();
+
+  /// The current-state snapshot served to MCP, exposed for tests.
+  @visibleForTesting
+  List<Map<String, Object?>> get providerSnapshotForTesting =>
+      _httpServer.providerSnapshot();
 
   /// Whether any consumer can observe events right now.
   ///
@@ -483,9 +506,11 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     // to the extension via the event below, which disables the buttons for
     // genuinely-disposed providers.
 
-    _postEvent('provider_disposed', {
-      ..._buildProviderEventData(provider, id, instanceId),
-    });
+    _postEvent(
+      'provider_disposed',
+      {..._buildProviderEventData(provider, id, instanceId)},
+      isStateReset: instanceId != null && _isCommandReset(instanceId),
+    );
   }
 
   /// Caches the API probe result: true once `context.provider` has succeeded
@@ -634,10 +659,17 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     };
   }
 
-  void _postEvent(String kind, Map<String, Object?> data) {
+  void _postEvent(
+    String kind,
+    Map<String, Object?> data, {
+    bool isStateReset = false,
+  }) {
     developer.postEvent('riverpod:$kind', data);
     if (kDebugMode) {
-      _httpServer.addEvent({'type': kind, ...data});
+      _httpServer.addEvent(
+        {'type': kind, ...data},
+        isStateReset: isStateReset,
+      );
     }
   }
 }
