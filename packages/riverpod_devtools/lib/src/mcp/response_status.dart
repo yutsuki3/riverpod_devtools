@@ -13,6 +13,6 @@ bool isFailedResponse(int statusCode, String body) {
     final decoded = jsonDecode(body);
     return decoded is Map && decoded['status'] == 'error';
   } catch (_) {
-    return false; // Not JSON (e.g. a log list is JSON, plain text is not).
+    return false; // Not JSON (a plain-text body): nothing says it failed.
   }
 }
