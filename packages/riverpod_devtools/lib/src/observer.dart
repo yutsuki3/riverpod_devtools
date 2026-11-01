@@ -244,6 +244,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     try {
       final dynamic container = entry.container;
       final dynamic provider = entry.provider;
+      _commandResetUntil[resolved.id] =
+          DateTime.now().millisecondsSinceEpoch + _commandResetGraceMs;
       // ignore: avoid_dynamic_calls
       container.invalidate(provider);
       if (action == 'refresh') {
@@ -365,6 +367,22 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   int _eventSeq = 0;
 
   final UpdateTriggerTracker _triggerTracker = UpdateTriggerTracker();
+
+  /// How long after an `invalidate` / `refresh` command its target's
+  /// `provider_disposed` still counts as a state reset, not a removal.
+  /// Invalidation of a watched provider disposes it asynchronously.
+  static const _commandResetGraceMs = 1000;
+
+  /// instanceId -> epoch ms until which a disposal is a command-driven reset.
+  final Map<String, int> _commandResetUntil = {};
+
+  bool _isCommandReset(String instanceId) {
+    final until = _commandResetUntil[instanceId];
+    if (until == null) return false;
+    if (DateTime.now().millisecondsSinceEpoch <= until) return true;
+    _commandResetUntil.remove(instanceId);
+    return false;
+  }
 
   /// The events buffered for the local MCP endpoint, exposed so tests can
   /// assert on posted payloads (developer.postEvent is not interceptable).
@@ -491,25 +509,8 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
     _postEvent(
       'provider_disposed',
       {..._buildProviderEventData(provider, id, instanceId)},
-      providerStillExists: _elementStillExists(context, provider, arg2),
+      isStateReset: instanceId != null && _isCommandReset(instanceId),
     );
-  }
-
-  /// Whether [provider]'s element is still in its container. A disposal that
-  /// leaves it there is a state reset (`invalidate` / `refresh`); one that
-  /// removes it (an `autoDispose` provider losing its last listener) is real.
-  bool _elementStillExists(
-    Object context,
-    dynamic provider,
-    Object? legacyArg,
-  ) {
-    try {
-      final dynamic container = _getContainer(context, legacyArg);
-      // ignore: avoid_dynamic_calls
-      return container?.exists(provider) == true;
-    } catch (_) {
-      return false;
-    }
   }
 
   /// Caches the API probe result: true once `context.provider` has succeeded
@@ -661,13 +662,13 @@ final class RiverpodDevToolsObserver extends ProviderObserver {
   void _postEvent(
     String kind,
     Map<String, Object?> data, {
-    bool providerStillExists = false,
+    bool isStateReset = false,
   }) {
     developer.postEvent('riverpod:$kind', data);
     if (kDebugMode) {
       _httpServer.addEvent(
         {'type': kind, ...data},
-        providerStillExists: providerStillExists,
+        isStateReset: isStateReset,
       );
     }
   }

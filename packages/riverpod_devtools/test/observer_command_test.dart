@@ -301,4 +301,19 @@ void main() {
     final names = observer.providerSnapshotForTesting.map((e) => e['provider']);
     expect(names, isNot(contains('auto')));
   });
+
+  testWidgets('disposing the container removes its providers from the snapshot',
+      (tester) async {
+    final observer = RiverpodDevToolsObserver();
+    final container = ProviderContainer(observers: [observer]);
+
+    final counter = NotifierProvider(CounterNotifier.new, name: 'counter');
+    container.listen(counter, (_, __) {});
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(observer.providerSnapshotForTesting, isNotEmpty);
+
+    container.dispose();
+
+    expect(observer.providerSnapshotForTesting, isEmpty);
+  });
 }

@@ -7,7 +7,7 @@ class RiverpodDevToolsHttpServer {
   void stop() {}
   void addEvent(
     Map<String, Object?> event, {
-    bool providerStillExists = false,
+    bool isStateReset = false,
   }) {}
   void clearEvents() {}
   List<Map<String, Object?>> providerSnapshot({String? provider}) => const [];

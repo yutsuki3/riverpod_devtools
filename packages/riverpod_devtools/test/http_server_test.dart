@@ -254,12 +254,12 @@ void main() {
       expect(server.providerSnapshot(provider: 'a'), isEmpty);
     });
 
-    test('keeps a provider whose disposal left its element in place', () {
+    test('keeps a provider whose disposal is a command-driven state reset', () {
       final server = RiverpodDevToolsHttpServer();
       server.addEvent(lifecycleEvent('provider_added', 'a', value: 1));
       server.addEvent(
         lifecycleEvent('provider_disposed', 'a'),
-        providerStillExists: true,
+        isStateReset: true,
       );
 
       expect(server.providerSnapshot().single['value'], 1);
