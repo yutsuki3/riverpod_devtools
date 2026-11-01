@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **Fix: a `sinceSeq` poll cut short by `limit` now says so.** `limit` keeps
+  the most recent events, so `sinceSeq` + `limit` returned only the newest
+  ones and the older events in between were skipped with no warning — an AI
+  that then advanced `sinceSeq` lost them for good. The app reports how many
+  matching events `limit` left out in an `x-riverpod-omitted-by-limit`
+  response header, and `get_riverpod_logs` adds a `Note:` text block for it
+  (the event list itself is unchanged).
 - **Fix: MCP no longer loses a provider after `refresh` / `invalidate`.**
   Riverpod disposes a provider's state on `refresh`/`invalidate` and, when the
   rebuild yields an equal value, sends no update afterwards. The snapshot

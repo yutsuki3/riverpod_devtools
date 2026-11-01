@@ -414,6 +414,21 @@ class _FakeAsyncData {
 }
 
 void gapNoteTests() {
+  group('logsOmittedNote', () {
+    test('null unless a sinceSeq poll had events cut by limit', () {
+      expect(logsOmittedNote(null, 5), isNull);
+      expect(logsOmittedNote(5, null), isNull);
+      expect(logsOmittedNote(5, 0), isNull);
+    });
+
+    test('counts the cut events and says how to recover them', () {
+      final note = logsOmittedNote(5, 3)!;
+      expect(note, contains('3 older event(s)'));
+      expect(note, contains('after seq 5'));
+      expect(note, contains('"limit"'));
+    });
+  });
+
   group('logsGapNote', () {
     test('null when not polling with sinceSeq or oldest is unknown', () {
       expect(logsGapNote(null, 10), isNull);
