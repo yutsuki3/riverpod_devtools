@@ -15,8 +15,9 @@ import 'response_status.dart';
 /// to this process until it is forwarded.
 const _deviceForwardingHint =
     '4. On an Android emulator/device or a real iOS device, forward the '
-    'port first (adb forward tcp:8788 tcp:8788 / iproxy 8788 8788). Desktop '
-    'apps and the iOS Simulator need no forwarding.';
+    "app's port first (default 8788, or whichever it logged): adb forward "
+    'tcp:8788 tcp:8788 / iproxy 8788 8788. Desktop apps and the iOS '
+    'Simulator need no forwarding.';
 
 base class RiverpodDevToolsMcpServer extends MCPServer with ToolsSupport {
   RiverpodDevToolsMcpServer(super.channel)

@@ -3,9 +3,9 @@
 - **MCP: clearer "app not found" errors and setup docs for more AI tools.**
   The "no app found" / "cannot connect" tool errors now also say that an
   Android emulator/device or a real iOS device needs its port forwarded
-  (`adb forward` / `iproxy`) — the most common reason a running app is
-  invisible to the MCP server — instead of only listing the debug-mode,
-  dependency and observer checks. `MCP.md` gains setup snippets for Cursor,
+  (`adb forward` / `iproxy`) — a setup that leaves a running app invisible to
+  the MCP server — instead of only listing the debug-mode, dependency and
+  observer checks. `MCP.md` gains setup snippets for Cursor,
   VS Code (Copilot), Codex CLI and Gemini CLI (taken from each client's own
   docs), and a short snippet to paste into `CLAUDE.md` / `AGENTS.md` so an AI
   knows which tool to use when.
