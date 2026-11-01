@@ -1,5 +1,12 @@
 ## Unreleased
 
+- **Fix: a `sinceSeq` poll cut short by `limit` now says so.** `limit` keeps
+  the most recent events, so `sinceSeq` + `limit` returned only the newest
+  ones and the older events in between were skipped with no warning — an AI
+  that then advanced `sinceSeq` lost them for good. The app reports how many
+  matching events `limit` left out in an `x-riverpod-omitted-by-limit`
+  response header, and `get_riverpod_logs` adds a `Note:` text block for it
+  (the event list itself is unchanged).
 - **DevTools: tooltips on the two icon-only buttons.** The search-clear (✕)
   button and the diff dialog's close button had no label for hover or screen
   readers; they now read "Clear search" and "Close".
