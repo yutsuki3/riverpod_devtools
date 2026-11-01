@@ -7,10 +7,14 @@ class RiverpodDevToolsHttpServer {
   void stop() {}
   void addEvent(Map<String, Object?> event) {}
   void clearEvents() {}
+  int? get oldestSeq => null;
   List<Map<String, Object?>> eventsFor({
     String? provider,
     String? type,
     int? limit,
+    int? since,
+    int? until,
+    int? sinceSeq,
   }) =>
       const [];
 }

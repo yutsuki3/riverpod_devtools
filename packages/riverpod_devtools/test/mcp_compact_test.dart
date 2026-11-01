@@ -3,6 +3,7 @@ import 'package:riverpod_devtools/src/mcp/compact.dart';
 import 'package:riverpod_devtools/src/utils/serialization.dart';
 
 void main() {
+  gapNoteTests();
   group('compactValue', () {
     test('collapses a serialized scalar to its string form', () {
       expect(compactValue(serializeValue(5)), '5');
@@ -410,4 +411,26 @@ class _BigModel {
 class _FakeAsyncData {
   @override
   String toString() => 'AsyncData<int>(value: 5)';
+}
+
+void gapNoteTests() {
+  group('logsGapNote', () {
+    test('null when not polling with sinceSeq or oldest is unknown', () {
+      expect(logsGapNote(null, 10), isNull);
+      expect(logsGapNote(5, null), isNull);
+    });
+
+    test('null when nothing between sinceSeq and the oldest was lost', () {
+      expect(logsGapNote(9, 10), isNull, reason: 'contiguous');
+      expect(logsGapNote(10, 10), isNull);
+      expect(logsGapNote(20, 10), isNull, reason: 'caller is ahead');
+    });
+
+    test('counts the lost events and names the oldest available seq', () {
+      final note = logsGapNote(5, 10)!;
+      expect(note, contains('4 event(s)'));
+      expect(note, contains('after seq 5'));
+      expect(note, contains('seq 10'));
+    });
+  });
 }

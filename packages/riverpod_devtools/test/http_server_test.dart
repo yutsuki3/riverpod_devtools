@@ -152,6 +152,40 @@ void main() {
       expect(server.eventsFor().length, 2, reason: 'no window keeps both');
     });
 
+    test('eventsFor(sinceSeq) returns only events after that seq', () {
+      final server = RiverpodDevToolsHttpServer();
+      for (var seq = 1; seq <= 5; seq++) {
+        server.addEvent({'type': 'provider_updated', 'provider': 'a', 'seq': seq});
+      }
+
+      expect(server.eventsFor(sinceSeq: 3).map((e) => e['seq']), [4, 5]);
+      expect(server.eventsFor(sinceSeq: 5), isEmpty);
+      expect(server.eventsFor(sinceSeq: 0), hasLength(5));
+      // Composes with limit: the most recent N of the newer events.
+      expect(server.eventsFor(sinceSeq: 1, limit: 2).map((e) => e['seq']),
+          [4, 5]);
+    });
+
+    test('events without a seq are excluded by sinceSeq', () {
+      final server = RiverpodDevToolsHttpServer();
+      server.addEvent(event('a', 0)); // no seq
+      server.addEvent({'type': 'provider_updated', 'provider': 'a', 'seq': 7});
+
+      expect(server.eventsFor(sinceSeq: 0).map((e) => e['seq']), [7]);
+    });
+
+    test('oldestSeq tracks eviction and clearing', () {
+      final server = RiverpodDevToolsHttpServer(maxBufferSize: 3);
+      expect(server.oldestSeq, isNull);
+      for (var seq = 1; seq <= 5; seq++) {
+        server.addEvent({'type': 'provider_updated', 'provider': 'a', 'seq': seq});
+      }
+      expect(server.oldestSeq, 3, reason: 'seq 1 and 2 were evicted');
+
+      server.clearEvents();
+      expect(server.oldestSeq, isNull);
+    });
+
     test('clearEvents empties the buffer', () {
       final server = RiverpodDevToolsHttpServer();
       server.addEvent(event('a', 0));

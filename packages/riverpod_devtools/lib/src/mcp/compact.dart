@@ -377,3 +377,18 @@ int _compareStatInterest(Map<String, Object?> a, Map<String, Object?> b) {
   if (byRate != 0) return byRate;
   return '${a['provider']}'.compareTo('${b['provider']}');
 }
+
+/// Warning for a `sinceSeq` poll that missed events, or null when none were
+/// lost. [oldestSeq] is the oldest `seq` still buffered by the app. Events
+/// with `seq` in `(sinceSeq, oldestSeq)` are gone — evicted by the buffer cap
+/// or dropped by `clear_riverpod_logs` — so the caller's picture of "what
+/// happened since" has a hole.
+String? logsGapNote(int? sinceSeq, int? oldestSeq) {
+  if (sinceSeq == null || oldestSeq == null) return null;
+  final missed = oldestSeq - sinceSeq - 1;
+  if (missed <= 0) return null;
+  return 'Note: $missed event(s) after seq $sinceSeq are no longer buffered '
+      '(evicted by the 1000-event cap or cleared); the oldest available is '
+      'seq $oldestSeq. State derived from these logs may be incomplete — use '
+      'get_provider_state for current values.';
+}

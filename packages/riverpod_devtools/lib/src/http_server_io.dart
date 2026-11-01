@@ -171,9 +171,21 @@ class RiverpodDevToolsHttpServer {
     _buffer.clear();
   }
 
+  /// `seq` of the oldest event still buffered, or null when the buffer is
+  /// empty (or holds no sequenced events). Anything older was evicted by the
+  /// size cap or dropped by [clearEvents]; a client that last saw `seq` N can
+  /// tell it missed events when this is greater than N + 1.
+  int? get oldestSeq {
+    if (_buffer.isEmpty) return null;
+    final seq = _buffer.first['seq'];
+    return seq is int ? seq : null;
+  }
+
   /// Returns buffered events, optionally filtered by provider name, event
   /// [type] (e.g. `provider_failed`), and/or a timestamp window ([since] /
-  /// [until], inclusive, in milliseconds since epoch), truncated to the most
+  /// [until], inclusive, in milliseconds since epoch) and/or to events newer
+  /// than [sinceSeq] (exclusive — pass the last `seq` already seen to fetch
+  /// only what came after it), truncated to the most
   /// recent [limit] entries (chronological order is preserved). A negative
   /// [limit] is treated as 0 (empty result).
   List<Map<String, Object?>> eventsFor({
@@ -182,13 +194,19 @@ class RiverpodDevToolsHttpServer {
     int? limit,
     int? since,
     int? until,
+    int? sinceSeq,
   }) {
     if (limit != null && limit < 0) limit = 0;
     final hasProvider = provider != null && provider.isNotEmpty;
     final hasType = type != null && type.isNotEmpty;
     final hasWindow = since != null || until != null;
-    if (hasProvider || hasType || hasWindow) {
+    final hasSinceSeq = sinceSeq != null;
+    if (hasProvider || hasType || hasWindow || hasSinceSeq) {
       bool matches(Map<String, Object?> event) {
+        if (hasSinceSeq) {
+          final seq = event['seq'];
+          if (seq is! int || seq <= sinceSeq) return false;
+        }
         if (hasProvider && event['provider'] != provider) return false;
         if (hasType && event['type'] != type) return false;
         if (hasWindow) {
@@ -242,22 +260,29 @@ class RiverpodDevToolsHttpServer {
           }
         }
 
-        int? since, until;
-        for (final name in const ['since', 'until']) {
+        int? since, until, sinceSeq;
+        for (final name in const ['since', 'until', 'sinceSeq']) {
           final raw = params[name];
           if (raw == null) continue;
           final parsed = coerceInt(raw);
           if (parsed == null) {
             request.response
               ..statusCode = 400
-              ..write('Invalid "$name": expected epoch milliseconds.');
+              ..write(
+                name == 'sinceSeq'
+                    ? 'Invalid "sinceSeq": expected an integer event seq.'
+                    : 'Invalid "$name": expected epoch milliseconds.',
+              );
             await request.response.close();
             return;
           }
-          if (name == 'since') {
-            since = parsed;
-          } else {
-            until = parsed;
+          switch (name) {
+            case 'since':
+              since = parsed;
+            case 'until':
+              until = parsed;
+            default:
+              sinceSeq = parsed;
           }
         }
 
@@ -267,8 +292,15 @@ class RiverpodDevToolsHttpServer {
           limit: limit,
           since: since,
           until: until,
+          sinceSeq: sinceSeq,
         );
-        await _writeJson(request, events);
+        await _writeJson(
+          request,
+          events,
+          // Lets the MCP side flag events lost to eviction/clear without
+          // changing the response body (a plain event list).
+          headers: {'x-riverpod-oldest-seq': '${oldestSeq ?? ''}'},
+        );
       } else if (request.method == 'GET' && request.uri.path == '/providers') {
         final snapshot = providerSnapshot(
           provider: request.uri.queryParameters['provider'],
@@ -353,12 +385,17 @@ class RiverpodDevToolsHttpServer {
     );
   }
 
-  Future<void> _writeJson(HttpRequest request, Object payload) async {
+  Future<void> _writeJson(
+    HttpRequest request,
+    Object payload, {
+    Map<String, String> headers = const {},
+  }) async {
     final json = jsonEncode(payload, toEncodable: (obj) => obj.toString());
     request.response
       ..statusCode = 200
-      ..headers.contentType = ContentType.json
-      ..write(json);
+      ..headers.contentType = ContentType.json;
+    headers.forEach(request.response.headers.set);
+    request.response.write(json);
     await request.response.close();
   }
 }
