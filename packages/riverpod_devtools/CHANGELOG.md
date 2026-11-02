@@ -1,5 +1,11 @@
 ## Unreleased
 
+- **Fix: package is now WASM / Web compatible on pub.dev.** The observer imported
+  `package:flutter_riverpod`, which pulls in `flutter_test` → `dart:io` and made
+  pana mark the package as not Web/WASM compatible. It now imports
+  `package:riverpod/riverpod.dart` (added as a direct dependency; same
+  `>=2.3.0 <4.0.0` range). Also fixed an unescaped `<primitive>` in a doc comment
+  (`unintended_html_in_doc_comment` lint).
 - **Fix: a `sinceSeq` poll cut short by `limit` now says so.** `limit` keeps
   the most recent events, so `sinceSeq` + `limit` returned only the newest
   ones and the older events in between were skipped with no warning — an AI
