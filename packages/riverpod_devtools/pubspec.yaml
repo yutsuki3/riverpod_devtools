@@ -28,6 +28,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ">=2.3.0 <4.0.0"
+  riverpod: ">=2.3.0 <4.0.0"
   analyzer: ">=6.0.0 <15.0.0"
   path: ^1.9.0
   dart_mcp: ^0.5.1

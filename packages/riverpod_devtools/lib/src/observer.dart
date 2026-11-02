@@ -3,7 +3,7 @@ import 'dart:collection' show HashMap;
 import 'dart:convert' show jsonEncode;
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show kDebugMode, visibleForTesting;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod/riverpod.dart';
 import 'http_server_support.dart';
 import 'static_dependencies.dart';
 import 'trigger_tracker.dart';

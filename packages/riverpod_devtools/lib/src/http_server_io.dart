@@ -384,9 +384,10 @@ class RiverpodDevToolsHttpServer {
     }
   }
 
-  /// `POST /commands` with `{"action": "invalidate"|"refresh"|"set",
-  /// "provider": name, "value"?: <primitive>}`. Always answers 200 with a JSON body
-  /// carrying `status: ok | error` — the MCP server relays the body as-is.
+  /// `POST /commands` with a JSON body of `action` (`invalidate`, `refresh`
+  /// or `set`), `provider` (the name) and, for `set`, an optional primitive
+  /// `value`. Always answers 200 with a JSON body carrying
+  /// `status: ok | error` — the MCP server relays the body as-is.
   Future<void> _handleCommand(HttpRequest request) async {
     final handler = commandHandler;
     if (handler == null) {
